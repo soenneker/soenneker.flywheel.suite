@@ -1,10 +1,12 @@
+using Soenneker.Flywheel.Communication.Enums;
+
 namespace Soenneker.Flywheel.Dashboard;
 
 internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = null)
 {
     public static DashboardRoute Match(string baseRelativePath, string homePath)
     {
-        var path = baseRelativePath.Split('?', '#')[0].TrimEnd('/');
+        string path = baseRelativePath.Split('?', '#')[0].TrimEnd('/');
         if (path.Equals("flywheel", StringComparison.OrdinalIgnoreCase) || (path.Length == 0 && homePath == "/"))
             return new(DashboardPage.Dashboard);
         if (path.Equals("signin", StringComparison.OrdinalIgnoreCase))
@@ -15,10 +17,12 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
             return new(DashboardPage.Scheduled);
         if (path.Equals("flywheel/servers", StringComparison.OrdinalIgnoreCase))
             return new(DashboardPage.Servers);
-        if (TryReadId(path, "jobs/", out var jobId))
+        if (TryReadId(path, "jobs/", out string? jobId))
             return new(DashboardPage.Jobs, jobId);
-        if (TryReadId(path, "flywheel/servers/", out var serverId))
+        if (TryReadId(path, "flywheel/servers/", out string? serverId))
             return new(DashboardPage.ServerDetails, serverId);
+        if (TryReadId(path, "flywheel/recurring/", out string? scheduleId))
+            return new(DashboardPage.Schedule, scheduleId);
         return new(DashboardPage.NotFound);
     }
 
@@ -27,7 +31,7 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
         id = null;
         if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             return false;
-        var segment = path[prefix.Length..];
+        string segment = path[prefix.Length..];
         if (segment.Length == 0 || segment.Contains('/'))
             return false;
         id = Uri.UnescapeDataString(segment);

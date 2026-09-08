@@ -8,9 +8,9 @@ public sealed class EnumSerializationTests
     [Test]
     public void PreservesStoredNumericValues()
     {
-        Verify(new[] { Enums.JobState.Scheduled, Enums.JobState.Running, Enums.JobState.Succeeded, Enums.JobState.DeadLettered, Enums.JobState.Cancelled, Enums.JobState.Waiting });
-        Verify(new[] { Enums.JobOutcome.Succeeded, Enums.JobOutcome.Failed, Enums.JobOutcome.Cancelled });
-        Verify(new[] { Enums.LeaseStatus.Lost, Enums.LeaseStatus.Renewed, Enums.LeaseStatus.CancellationRequested });
+        Verify(new[] { Communication.Enums.JobState.Scheduled, Communication.Enums.JobState.Running, Communication.Enums.JobState.Succeeded, Communication.Enums.JobState.DeadLettered, Communication.Enums.JobState.Cancelled, Communication.Enums.JobState.Waiting });
+        Verify(new[] { Communication.Enums.JobOutcome.Succeeded, Communication.Enums.JobOutcome.Failed, Communication.Enums.JobOutcome.Cancelled });
+        Verify(new[] { Communication.Enums.LeaseStatus.Lost, Communication.Enums.LeaseStatus.Renewed, Communication.Enums.LeaseStatus.CancellationRequested });
     }
 
     private static void Verify<T>(T[] values) where T : struct

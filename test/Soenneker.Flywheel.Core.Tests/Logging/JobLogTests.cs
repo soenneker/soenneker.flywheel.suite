@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Soenneker.Flywheel.Core.Logging;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Tests.Logging;
 

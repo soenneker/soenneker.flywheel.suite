@@ -1,6 +1,6 @@
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Requests;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Requests;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
@@ -38,7 +38,7 @@ public sealed partial class RedisJobStore
             Mutation mutation = await Begin(db, cancellationToken);
             if (key is not null)
             {
-                var existing = Decode<string[]>(await db.HashGetAsync(ChainDedupe, key).WaitAsync(cancellationToken));
+                string[]? existing = Decode<string[]>(await db.HashGetAsync(ChainDedupe, key).WaitAsync(cancellationToken));
                 if (existing is not null) return existing;
                 mutation.Transaction.Queue(t => t.HashSetAsync(ChainDedupe, key, Serialize(ids)));
                 foreach (string id in ids)
@@ -59,12 +59,12 @@ public sealed partial class RedisJobStore
         // Chain length is bounded at submission. All changes share the predecessor's fenced transaction.
         for (int i = 0; nextId is not null && i < 100; i++)
         {
-            var next = Decode<JobRecord>(await db.HashGetAsync(Jobs, nextId).WaitAsync(ct))
-                ?? throw new InvalidOperationException("A persisted chain step is missing.");
+            JobRecord next = Decode<JobRecord>(await db.HashGetAsync(Jobs, nextId).WaitAsync(ct))
+                             ?? throw new InvalidOperationException("A persisted chain step is missing.");
             if (next.State != JobState.Waiting) return; // A user may already have cancelled this suffix.
             if (parent.State == JobState.Succeeded)
             {
-                var ready = next with { State = JobState.Scheduled, DueAt = checked(mutation.Now + next.DelayAfterParent) };
+                JobRecord ready = next with { State = JobState.Scheduled, DueAt = checked(mutation.Now + next.DelayAfterParent) };
                 Save(mutation, ready, next);
                 mutation.Transaction.Queue(t => t.SortedSetAddAsync(Due, ready.Id, ready.DueAt));
                 return;

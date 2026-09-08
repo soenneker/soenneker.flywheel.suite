@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Channels;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Requests;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Requests;
+using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Tests.Runtime;
@@ -15,16 +15,16 @@ public sealed partial class RuntimeTests
     private sealed class StubStore : IJobStore, IJobChangeFeed
     {
         private readonly Channel<JobChange> _changes = Channel.CreateUnbounded<JobChange>();
-        public Enums.LeaseStatus Status;
+        public Communication.Enums.LeaseStatus Status;
         public bool StalledRenewal;
         public int Commits;
-        public Enums.JobOutcome Outcome;
+        public Communication.Enums.JobOutcome Outcome;
         public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) =>
             Task.FromResult<JobLease?>(new JobLease(new JobRecord { Id = "one", Name = "test", Payload = "{}", Attempt = 1,
                 Policy = new JobPolicy { Timeout = TimeSpan.FromMilliseconds(150) } }, "token", 1));
-        public Task<Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default) =>
-            StalledRenewal ? new TaskCompletionSource<Enums.LeaseStatus>().Task : Task.FromResult(Status);
-        public Task<bool> Finish(JobLease lease, Enums.JobOutcome outcome, string? error, TimeSpan retryDelay, CancellationToken cancellationToken = default)
+        public Task<Communication.Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default) =>
+            StalledRenewal ? new TaskCompletionSource<Communication.Enums.LeaseStatus>().Task : Task.FromResult(Status);
+        public Task<bool> Finish(JobLease lease, Communication.Enums.JobOutcome outcome, string? error, TimeSpan retryDelay, CancellationToken cancellationToken = default)
         { Commits++; Outcome = outcome; return Task.FromResult(true); }
         public Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> Cancel(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();

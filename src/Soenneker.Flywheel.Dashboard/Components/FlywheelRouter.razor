@@ -1,3 +1,4 @@
+@using Soenneker.Flywheel.Communication.Enums
 @namespace Soenneker.Flywheel.Dashboard
 @using Microsoft.AspNetCore.Components.Routing
 @inject DashboardNavigationOptions DashboardNavigation
@@ -19,34 +20,7 @@
 }
 else
 {
-    <FlywheelLayout>
-        <Body>
-            @switch (_route.Page)
-            {
-                case DashboardPage.Dashboard:
-                    <Soenneker.Flywheel.Dashboard.Pages.Dashboard @key="_route" />
-                    break;
-                case DashboardPage.SignIn:
-                    <Soenneker.Flywheel.Dashboard.Pages.SignIn @key="_route" />
-                    break;
-                case DashboardPage.Recurring:
-                    <Soenneker.Flywheel.Dashboard.Pages.RecurringJobs @key="_route" />
-                    break;
-                case DashboardPage.Scheduled:
-                    <Soenneker.Flywheel.Dashboard.Pages.ScheduledJobs @key="_route" />
-                    break;
-                case DashboardPage.Jobs:
-                    <Soenneker.Flywheel.Dashboard.Pages.JobDetails @key="_route" JobId="@(_route.Id!)" />
-                    break;
-                case DashboardPage.Servers:
-                    <Soenneker.Flywheel.Dashboard.Pages.Servers @key="_route" />
-                    break;
-                case DashboardPage.ServerDetails:
-                    <Soenneker.Flywheel.Dashboard.Pages.ServerDetails @key="_route" ServerId="@(_route.Id!)" />
-                    break;
-            }
-        </Body>
-    </FlywheelLayout>
+    <RouteView RouteData="@(_routeData!)" DefaultLayout="@typeof(FlywheelLayout)" />
 }
 
 @code {
@@ -55,6 +29,7 @@ else
     public RenderFragment<string>? NotFound { get; set; }
 
     private DashboardRoute _route;
+    private RouteData? _routeData;
     private string _path = "";
     private bool _refreshScroll;
     private bool _disposed;
@@ -65,9 +40,26 @@ else
 
     private void ResolveRoute()
     {
-        var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+        string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
         _path = relative.Split('?', '#')[0];
         _route = DashboardRoute.Match(relative, DashboardNavigation.HomePath);
+        Type? pageType = _route.Page switch
+        {
+            var page when page == DashboardPage.Dashboard => typeof(Pages.Dashboard.Dashboard),
+            var page when page == DashboardPage.SignIn => typeof(Pages.Authentication.SignIn),
+            var page when page == DashboardPage.Recurring => typeof(Pages.Schedules.Schedules),
+            var page when page == DashboardPage.Schedule => typeof(Pages.Schedules.Schedule),
+            var page when page == DashboardPage.Scheduled => typeof(Pages.Jobs.Jobs),
+            var page when page == DashboardPage.Jobs => typeof(Pages.Jobs.Job),
+            var page when page == DashboardPage.Servers => typeof(Pages.Servers.Servers),
+            var page when page == DashboardPage.ServerDetails => typeof(Pages.Servers.Server),
+            _ => null
+        };
+        var parameters = new Dictionary<string, object?>();
+        if (_route.Page == DashboardPage.Jobs) parameters[nameof(Pages.Jobs.Job.JobId)] = _route.Id!;
+        if (_route.Page == DashboardPage.Schedule) parameters[nameof(Pages.Schedules.Schedule.ScheduleId)] = _route.Id!;
+        if (_route.Page == DashboardPage.ServerDetails) parameters[nameof(Pages.Servers.Server.ServerId)] = _route.Id!;
+        _routeData = pageType is null ? null : new RouteData(pageType, parameters);
         _refreshScroll = true;
     }
 

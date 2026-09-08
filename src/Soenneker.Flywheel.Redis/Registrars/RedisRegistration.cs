@@ -1,14 +1,7 @@
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
-using Soenneker.Flywheel.Core;
-using Soenneker.Redis.Client.Abstract;
 using Soenneker.Redis.Client.Registrars;
-using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
 
@@ -26,6 +19,7 @@ public static class RedisRegistration
         builder.Services.AddRedisClientAsSingleton();
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<RedisJobStore>();
+        builder.Services.AddHostedService<RedisLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<ICronJobStore>(sp => sp.GetRequiredService<RedisJobStore>());

@@ -1,6 +1,6 @@
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Microsoft.Extensions.Logging;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Logging;
 

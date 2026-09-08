@@ -1,6 +1,6 @@
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Responses;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
@@ -20,7 +20,7 @@ public sealed partial class RedisJobStore
         return total;
     }
 
-    public async Task<IReadOnlyList<ServerView>> ListServers(int count = 200,
+    public async Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200,
         CancellationToken cancellationToken = default)
     {
         if (count is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(count));
@@ -28,20 +28,20 @@ public sealed partial class RedisJobStore
         long now = await Time(db, cancellationToken);
         SortedSetEntry[] entries = await db.SortedSetRangeByScoreWithScoresAsync(Nodes, start: now,
             order: Order.Ascending, take: count).WaitAsync(cancellationToken);
-        var nodeIds = entries.Select(entry => (RedisValue)entry.Element).ToArray();
+        RedisValue[] nodeIds = entries.Select(entry => (RedisValue)entry.Element).ToArray();
         RedisValue[] workers = nodeIds.Length == 0 ? [] : await db.HashGetAsync(NodeWorkers, nodeIds).WaitAsync(cancellationToken);
         Dictionary<string, List<JobRecord>> jobs = await RunningJobsByOwner(db, now, cancellationToken);
-        var result = new ServerView[entries.Length];
+        var result = new WorkerServerView[entries.Length];
         for (var i = 0; i < entries.Length; i++)
         {
             string id = entries[i].Element!;
-            result[i] = new ServerView(id, (long)entries[i].Score, workers[i].TryParse(out int workerCount) ? workerCount : 0,
+            result[i] = new WorkerServerView(id, (long)entries[i].Score, workers[i].TryParse(out int workerCount) ? workerCount : 0,
                 jobs.TryGetValue(id, out List<JobRecord>? owned) ? owned : []);
         }
         return result;
     }
 
-    public async Task<ServerView?> GetServer(string node, CancellationToken cancellationToken = default)
+    public async Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(node) || node.Length > 200) throw new ArgumentException("Invalid server ID.", nameof(node));
         IDatabase db = await Database(cancellationToken);
@@ -52,7 +52,7 @@ public sealed partial class RedisJobStore
         long now = timeTask.Result;
         if (scoreTask.Result is not { } expiresAt || expiresAt <= now) return null;
         Dictionary<string, List<JobRecord>> jobs = await RunningJobsByOwner(db, now, cancellationToken);
-        return new ServerView(node, (long)expiresAt, workersTask.Result.TryParse(out int workerCount) ? workerCount : 0,
+        return new WorkerServerView(node, (long)expiresAt, workersTask.Result.TryParse(out int workerCount) ? workerCount : 0,
             jobs.TryGetValue(node, out List<JobRecord>? owned) ? owned : []);
     }
 

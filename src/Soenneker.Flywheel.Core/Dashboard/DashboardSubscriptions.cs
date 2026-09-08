@@ -2,13 +2,12 @@ using System.Collections.Concurrent;
 using Soenneker.Flywheel.Core.Dashboard.Abstract;
 using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Communication.Abstract;
-using JobHistoryPoint = Soenneker.Flywheel.Core.Responses.JobHistoryPoint;
+using JobHistoryPoint = Soenneker.Flywheel.Communication.Responses.JobHistoryPoint;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Soenneker.Flywheel.Core.Logging.Dtos;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Logging.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Dashboard;
@@ -26,9 +25,9 @@ public sealed partial class DashboardSubscriptions(
 
     /// <summary>Replaces a connection's subscription and requests its initial snapshot.</summary>
     public async Task Subscribe(string connectionId, string kind, int version, string? query, int offset, int count,
-        bool summary, string? jobId, CancellationToken disconnected, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null)
+        bool summary, string? jobId, CancellationToken disconnected, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null, string? excludedStates = null)
     {
-        if (version < 0 || offset < 0 || count is < 1 or > 200 || query?.Length > 200 || jobId?.Length > 200 ||
+        if (!DashboardJobSearch.IsValid(excludedStates) || version < 0 || offset < 0 || count is < 1 or > 200 || query?.Length > 200 || jobId?.Length > 200 ||
             startAt.HasValue != endAt.HasValue || startAt >= endAt)
             throw new HubException("Invalid subscription.");
         if (kind != "Board" && string.IsNullOrWhiteSpace(jobId))
@@ -36,7 +35,7 @@ public sealed partial class DashboardSubscriptions(
         if (startAt.HasValue && store is not IJobTimeRangeSearchStore)
             throw new HubException("The configured job store does not support time-range search.");
         await Remove(connectionId);
-        var subscription = new Subscription(this, connectionId, kind, version, query, offset, count, summary, jobId, startAt, endAt,
+        var subscription = new Subscription(this, connectionId, kind, version, query, offset, count, summary, jobId, startAt, endAt, excludedStates,
             CancellationTokenSource.CreateLinkedTokenSource(disconnected, lifetime.ApplicationStopping));
         _subscriptions[connectionId] = subscription;
         subscription.Start();
@@ -62,14 +61,12 @@ public sealed partial class DashboardSubscriptions(
     private void LogFailure(Exception ex) => logger.LogWarning("Dashboard snapshot failed: {Error}", ex.GetType().Name);
 
     private async Task Send(string connectionId, string kind, int version, string? query, int offset, int count,
-        bool summary, string? jobId, DateTimeOffset? startAt, DateTimeOffset? endAt, CancellationToken ct)
+        bool summary, string? jobId, DateTimeOffset? startAt, DateTimeOffset? endAt, string? excludedStates, CancellationToken ct)
     {
         IFlywheelDashboardClient client = hub.Clients.Client(connectionId);
         if (kind == "Board")
         {
-            JobSearchResult result = startAt is { } start && endAt is { } end && store is IJobTimeRangeSearchStore timeRangeStore
-                ? await timeRangeStore.Search(query, start, end, offset, count, ct)
-                : await store.Search(query, offset, count, ct);
+            JobSearchResult result = await DashboardJobSearch.Search(store, query, offset, count, startAt, endAt, excludedStates, ct);
             IReadOnlyList<JobHistoryPoint>? history = summary && store is IJobHistoryStore historyStore
                 ? await historyStore.GetHistory(ct)
                 : null;
@@ -84,10 +81,14 @@ public sealed partial class DashboardSubscriptions(
                 serverCount = (await serverStore.ListServers(200, ct)).Count;
             }
             ScheduleView? schedules = null;
+            IReadOnlyList<JobHistoryPoint>? liveActivity = summary && store is IJobLiveActivityStore liveStore
+                ? await liveStore.GetLiveActivity(ct)
+                : null;
             if (summary && store is IJobScheduleStore scheduleStore)
                 schedules = snapshots.Schedules(await scheduleStore.ListRecurring(200, ct), await scheduleStore.ListScheduled(200, ct));
             await client.BoardSnapshot(new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
-                result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers)).WaitAsync(ct);
+                result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
+                liveActivity?.ToList())).WaitAsync(ct);
         }
         else if (kind == "Job")
         {

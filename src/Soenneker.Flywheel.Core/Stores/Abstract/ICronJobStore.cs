@@ -1,4 +1,4 @@
-using Soenneker.Flywheel.Core.Requests;
+using Soenneker.Flywheel.Communication.Requests;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 

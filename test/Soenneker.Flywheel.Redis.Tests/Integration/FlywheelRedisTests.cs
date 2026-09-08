@@ -1,20 +1,19 @@
 using Soenneker.Flywheel.Core.Registrars;
-using Soenneker.Flywheel.Core.Logging.Dtos;
+using Soenneker.Flywheel.Communication.Logging.Dtos;
 using Soenneker.Flywheel.Core.Services.Abstract;
-using Soenneker.Flywheel.Core.Enums;
+using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Core.Stores.Abstract;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Requests;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Requests;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using Soenneker.Flywheel.Core;
 using StackExchange.Redis;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Generated;
 
 namespace Soenneker.Flywheel.Redis.Tests;
@@ -28,21 +27,21 @@ public sealed partial class FlywheelRedisTests
     public Task CrossNodeFeedPublishesCommittedChangesAndResyncs() => WithStore(async (store, db, ns) =>
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        using var secondConnection = await ConnectionMultiplexer.ConnectAsync(Environment.GetEnvironmentVariable("FLYWHEEL_TEST_REDIS") ?? "localhost:16379");
+        using ConnectionMultiplexer secondConnection = await ConnectionMultiplexer.ConnectAsync(Environment.GetEnvironmentVariable("FLYWHEEL_TEST_REDIS") ?? "localhost:16379");
         var observer = new RedisJobStore(_ => Task.FromResult(secondConnection.GetDatabase()), ns);
-        await using var feed = observer.Watch(timeout.Token).GetAsyncEnumerator();
+        await using IAsyncEnumerator<JobChange> feed = observer.Watch(timeout.Token).GetAsyncEnumerator();
         Check(await feed.MoveNextAsync() && feed.Current.Kind == "Resync", "Subscription must start with a recovery snapshot trigger");
-        var id = await store.Enqueue(Request());
+        string id = await store.Enqueue(Request());
         Check(await feed.MoveNextAsync() && feed.Current == new JobChange("Job", id), "Other node's enqueue was not delivered");
         Check((await observer.Get(id)) is not null, "Event was visible before the job was committed");
-        var lease = (await store.Claim("worker", TimeSpan.FromSeconds(30)))!;
+        JobLease lease = (await store.Claim("worker", TimeSpan.FromSeconds(30)))!;
         Check(await feed.MoveNextAsync() && feed.Current.JobId == id, "Claim event missing");
         await store.AppendLogs(lease, [new("Information", "test", "pushed")]);
         Check(await feed.MoveNextAsync() && feed.Current.Kind == "Logs", "Log event missing");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check(await feed.MoveNextAsync() && feed.Current.JobId == id, "Completion event missing");
         Check(!await store.Finish(lease, JobOutcome.Failed, null, TimeSpan.Zero), "Stale completion accepted");
-        var next = feed.MoveNextAsync().AsTask();
+        Task<bool> next = feed.MoveNextAsync().AsTask();
         await Task.Delay(150);
         Check(!next.IsCompleted, "Idle or rejected mutation emitted a notification");
         await store.AddRecurring("schedule", Request(), TimeSpan.FromHours(1));
@@ -54,10 +53,10 @@ public sealed partial class FlywheelRedisTests
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var observer = new RedisJobStore(_ => Task.FromResult(db), ns);
-        await using (var first = observer.Watch(timeout.Token).GetAsyncEnumerator())
+        await using (IAsyncEnumerator<JobChange> first = observer.Watch(timeout.Token).GetAsyncEnumerator())
             Check(await first.MoveNextAsync() && first.Current.Kind == "Resync", "Initial sync missing");
-        var id = await store.Enqueue(Request());
-        await using var restored = observer.Watch(timeout.Token).GetAsyncEnumerator();
+        string id = await store.Enqueue(Request());
+        await using IAsyncEnumerator<JobChange> restored = observer.Watch(timeout.Token).GetAsyncEnumerator();
         Check(await restored.MoveNextAsync() && restored.Current.Kind == "Resync", "Resubscription did not request authoritative state");
         Check(await observer.Get(id) is not null, "Disconnected change missing from recovered snapshot");
     });
@@ -65,7 +64,7 @@ public sealed partial class FlywheelRedisTests
     [Test]
     public Task HistoryStillIncludesLegacyRecordsBeforeTransitionRecording() => WithStore(async (store, db, ns) =>
     {
-        var tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
+        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
         string prefix = $"flywheel:{{{tag}}}:v1:";
         long timestamp = DateTimeOffset.UtcNow.AddMinutes(-30).ToUnixTimeMilliseconds();
         var legacy = new JobRecord { Id = "legacy", Name = "legacy", Payload = "{}", Policy = new(),
@@ -73,7 +72,7 @@ public sealed partial class FlywheelRedisTests
         await db.HashSetAsync(prefix + "jobs", legacy.Id, System.Text.Json.JsonSerializer.Serialize(legacy));
         await db.SortedSetAddAsync(prefix + "all", legacy.Id, timestamp);
         await store.Enqueue(Request());
-        var history = await store.GetHistory();
+        IReadOnlyList<JobHistoryPoint> history = await store.GetHistory();
         Check(history.Sum(p => p.Succeeded) == 1 && history.Sum(p => p.Scheduled) == 1, "Legacy history was dropped or double counted");
     });
 
@@ -82,15 +81,15 @@ public sealed partial class FlywheelRedisTests
     {
         await store.ConfigureMethod("blocked", new MethodPolicy { MaxConcurrency = 1 });
         await store.Enqueue(Request() with { Name = "blocked" });
-        var running = (await store.Claim("occupy", TimeSpan.FromSeconds(30)))!;
+        JobLease running = (await store.Claim("occupy", TimeSpan.FromSeconds(30)))!;
         for (int i = 0; i < 260; i++) await store.Enqueue(Request() with
         {
             Name = "blocked", Policy = new JobPolicy { Priority = JobPriority.Critical },
             Payload = "{\"Policy\":{\"Priority\":999},\"Name\":\"decoy\"}"
         });
         await store.Enqueue(Request() with { Name = "available", Policy = new JobPolicy { Priority = JobPriority.Low } });
-        var high = await store.Enqueue(Request() with { Name = "available", Policy = new JobPolicy { Priority = JobPriority.High } });
-        var lease = (await store.Claim("available", TimeSpan.FromSeconds(30)))!;
+        string high = await store.Enqueue(Request() with { Name = "available", Policy = new JobPolicy { Priority = JobPriority.High } });
+        JobLease lease = (await store.Claim("available", TimeSpan.FromSeconds(30)))!;
         Check(lease.Job.Id == high, "Selection missed a later higher-priority job or blocked function prevented dispatch");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
         await store.Finish(running, JobOutcome.Succeeded, null, TimeSpan.Zero);
@@ -100,14 +99,14 @@ public sealed partial class FlywheelRedisTests
     [Test]
     public Task DispatchReadsLegacyPriorityAndEscapedNames() => WithStore(async (store, db, ns) =>
     {
-        var low = await store.Enqueue(Request() with { Name = "other", Policy = new JobPolicy { Priority = JobPriority.Low } });
-        var legacy = await store.Enqueue(Request() with { Name = "escaped\\name\"", Payload = "{\"Name\":\"decoy\",\"State\":1}" });
-        var tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
+        string low = await store.Enqueue(Request() with { Name = "other", Policy = new JobPolicy { Priority = JobPriority.Low } });
+        string legacy = await store.Enqueue(Request() with { Name = "escaped\\name\"", Payload = "{\"Name\":\"decoy\",\"State\":1}" });
+        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
         RedisKey jobsKey = $"flywheel:{{{tag}}}:v1:jobs";
-        var json = System.Text.Json.Nodes.JsonNode.Parse((string)(await db.HashGetAsync(jobsKey, legacy))!)!;
+        JsonNode json = System.Text.Json.Nodes.JsonNode.Parse((string)(await db.HashGetAsync(jobsKey, legacy))!)!;
         json["Policy"]!.AsObject().Remove("Priority");
         await db.HashSetAsync(jobsKey, legacy, json.ToJsonString());
-        var claim = (await store.Claim("legacy", TimeSpan.FromSeconds(30)))!;
+        JobLease claim = (await store.Claim("legacy", TimeSpan.FromSeconds(30)))!;
         Check(claim.Job.Id == legacy && claim.Job.Policy.Priority == JobPriority.Normal, "Legacy default or escaped name parsing changed");
         Check((await store.Get(low))!.State == JobState.Scheduled, "Low priority executed ahead of legacy Normal");
     });
@@ -116,10 +115,10 @@ public sealed partial class FlywheelRedisTests
     public Task LogAppendsDoNotInvalidateDispatchSnapshots() => WithStore(async (store, db, ns) =>
     {
         await store.Enqueue(Request());
-        var lease = (await store.Claim("logging", TimeSpan.FromSeconds(30)))!;
-        var tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
+        JobLease lease = (await store.Claim("logging", TimeSpan.FromSeconds(30)))!;
+        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
         RedisKey revisionKey = $"flywheel:{{{tag}}}:v1:revision";
-        var before = await db.StringGetAsync(revisionKey);
+        RedisValue before = await db.StringGetAsync(revisionKey);
         Check(await store.AppendLogs(lease, [new("Information", "test", "diagnostic")]), "Valid log append failed");
         Check(await db.StringGetAsync(revisionKey) == before, "Diagnostic write changed dispatch revision");
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");

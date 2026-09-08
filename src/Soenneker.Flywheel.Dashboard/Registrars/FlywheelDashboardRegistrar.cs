@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using System;
 using Soenneker.Quark;
 using Soenneker.SignalR.Web.Clients.Registrars;
 using Soenneker.Quark.Gen.Lucide.Generated;
@@ -33,7 +32,7 @@ public static class FlywheelDashboardRegistrar
         return services;
     }
 
-    /// <summary>Registers the Quark components used by FlywheelBoard. Supply a same-origin HttpClient in the WASM host.</summary>
+    /// <summary>Registers the dashboard pages, layout, and Quark components. Supply a same-origin HttpClient in the WASM host.</summary>
     public static IServiceCollection AddFlywheelDashboardAsScoped(this IServiceCollection services) =>
         services.AddFlywheelDashboardAsScoped(_ => { });
 
@@ -45,7 +44,7 @@ public static class FlywheelDashboardRegistrar
         if (options.HomePath != "/" && options.HomePath != "/flywheel")
             throw new ArgumentException("Dashboard HomePath must be /flywheel or /.", nameof(configure));
 
-        return services.AddSingleton(options).AddScoped<ActivityTotalsState>().AddScoped<DashboardSessionState>()
+        return services.AddSingleton(options).AddScoped<ActivityTotalsState>().AddScoped<DashboardSessionState>().AddScoped<DashboardBoardConnection>()
             .AddScoped<IFlywheelApiClient, FlywheelApiClient>()
             .AddScoped<IFlywheelDashboardConsumer, FlywheelDashboardConsumer>()
             .AddScoped<IFlywheelLiveClient, FlywheelLiveClient>()

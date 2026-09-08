@@ -106,7 +106,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                 continue;
             }
             AppendJobDocumentation(sb, m, name);
-            sb.Append("public static global::Soenneker.Flywheel.Core.Dtos.JobDefinition<").Append(payload).Append("> @")
+            sb.Append("public static global::Soenneker.Flywheel.Communication.Dtos.JobDefinition<").Append(payload).Append("> @")
               .Append(symbol).Append(" { get; } = new(").Append(literal);
             if (description is not null)
                 sb.Append(", ").Append(SymbolDisplay.FormatLiteral(description, true));
@@ -154,7 +154,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                    .Append(literal)
                    .Append(";\n");
             if (maxConcurrency != 0 || rateLimit != 0)
-                invoker.Append("public global::Soenneker.Flywheel.Core.Dtos.MethodPolicy Policy { get; } = new() { MaxConcurrency = ")
+                invoker.Append("public global::Soenneker.Flywheel.Communication.Dtos.MethodPolicy Policy { get; } = new() { MaxConcurrency = ")
                        .Append(maxConcurrency == 0 ? "null" : maxConcurrency.ToString())
                        .Append(", RateLimit = ").Append(rateLimit == 0 ? "null" : rateLimit.ToString())
                        .Append(", RateWindow = global::System.TimeSpan.FromSeconds(").Append(rateWindowSeconds).Append(") };\n");

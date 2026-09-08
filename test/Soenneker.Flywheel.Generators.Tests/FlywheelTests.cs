@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Soenneker.Flywheel.Core;
 
 namespace Soenneker.Flywheel.Generators.Tests;
 
@@ -25,7 +24,7 @@ public sealed class FlywheelTests
     [Test]
     public void DisambiguatesHandlerNamesAcrossNamespaces()
     {
-        var result = Generate("""
+        (Compilation Compilation, GeneratorDriverRunResult Result) result = Generate("""
             using System.Threading;
             using System.Threading.Tasks;
             using Soenneker.Flywheel.Core.Attributes;
@@ -38,8 +37,8 @@ public sealed class FlywheelTests
             """);
         Diagnostic[] errors = result.Compilation.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error).ToArray();
         if (errors.Length != 0) throw new Exception(string.Join("\n", errors.Select(x => x.ToString())));
-        var properties = result.Compilation.GetTypeByMetadataName("Soenneker.Flywheel.Generated.FlywheelJobs")!
-            .GetMembers().OfType<IPropertySymbol>().ToArray();
+        IPropertySymbol[] properties = result.Compilation.GetTypeByMetadataName("Soenneker.Flywheel.Generated.FlywheelJobs")!
+                                             .GetMembers().OfType<IPropertySymbol>().ToArray();
         if (properties.Length != 2 || properties.Any(x => !x.Name.StartsWith("Jobs_Run_", StringComparison.Ordinal)))
             throw new Exception("Colliding handler symbols were not disambiguated");
     }
@@ -66,7 +65,7 @@ public sealed class FlywheelTests
     [Test]
     public void GeneratesDeclaredMethodPolicy()
     {
-        var result = Generate("""
+        (Compilation Compilation, GeneratorDriverRunResult Result) result = Generate("""
             using System.Threading;
             using System.Threading.Tasks;
             using Soenneker.Flywheel.Core.Attributes;

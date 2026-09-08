@@ -16,6 +16,7 @@ public sealed partial class DashboardSubscriptions
         string? jobId,
         DateTimeOffset? startAt,
         DateTimeOffset? endAt,
+        string? excludedStates,
         CancellationTokenSource stop)
     {
         public string Kind => kind;
@@ -57,7 +58,7 @@ public sealed partial class DashboardSubscriptions
                     {
                         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
                         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                        await owner.Send(connectionId, kind, version, query, offset, count, summary, jobId, startAt, endAt,
+                        await owner.Send(connectionId, kind, version, query, offset, count, summary, jobId, startAt, endAt, excludedStates,
                             timeout.Token);
                         failures = 0;
                     }

@@ -13,6 +13,7 @@ internal static class JobStatusColors
 
     public static string Accent(string state) => state switch
     {
+        "Queued" => "#6366f1",
         "Scheduled" => Scheduled,
         "Running" => Running,
         "Succeeded" => Succeeded,
@@ -23,6 +24,7 @@ internal static class JobStatusColors
 
     public static string Foreground(string state) => state switch
     {
+        "Queued" => ForegroundPrefix + "#6366f1" + ForegroundSuffix,
         "Scheduled" => ForegroundPrefix + Scheduled + ForegroundSuffix,
         "Running" => ForegroundPrefix + Running + ForegroundSuffix,
         "Succeeded" => ForegroundPrefix + Succeeded + ForegroundSuffix,

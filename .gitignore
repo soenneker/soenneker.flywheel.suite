@@ -362,4 +362,4 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Static website export
-website/Soenneker.Flywheel.Website/out/
+src/Soenneker.Flywheel.Website/out/

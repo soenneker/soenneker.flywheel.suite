@@ -2,6 +2,7 @@ using Soenneker.Flywheel.Communication.Abstract;
 using Microsoft.AspNetCore.SignalR.Client;
 using Soenneker.Flywheel.Dashboard.Communication.Abstract;
 using Soenneker.Flywheel.Communication.Responses;
+using Soenneker.SignalR.Web.Client;
 using Soenneker.SignalR.Web.Client.Options;
 using Soenneker.SignalR.Web.Clients.Abstract;
 
@@ -15,14 +16,14 @@ public sealed class FlywheelLiveClient(IFlywheelApiClient api, ISignalRWebClient
 
     private async ValueTask<IFlywheelLiveSubscription> Create<T>(string id, string message, Func<T, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken)
     {
-        var client = await clients.Get(id, new SignalRWebClientOptions
+        SignalRWebClient client = await clients.Get(id, new SignalRWebClientOptions
         {
             HubUrl = new Uri(api.BaseAddress, "flywheel/hub").AbsoluteUri,
             HttpMessageHandlerFactory = inner => new DashboardCredentialsHandler(inner),
             ConnectionRestored = _ => restored(),
             Log = false
         }, cancellationToken);
-        var subscription = client.Connection.On(message, snapshot);
+        IDisposable subscription = client.Connection.On(message, snapshot);
         Func<Exception?, Task> onDisconnected = _ => disconnected();
         client.Connection.Closed += onDisconnected;
         client.Connection.Reconnecting += onDisconnected;

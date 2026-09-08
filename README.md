@@ -16,7 +16,7 @@ Queue a typed job, coordinate workers across instances, and follow each executio
 
 *The optional Flywheel Dashboard, shown with illustrative demo data.*
 
-[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](docs/dashboard.md) · [Run the demo](demo/Soenneker.Flywheel.Demo/README.md)
+[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](docs/dashboard.md) · [Run the demo](test/Soenneker.Flywheel.Demo/README.md)
 
 ## Packages
 
@@ -24,7 +24,7 @@ Each project produces its own NuGet package. The suite is the repository and sol
 
 | Package | Responsibility | Flywheel dependencies |
 | --- | --- | --- |
-| Soenneker.Flywheel.Communication | Shared requests, responses, and typed hub contracts | None |
+| Soenneker.Flywheel.Communication | Shared job DTOs, policies, enums, requests, responses, and typed hub contracts | No Flywheel dependencies |
 | Soenneker.Flywheel.Core | Job runtime, dashboard API, and hub | Communication |
 | Soenneker.Flywheel.Redis | Redis job storage | Core |
 | Soenneker.Flywheel.Generators | Compile-time job registration | None; analyzer only |
@@ -38,10 +38,10 @@ Install .NET 10 and run Redis 6.0.9 or newer on localhost:6379, then:
 
 ```sh
 dotnet dev-certs https --trust
-dotnet run --project demo/Soenneker.Flywheel.Demo
+dotnet run --project test/Soenneker.Flywheel.Demo
 ```
 
-Open https://localhost:7443/ and sign in with `admin` / `flywheel-demo` in Development. Stop with Ctrl+C. The server hosts the WebAssembly client in `demo/Soenneker.Flywheel.Dashboard.Demo`; both use the source projects from this solution. See [demo configuration](demo/Soenneker.Flywheel.Demo/README.md).
+In a second terminal, run `dotnet run --project test/Soenneker.Flywheel.Dashboard.Demo`. Open https://localhost:7039/ and sign in with `admin` / `flywheel-demo` in Development. The engine/API runs at https://localhost:7443/ and the dashboard runs separately. The solution's `Demo` startup configuration starts both and opens only the dashboard browser. Stop both with Ctrl+C. See [demo configuration](test/Soenneker.Flywheel.Demo/README.md).
 
 ## Development
 
@@ -50,7 +50,7 @@ dotnet build Soenneker.Flywheel.Suite.slnx
 dotnet test --project test/Soenneker.Flywheel.Dashboard.Tests
 ```
 
-Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:16379`. The performance runner is separate from the automated test projects. The product website is included under `website/Soenneker.Flywheel.Website`. Its separate [website workflow](.github/workflows/website.yml) exports and deploys the static site to Cloudflare; see [website development and deployment](website/Soenneker.Flywheel.Website/README.md).
+Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:16379`. Manual [Redis benchmarks](test/Soenneker.Flywheel.Redis.Tests/Benchmarks/README.md) live in the Redis test project and are excluded from normal test runs. The product website is included under `src/Soenneker.Flywheel.Website`. Its separate [website workflow](.github/workflows/website.yml) exports and deploys the static site to Cloudflare; see [website development and deployment](src/Soenneker.Flywheel.Website/README.md).
 
 Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. Dashboard navigation supports `/` and custom home paths, independently of the configured backend address.
 
@@ -58,7 +58,7 @@ Dashboard pages use Lepton lifecycle management. A typed consumer handles API ca
 
 `build-and-test.yml` builds the entire solution, runs the four test projects with Redis, publishes the hosted demo, and packs five separate packages. `publish-package.yml` calls that validation workflow and then runs a deployment matrix with one job per package, publishing to NuGet and GitHub Packages. A GitHub release is created only after every deployment succeeds.
 
-All packages share `5.0.<publish workflow run number>`. Local builds default to `5.0.0`; `BUILD_VERSION` overrides it. The 5.0 series avoids collisions with independently versioned 4.0 releases and reflects the move of dashboard DTOs into `Soenneker.Flywheel.Communication`. Existing applications must update their response namespace imports accordingly.
+All packages share `5.0.<publish workflow run number>`. Local builds default to `5.0.0`; `BUILD_VERSION` overrides it. The 5.0 series avoids collisions with independently versioned 4.0 releases and reflects the move of shared job and dashboard contracts into `Soenneker.Flywheel.Communication`. Update imports for DTOs, enums, requests, responses, and log DTOs from `Soenneker.Flywheel.Core` to `Soenneker.Flywheel.Communication`. The storage server snapshot is now `Communication.Responses.WorkerServerView`; the dashboard response remains `Communication.Responses.ServerView`.
 
 ## Documentation
 

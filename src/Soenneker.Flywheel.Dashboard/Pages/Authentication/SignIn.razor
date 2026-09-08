@@ -1,0 +1,39 @@
+@page "/signin"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Authentication
+@using Soenneker.Quark
+@inherits LeptonCancellable
+@layout FlywheelLayout
+
+<PageTitle>Sign in · Flywheel</PageTitle>
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardSessionState Session
+@inject DashboardNavigationOptions DashboardNavigation
+@inject NavigationManager Navigation
+
+@if (_error is not null)
+{
+    <Alert role="alert" >
+        <AlertDescription>@_error</AlertDescription>
+    </Alert>
+}
+<Section MaxWidth="MaxWidth.IsMd" Margin="Margin.Auto.OnX" Padding="Padding.Is12.OnY" >
+    <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4" >
+        <Div>
+            <H1 TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.Words" Display="Display.Flex" Justify="Justify.Center" >
+                <Anchor Href="@DashboardNavigation.HomePath" Display="Display.InlineFlex" ItemsAlign="Items.Center" Gap="Gap.Is2" >
+                    <Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Circle" Size="Size.Is5" aria-hidden="true" />
+                    <Span>Flywheel</Span>
+                </Anchor>
+            </H1>
+            <form @onsubmit="Login" @onsubmit:preventDefault >
+                <Field Margin="Margin.Is4.OnY" >
+                    <FieldLabel For="flywheel-user" >Username</FieldLabel><TextInput Id="flywheel-user" autocomplete="username" @bind-Value="_username" Required="true" MaxLength="128" />
+                </Field>
+                <Field Margin="Margin.Is4.OnY" >
+                    <FieldLabel For="flywheel-password" >Password</FieldLabel><PasswordInput Id="flywheel-password" autocomplete="current-password" @bind-Value="_password" Required="true" MaxLength="1024" />
+                </Field>
+                <Button Width="Width.IsFull" Margin="Margin.FromTop.Is3" Type="ButtonType.Submit" Disabled="@_busy" Loading="@_busy" >@(_busy ? "Signing in…" : "Sign in →")</Button>
+            </form>
+        </Div>
+    </Div>
+</Section>

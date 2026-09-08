@@ -21,7 +21,9 @@ namespace Soenneker.Flywheel.Communication.Responses;
 /// <param name="ProgressMessage">Optional status text accompanying the latest progress report.</param>
 /// <param name="ProgressUpdatedAt">Time of the latest progress report in UTC Unix milliseconds.</param>
 /// <param name="Description">Optional human-readable description of the job.</param>
+/// <param name="StartedAt">Start of the latest attempt in UTC Unix milliseconds, or zero when unavailable.</param>
+/// <param name="CompletedAt">Terminal completion time in UTC Unix milliseconds, or zero when unavailable.</param>
 public sealed record JobView(string Id, string Name, string State, int Attempt, long UpdatedAt, bool CancelRequested, string? Error,
     long Version, long CreatedAt, long DueAt, long LeaseUntil, string? Owner, string? ParentJobId = null, string? NextJobId = null,
     int? MaxAttempts = null, double? TimeoutSeconds = null, string? Priority = null, double? Progress = null,
-    string? ProgressMessage = null, long ProgressUpdatedAt = 0, string? Description = null);
+    string? ProgressMessage = null, long ProgressUpdatedAt = 0, string? Description = null, long StartedAt = 0, long CompletedAt = 0);

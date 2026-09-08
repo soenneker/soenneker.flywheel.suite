@@ -1,0 +1,52 @@
+@page "/flywheel/scheduled"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Jobs
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+@inherits JobsPageBase
+@layout FlywheelLayout
+
+<PageTitle>Scheduled jobs · Flywheel</PageTitle>
+<Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
+    <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+        <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Scheduled jobs</H3></Div>
+        <DataTable Options="@_scheduledTableOptions" TotalRecords="@FilteredScheduled.Count" OnInteraction="SearchScheduled">
+            <TopContent>
+                <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
+                    <DataTableSearch Placeholder="Search" AriaLabel="Search scheduled jobs" />
+                    <SidebarTrigger Display="Display.Flex.OnMd.None" aria-label="Open navigation menu"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Menu" Size="Size.Is5" /></SidebarTrigger>
+                </Div>
+            </TopContent>
+            <TableContent>
+                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Scheduled for</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Attempt</Th></Tr></Thead><Tbody>
+                @foreach (JobView job in FilteredScheduled.Skip(ScheduledOffset).Take(_scheduledPageSize))
+                {
+                    <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)"><Td><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></span></Td><Td><JobTimestamp StartsAt="true" Value="@job.DueAt" /></Td><Td>@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td></Tr>
+                }
+                </Tbody>
+            </TableContent>
+            <BottomContent>
+                @if (_scheduleError is not null)
+                {
+                    <Paragraph role="status">@_scheduleError</Paragraph>
+                }
+                else if (_schedules is null)
+                {
+                    <Paragraph>Loading schedules…</Paragraph>
+                }
+                else if (!FilteredScheduled.Any())
+                {
+                    <Paragraph TextColor="TextColor.MutedForeground">No matching scheduled jobs.</Paragraph>
+                }
+                <Div Display="Display.Flex" ItemsAlign="Items.Center" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Gap="Gap.Is4" Margin="Margin.FromTop.Is4">
+                    <DataTablePageSizeSelector Label="Rows per page" />
+                    <DataTablePagination />
+                </Div>
+                @if (_schedules?.Scheduled.Count == 200)
+                {
+                    <Small TextColor="TextColor.MutedForeground">Search and paging cover the next 200 scheduled jobs.</Small>
+                }
+            </BottomContent>
+        </DataTable>
+    </Div>
+    <JobDetailsDrawer @ref="_jobDrawer" />
+</Div>

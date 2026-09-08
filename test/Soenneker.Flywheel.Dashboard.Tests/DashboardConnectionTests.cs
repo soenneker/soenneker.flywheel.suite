@@ -13,8 +13,8 @@ public sealed class DashboardConnectionTests
     {
         var services = new ServiceCollection();
         services.AddFlywheelDashboardAsScoped(new Uri(backend), options => options.HomePath = home);
-        await using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
         var http = scope.ServiceProvider.GetRequiredService<HttpClient>();
 
         await Assert.That(new Uri(http.BaseAddress!, "flywheel/hub").AbsoluteUri).IsEqualTo(hub);
@@ -25,8 +25,8 @@ public sealed class DashboardConnectionTests
     public async Task Negotiation_and_login_requests_include_browser_cookies()
     {
         using var http = new HttpClient(new DashboardCredentialsHandler(new DashboardCredentialsTestHandler()));
-        using var negotiate = await http.PostAsync("https://backend.example/flywheel/hub/negotiate?negotiateVersion=1", null);
-        using var login = await http.PostAsync("https://backend.example/flywheel/login", null);
+        using HttpResponseMessage negotiate = await http.PostAsync("https://backend.example/flywheel/hub/negotiate?negotiateVersion=1", null);
+        using HttpResponseMessage login = await http.PostAsync("https://backend.example/flywheel/login", null);
         await Assert.That(negotiate.IsSuccessStatusCode && login.IsSuccessStatusCode).IsTrue();
     }
 }

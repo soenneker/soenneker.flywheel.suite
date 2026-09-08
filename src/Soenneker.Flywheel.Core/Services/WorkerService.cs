@@ -5,6 +5,7 @@ using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Atomics.ValueInts;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Services;
 
@@ -95,7 +96,7 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         {
             try
             {
-                await foreach (var change in feed.Watch(token))
+                await foreach (JobChange change in feed.Watch(token))
                     if (change.Kind is "Job" or "Resync") Pulse();
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }

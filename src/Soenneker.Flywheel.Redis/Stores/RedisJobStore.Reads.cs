@@ -1,6 +1,6 @@
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Responses;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
@@ -104,7 +104,7 @@ public sealed partial class RedisJobStore
             {
                 if (!job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                    !job.State.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !(job.Owner?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
                     continue;
                 if (matches++ >= offset && items.Count < count)
@@ -140,7 +140,7 @@ public sealed partial class RedisJobStore
                 if (job.UpdatedAt < minimum || job.UpdatedAt >= maximum || query.Length != 0 &&
                     !job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                    !job.State.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !(job.Owner?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
                     continue;
                 if (matches++ >= offset && items.Count < count)

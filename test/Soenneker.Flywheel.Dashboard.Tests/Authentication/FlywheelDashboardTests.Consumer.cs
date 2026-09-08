@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Soenneker.Dtos.Results.Operation;
+using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Dashboard.Communication.Abstract;
@@ -20,39 +21,39 @@ public sealed partial class FlywheelDashboardTests
     public async Task ConsumerUsesCoreCookieCsrfAndSharedContracts()
     {
         var password = Guid.NewGuid().ToString("N");
-        var builder = WebApplication.CreateBuilder();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddFlywheel().AddDashboard(o => o.PasswordPhc = Pbkdf2HashingUtil.Hash(password));
         builder.Services.RemoveAll<IHostedService>();
         builder.Services.AddSingleton<IJobStore>(new SearchStore());
-        await using var app = builder.Build();
+        await using WebApplication app = builder.Build();
         app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
         app.MapFlywheelDashboard();
         await app.StartAsync();
 
-        var services = new ServiceCollection().AddLogging();
+        IServiceCollection services = new ServiceCollection().AddLogging();
         services.AddSingleton<NavigationManager>(new RouterTestNavigationManager("https://dashboard.example/", "https://dashboard.example/"));
         services.AddFlywheelDashboardAsScoped(new Uri("https://backend.example/"), options => options.HomePath = "/");
         services.AddScoped(_ => new HttpClient(new DashboardBrowserTestHandler(app.GetTestServer().CreateHandler())) { BaseAddress = new Uri("https://backend.example/") });
-        await using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
         var consumer = scope.ServiceProvider.GetRequiredService<IFlywheelDashboardConsumer>();
 
-        var anonymous = await consumer.Search();
+        OperationResult<SearchResult> anonymous = await consumer.Search();
         Check(anonymous.StatusCode == 401 && anonymous.Failed, "Anonymous consumer result lost authentication failure.");
-        var wrong = await consumer.Login("admin", "wrong");
+        OperationResult<object> wrong = await consumer.Login("admin", "wrong");
         Check(wrong.StatusCode == 401 && wrong.Failed, "Incorrect credentials were accepted.");
-        var login = await consumer.Login("admin", password);
+        OperationResult<object> login = await consumer.Login("admin", password);
         Check(login.Succeeded && login.StatusCode == 204, "Consumer did not complete CSRF-protected login.");
-        var search = await consumer.Search("invoice&monthly", 50, 25);
+        OperationResult<SearchResult> search = await consumer.Search("invoice&monthly", 50, 25);
         Check(search.Succeeded && search.Value?.TotalCount == 51, "Consumer failed to deserialize the shared search contract.");
-        var job = await consumer.GetJob("one");
+        OperationResult<JobView> job = await consumer.GetJob("one");
         Check(job.Value is { MaxAttempts: 5, Priority: "Normal" }, "Shared execution projection was lost.");
-        var missing = await consumer.GetJob("missing");
+        OperationResult<JobView> missing = await consumer.GetJob("missing");
         Check(missing.StatusCode == 404 && missing.Failed, "Missing execution did not preserve failure status.");
-        var schedules = await consumer.GetSchedules();
+        OperationResult<ScheduleView> schedules = await consumer.GetSchedules();
         Check(schedules.StatusCode == 501 && schedules.Failed, "Unsupported store capability did not preserve failure status.");
-        var logout = await consumer.Logout();
+        OperationResult<object> logout = await consumer.Logout();
         Check(logout.Succeeded, "Consumer did not refresh CSRF after authentication changed.");
         Check((await consumer.Search()).StatusCode == 401, "Sign-out left an authenticated consumer session.");
 

@@ -3,8 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Soenneker.Flywheel.Core.Logging.Dtos;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Logging.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Tests.Logging;

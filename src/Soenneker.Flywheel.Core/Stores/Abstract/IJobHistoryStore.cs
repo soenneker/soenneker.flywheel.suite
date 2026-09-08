@@ -1,4 +1,4 @@
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Responses;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 

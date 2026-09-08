@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "Soenneker.Flywheel.Demo": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "launchUrl": "",
+      "applicationUrl": "https://localhost:7443;http://localhost:7043",
+      "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    }
+  }
+}

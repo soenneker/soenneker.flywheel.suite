@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Soenneker.Hashing.Pbkdf2;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -10,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Soenneker.Flywheel.Core.Dashboard;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using System.Net.Http.Json;
@@ -22,7 +21,7 @@ public sealed partial class FlywheelDashboardTests
     [Test]
     public async Task SignalRPushesSnapshotsOnlyOnChangesAndResubscribes()
     {
-        var builder = WebApplication.CreateBuilder();
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddFlywheel().AddDashboard(o => o.PasswordPhc = Pbkdf2HashingUtil.Hash("live-password"));
         builder.Services.RemoveAll<IHostedService>();
@@ -30,27 +29,27 @@ public sealed partial class FlywheelDashboardTests
         var store = new SearchStore();
         builder.Services.AddSingleton<IJobStore>(store);
         builder.Services.AddSingleton<IJobLogStore>(store);
-        await using var app = builder.Build();
+        await using WebApplication app = builder.Build();
         app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
         app.MapFlywheelDashboard();
         await app.StartAsync();
-        using var http = app.GetTestClient();
+        using HttpClient http = app.GetTestClient();
         http.BaseAddress = new Uri("https://localhost");
-        var csrfResponse = await http.GetAsync("/flywheel/csrf");
+        HttpResponseMessage csrfResponse = await http.GetAsync("/flywheel/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<Csrf>();
         string csrfCookie = csrfResponse.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         http.DefaultRequestHeaders.Add("Cookie", csrfCookie);
         http.DefaultRequestHeaders.Add("X-Flywheel-CSRF", csrf!.Token);
-        var login = await http.PostAsJsonAsync("/flywheel/login", new { Username = "admin", Password = "live-password" });
+        HttpResponseMessage login = await http.PostAsJsonAsync("/flywheel/login", new { Username = "admin", Password = "live-password" });
         string cookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
-        await using var connection = new HubConnectionBuilder().WithUrl("https://localhost/flywheel/hub", options =>
+        await using HubConnection connection = new HubConnectionBuilder().WithUrl("https://localhost/flywheel/hub", options =>
         {
             options.Transports = HttpTransportType.WebSockets;
             options.HttpMessageHandlerFactory = _ => app.GetTestServer().CreateHandler();
             options.Headers["Cookie"] = cookie;
             options.WebSocketFactory = async (context, ct) =>
             {
-                var client = app.GetTestServer().CreateWebSocketClient();
+                WebSocketClient client = app.GetTestServer().CreateWebSocketClient();
                 client.ConfigureRequest = request => request.Headers.Cookie = cookie;
                 return await client.ConnectAsync(context.Uri, ct);
             };
@@ -58,12 +57,12 @@ public sealed partial class FlywheelDashboardTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var boards = Channel.CreateUnbounded<JsonElement>();
         var logs = Channel.CreateUnbounded<JsonElement>();
-        using var boardHandler = connection.On<JsonElement>("BoardSnapshot", value => boards.Writer.TryWrite(value));
-        using var logHandler = connection.On<JsonElement>("LogSnapshot", value => logs.Writer.TryWrite(value));
+        using IDisposable boardHandler = connection.On<JsonElement>("BoardSnapshot", value => boards.Writer.TryWrite(value));
+        using IDisposable logHandler = connection.On<JsonElement>("LogSnapshot", value => logs.Writer.TryWrite(value));
         await store.Subscribed.Task.WaitAsync(timeout.Token);
         await connection.StartAsync(timeout.Token);
         await connection.InvokeAsync("SubscribeBoard", 1, "invoice", 0, 25, true, null, null, timeout.Token);
-        var first = await boards.Reader.ReadAsync(timeout.Token);
+        JsonElement first = await boards.Reader.ReadAsync(timeout.Token);
         Check(first.GetProperty("version").GetInt32() == 1 && first.GetProperty("totalCount").GetInt32() == 51, "Initial snapshot missing");
         Check(!first.ToString().Contains("private-payload") && !first.ToString().Contains("private-token"), "Push leaked private state");
         int calls = store.Calls;
@@ -85,6 +84,10 @@ public sealed partial class FlywheelDashboardTests
         await connection.StartAsync(timeout.Token);
         await connection.InvokeAsync("SubscribeBoard", 4, "reconnected", 0, 50, true, null, null, timeout.Token);
         Check((await boards.Reader.ReadAsync(timeout.Token)).GetProperty("version").GetInt32() == 4, "Reconnect did not obtain a fresh snapshot");
+        await connection.InvokeAsync("SubscribeFilteredBoard", 5, "invoice", 0, 50, true, null, null, "Queued", timeout.Token);
+        JsonElement filtered = await boards.Reader.ReadAsync(timeout.Token);
+        Check(filtered.GetProperty("version").GetInt32() == 5 && filtered.GetProperty("totalCount").GetInt32() == 0 &&
+            filtered.GetProperty("items").GetArrayLength() == 0, "Live status filtering did not filter rows and totals");
         await connection.StopAsync(timeout.Token);
         await app.StopAsync(timeout.Token);
     }

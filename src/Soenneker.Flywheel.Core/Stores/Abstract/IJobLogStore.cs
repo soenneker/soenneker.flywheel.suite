@@ -1,5 +1,5 @@
-using Soenneker.Flywheel.Core.Logging.Dtos;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Logging.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 

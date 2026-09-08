@@ -1,0 +1,129 @@
+@page "/flywheel"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+@inherits LeptonCancellable
+@layout FlywheelLayout
+
+<style>
+    .flywheel-activity-chart { min-width: 0; }
+    .flywheel-activity-chart .quark-chart-stage { height: 140px; min-height: 0; }
+    .flywheel-activity-chart .quark-chart-empty { min-height: 140px; }
+    .flywheel-activity-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+    .flywheel-activity-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px; color: var(--muted-foreground); font: inherit; font-size: 14px; cursor: pointer; }
+    .flywheel-activity-legend button[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+    .flywheel-activity-legend button span { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+<PageTitle>Job operations · Flywheel</PageTitle>
+@inject IFlywheelDashboardConsumer Consumer
+@inject ActivityTotalsState ActivityTotals
+@inject DashboardSessionState Session
+@inject NavigationManager Navigation
+@inject DashboardBoardConnection BoardConnection
+
+<Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
+    @if (_error is not null)
+    {
+        <Alert role="alert"><AlertTitle>Unable to load executions</AlertTitle><AlertDescription>@_error <Button OnClick="Reload" Variant="ButtonVariant.Secondary">Retry</Button></AlertDescription></Alert>
+    }
+    @if (_loading)
+    {
+        <Paragraph role="status">Loading executions…</Paragraph>
+    }
+    else
+    {
+        <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End" Margin="Margin.FromBottom.Is4">
+            <ExecutionDatePicker Label="@DateRangeLabel" Min="@HistoryMinDate" Max="@HistoryMaxDate"
+                                 Presets="@HistoryRangePresets" Range="@(_liveMode ? null : new CalendarDateRange(_historyStartDate, _historyEndDate))"
+                                 RangeChanged="SetHistoryRange" LiveSelected="ShowLive" ClearSelected="ClearActivitySelection"
+                                 CanClear="@(_activityPaused || _jobStartAt is not null)" />
+        </Div>
+        <Grid aria-label="Job summaries" Columns="GridCols.Is1" Margin="Margin.FromBottom.Is4" Padding="Padding.FromBottom.Is3" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+                <Div>
+                    @if (_historyError is not null)
+                    {
+                        <Paragraph role="status" >@_historyError</Paragraph>
+                    }
+                    else
+                    {
+                        <div class="flywheel-activity-chart" aria-label="Activity chart" aria-busy="@_historyLoading">
+                            <Chart @ref="_activityChart" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@(UseLiveChart ? LiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions)"
+                                   OnRangeSelect="SelectActivityRange"
+                                   AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second UTC buckets. Drag a range to filter executions." : (_query.Length > 0 ? "Matching executions by current status and last update time. Static search results." : "Job activity in five-minute UTC buckets. Drag a range to filter executions."))" />
+                            <div class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">
+                                @foreach (ChartSeries series in ActivityLegendSeries)
+                                {
+                                    <button type="button" aria-pressed="@(!IsActivitySeriesHidden(series.Name))"
+                                            @onclick="() => ToggleActivitySeries(series.Name)">
+                                        <span style="background: @ActivitySeriesColor(series)"></span>@series.Name
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </Div>
+            </Div>
+        </Grid>
+        <Grid aria-label="Recent job activity" Columns="GridCols.Is1">
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+
+                <Div>
+                <DataTable @ref="_jobsTable" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
+                    <TopContent>
+                        <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Justify="Justify.Between" Margin="Margin.FromBottom.Is4">
+                                    <DataTableSearch Placeholder="Search" AriaLabel="Search jobs" />
+                            @if (!string.IsNullOrWhiteSpace(_query))
+                            {
+                                <Span aria-live="polite">@_totalCount matching jobs</Span>
+                            }
+                            <SidebarTrigger Display="Display.Flex.OnMd.None" aria-label="Open navigation menu"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Menu" Size="Size.Is5" /></SidebarTrigger>
+                        </Div>
+                    </TopContent>
+                    <TableContent>
+                        <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border">
+                            <Tr>
+                                <Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Updated</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Action</Th>
+                            </Tr>
+                        </Thead>
+                        <Tbody>
+                            @foreach (JobView job in _jobs)
+                            {
+                                <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
+                                        <Td>
+                                            <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></span>
+                                        </Td>
+                                        <Td>
+                                            <JobStatusBadge State="@job.State" CancelRequested="@job.CancelRequested" />
+                                        </Td>
+                                        <Td>@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td><JobTimestamp Value="@job.UpdatedAt" /></Td>
+                                        <Td>
+                                            @if (job.State is "Queued" or "Scheduled" or "Running" or "Waiting")
+                                            {
+                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Button Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Cancel {job.Name}")">@(job.CancelRequested ? "Cancellation requested" : "Cancel")</Button></span>
+                                            }
+                                        </Td>
+                                </Tr>
+                            }
+                        </Tbody>
+                    </TableContent>
+                    <BottomContent>
+                        @if (_jobs.Count == 0)
+                        {
+                            <Div  TextAlign="TextAlign.Center" Padding="Padding.Is8" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">
+                                <H3 TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.Words">@(string.IsNullOrEmpty(_query) ? (_totalCount == 0 ? "No executions yet" : "No executions on this page") : "No matching jobs")</H3>
+                                <Paragraph >@(string.IsNullOrEmpty(_query) ? "New executions appear here automatically. Use the page controls to return to earlier results." : "Try a job name, ID, worker, or a status such as DeadLettered. Clear the search to see all executions.")</Paragraph>
+                            </Div>
+                        }
+                        <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.FromTop.Is4">
+                            <DataTablePageSizeSelector Label="Rows per page" />
+                            <DataTablePagination />
+                        </Div>
+                    </BottomContent>
+                </DataTable>
+                </Div>
+            </Div>
+        </Grid>
+    }
+    <JobDetailsDrawer @ref="_jobDrawer" />
+</Div>

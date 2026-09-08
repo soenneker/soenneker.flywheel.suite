@@ -8,7 +8,7 @@ public interface IFlywheelLiveSubscription : IAsyncDisposable
     /// <summary>Starts the connection and its configured recovery policy.</summary>
     ValueTask Start(CancellationToken cancellationToken = default);
     /// <summary>Replaces the board query, preserving the caller's revision.</summary>
-    Task SubscribeBoard(int version, string query, int offset, int count, DateTimeOffset? startAt, DateTimeOffset? endAt, CancellationToken cancellationToken);
+    Task SubscribeBoard(int version, string query, int offset, int count, DateTimeOffset? startAt, DateTimeOffset? endAt, CancellationToken cancellationToken, string? excludedStates = null);
     /// <summary>Replaces the execution subscription.</summary>
     Task SubscribeJob(int version, string jobId, CancellationToken cancellationToken);
     /// <summary>Replaces the log subscription.</summary>

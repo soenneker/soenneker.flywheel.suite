@@ -1,9 +1,9 @@
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
-using Soenneker.Flywheel.Core.Requests;
+using Soenneker.Flywheel.Communication.Requests;
 using System.Text.Json;
 using Soenneker.Cron.Parser;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Services;
 

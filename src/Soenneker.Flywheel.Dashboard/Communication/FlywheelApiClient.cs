@@ -47,7 +47,7 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
 
     private async ValueTask<HttpResponseMessage> Send(HttpMethod method, string uri, object? body, CancellationToken cancellationToken)
     {
-        using var content = body is null ? null : JsonContent.Create(body);
+        using JsonContent? content = body is null ? null : JsonContent.Create(body);
         return await SendContent(method, uri, content, cancellationToken);
     }
 
@@ -60,10 +60,10 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
         if (method != HttpMethod.Get && method != HttpMethod.Head)
         {
-            using var response = await Get("flywheel/csrf", cancellationToken: cancellationToken);
+            using HttpResponseMessage response = await Get("flywheel/csrf", cancellationToken: cancellationToken);
             response.EnsureSuccessStatusCode();
-            var csrf = await response.Content.ReadFromJsonAsync<Csrf>(cancellationToken: cancellationToken)
-                ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");
+            Csrf csrf = await response.Content.ReadFromJsonAsync<Csrf>(cancellationToken: cancellationToken)
+                        ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");
             request.Headers.Add("X-Flywheel-CSRF", csrf.Token);
         }
         return await http.SendAsync(request, cancellationToken);

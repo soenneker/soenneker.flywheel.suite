@@ -2,9 +2,9 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Requests;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Redis.Client.Abstract;
 using Soenneker.Redis.Semaphores;
@@ -15,14 +15,14 @@ namespace Soenneker.Flywheel.Redis;
 
 public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJobTimeRangeSearchStore, INodeStore,
     IJobLogStore, IJobScheduleStore, IJobHistoryStore, IRecurringJobRunner, IMethodPolicyStore, IJobChangeFeed,
-    ICronJobStore, IJobChainStore, IJobProgressStore, IServerStore
+    ICronJobStore, IJobChainStore, IJobProgressStore, IServerStore, IJobLiveActivityStore, IJobSearchHistoryStore
 {
     private readonly Func<CancellationToken, Task<IDatabase>> _database;
     private readonly string _prefix;
 
     public async Task<long> GetRunningCount(CancellationToken cancellationToken = default)
     {
-        var db = await Database(cancellationToken);
+        IDatabase db = await Database(cancellationToken);
         return await db.SortedSetLengthAsync(Running).WaitAsync(cancellationToken);
     }
 
@@ -167,6 +167,10 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
 
     private void Save(Mutation mutation, JobRecord job, JobRecord? previous = null)
     {
+        if (IsTerminal(job.State) && (previous is null || previous.State != job.State))
+            job = job with { CompletedAt = mutation.Now };
+        else if (!IsTerminal(job.State))
+            job = job with { CompletedAt = 0 };
         RedisAtomicTransaction tx = mutation.Transaction;
         tx.Queue(t => t.HashSetAsync(Jobs, job.Id,
             Serialize(job.UpdatedAt == mutation.Now ? job : job with { UpdatedAt = mutation.Now })));
@@ -174,6 +178,9 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
         if (previous is not null && previous.State == job.State)
             return;
         long bucket = mutation.Now / 300000 * 300000;
+        RedisKey liveKey = _prefix + "activity:" + mutation.Now / 1000;
+        tx.Queue(t => t.HashIncrementAsync(liveKey, job.State.Value));
+        tx.Queue(t => t.KeyExpireAsync(liveKey, LiveActivityExpiry(mutation.Now)));
         tx.Queue(t => t.HashSetAsync(History, "started", mutation.Now, When.NotExists));
         tx.Queue(t => t.HashIncrementAsync(History, $"{bucket}:{job.State.Value}"));
         tx.Queue(t => t.SortedSetAddAsync(HistoryBuckets, bucket, bucket));
@@ -318,7 +325,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
                     {
                         State = JobState.Running, Attempt = job.Attempt + 1, Version = job.Version + 1,
                         Token = token, Owner = owner, LeaseUntil = mutation.Now + milliseconds,
-                        UpdatedAt = mutation.Now,
+                        UpdatedAt = mutation.Now, StartedAt = mutation.Now, CompletedAt = 0,
                         Progress = null, ProgressMessage = null, ProgressUpdatedAt = 0
                     };
                     tx.Require(Condition.KeyNotExists(leaseKey));

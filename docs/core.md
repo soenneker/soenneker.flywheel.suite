@@ -16,7 +16,7 @@ Queue a typed job, coordinate workers across instances, and follow each executio
 
 *The optional Flywheel Dashboard, shown with illustrative demo data.*
 
-[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](https://github.com/soenneker/soenneker.flywheel.suite) · [Run the demo](https://github.com/soenneker/soenneker.flywheel.suite/blob/main/demo/Soenneker.Flywheel.Demo/README.md)
+[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](https://github.com/soenneker/soenneker.flywheel.suite) · [Run the demo](https://github.com/soenneker/soenneker.flywheel.suite/blob/main/test/Soenneker.Flywheel.Demo/README.md)
 
 ## Setup
 
@@ -159,4 +159,4 @@ Jobs can run more than once; make handlers safe to retry and pass cancellation t
 - [Redis](https://github.com/soenneker/soenneker.flywheel.suite): storage configuration.
 - [Generators](https://github.com/soenneker/soenneker.flywheel.suite): job method requirements.
 - [Dashboard](https://github.com/soenneker/soenneker.flywheel.suite): view jobs and logs.
-- [Demo](https://github.com/soenneker/soenneker.flywheel.suite/blob/main/demo/Soenneker.Flywheel.Demo/README.md): run a complete app.
+- [Demo](https://github.com/soenneker/soenneker.flywheel.suite/blob/main/test/Soenneker.Flywheel.Demo/README.md): run a complete app.

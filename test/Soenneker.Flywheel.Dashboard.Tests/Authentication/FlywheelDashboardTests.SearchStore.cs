@@ -1,18 +1,9 @@
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Logging.Dtos;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Logging.Dtos;
 using Soenneker.Flywheel.Core.Stores.Abstract;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Responses;
-using Soenneker.Flywheel.Core.Requests;
-using System.Net;
-using System.Net.Http.Json;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
-using Soenneker.Flywheel.Core;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Responses;
+using Soenneker.Flywheel.Communication.Requests;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -26,13 +17,19 @@ public sealed partial class FlywheelDashboardTests
         {
             yield return JobChange.Resync;
             Subscribed.TrySetResult();
-            await foreach (var change in Changes.Reader.ReadAllAsync(cancellationToken)) yield return change;
+            await foreach (JobChange change in Changes.Reader.ReadAllAsync(cancellationToken)) yield return change;
         }
+        public JobRecord[]? SearchItems;
         public int Calls, Offset, Count;
         public string? Query;
         public Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50, CancellationToken cancellationToken = default)
         {
             Calls++; Query = query; Offset = offset; Count = count;
+            if (SearchItems is { } source)
+            {
+                var matches = source.Where(job => string.IsNullOrEmpty(query) || job.Name.Contains(query)).ToArray();
+                return Task.FromResult(new JobSearchResult(matches.Skip(offset).Take(count).ToArray(), matches.Length));
+            }
             return Task.FromResult(new JobSearchResult([new JobRecord { Id = "one", Name = "invoice", Payload = "private-payload", Token = "private-token", Policy = new() }], 51));
         }
         public Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

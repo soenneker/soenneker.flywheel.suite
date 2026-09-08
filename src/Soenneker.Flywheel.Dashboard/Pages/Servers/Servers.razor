@@ -1,0 +1,105 @@
+@page "/flywheel/servers"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Servers
+@using Soenneker.Dtos.Results.Operation
+@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.DataTables.Dtos.ServerSideRequest
+@using Soenneker.Quark
+@layout FlywheelLayout
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardSessionState Session
+@inherits LeptonCancellable
+
+<PageTitle>Servers · Flywheel</PageTitle>
+<Main Padding="Padding.Is4" Width="Width.IsFull">
+    <Div Margin="Margin.FromBottom.Is6"><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold">Servers</H2></Div>
+    @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load servers</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
+    else if (_servers is null) { <Paragraph role="status">Loading servers…</Paragraph> }
+    else
+    {
+        <DataTable Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">
+            <TopContent><DataTableSearch Placeholder="Search" AriaLabel="Search servers" /></TopContent>
+            <TableContent>
+                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th>Server</Th><Th>Workers (busy / total)</Th><Th>Running jobs</Th><Th>Heartbeat valid until</Th></Tr></Thead><Tbody>
+        @foreach (ServerView server in FilteredServers.Skip(ServerOffset).Take(_pageSize))
+        {
+            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td><Anchor Href="@($"/flywheel/servers/{Uri.EscapeDataString(server.Id)}")">@server.Id</Anchor></Td><Td>@($"{server.RunningJobs.Count:N0}/{server.Workers:N0}")</Td><Td>@server.RunningJobs.Count</Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
+        }
+                </Tbody>
+            </TableContent>
+            <BottomContent>
+                @if (FilteredServers.Count == 0)
+                {
+                    <Paragraph role="status">@(_search.Length == 0 ? "No live servers are reporting heartbeats." : "No matching servers.")</Paragraph>
+                }
+                <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" Gap="Gap.Is4" Margin="Margin.FromTop.Is4">
+                    <DataTablePageSizeSelector Label="Rows per page" /><DataTablePagination />
+                </Div>
+            </BottomContent>
+        </DataTable>
+    }
+</Main>
+
+@code {
+    private readonly DataTableOptions _tableOptions = new() { DefaultPageSize = 10, SearchDebounceMs = 300 };
+    private string _search = "";
+    private int _offset, _pageSize = 10;
+    private IReadOnlyList<ServerView> FilteredServers => _servers is null ? [] : _search.Length == 0 ? _servers :
+        _servers.Where(server => server.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToArray();
+    private int ServerOffset => Math.Min(_offset, Math.Max(0, (FilteredServers.Count - 1) / _pageSize * _pageSize));
+    private void SearchServers(DataTableServerSideRequest request)
+    {
+        _search = request.Search?.Value?.Trim() ?? "";
+        _offset = Math.Max(0, request.Start);
+        _pageSize = Math.Max(1, request.Length);
+    }
+    private List<ServerView>? _servers;
+    private string? _error;
+    private Task? _refreshLoop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        _refreshLoop = RefreshLoop();
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            OperationResult<List<ServerView>> response = await Consumer.GetServers(CancellationToken);
+            if (response.StatusCode == 401)
+            {
+                Session.SetAuthenticated(false);
+                _servers = null;
+                _error = "Your session has expired. Sign in again.";
+                return;
+            }
+            response.EnsureSucceeded();
+            _servers = response.Value ?? [];
+            Session.SetAuthenticated(true);
+            _error = null;
+        }
+        catch (Exception) when (!IsDisposed && !IsCancellationRequested) { _error = "Refresh failed. Flywheel will retry automatically."; }
+    }
+
+    private async Task RefreshLoop()
+    {
+        CancellationToken cancellationToken = CancellationToken;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await Refresh();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (_refreshLoop is not null) await _refreshLoop;
+    }
+}

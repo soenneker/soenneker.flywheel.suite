@@ -3,7 +3,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Description>Shared HTTP and SignalR communication contracts for Soenneker Flywheel.</Description>
+        <Description>Shared job, storage, HTTP, and SignalR communication contracts for Soenneker Flywheel.</Description>
         <Authors>Jake Soenneker</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/soenneker/soenneker.flywheel.suite</RepositoryUrl>
@@ -19,5 +19,9 @@
         <None Include="../../README.md" Pack="true" PackagePath="/" />
         <None Include="../../LICENSE" Pack="true" PackagePath="/" />
         <None Include="../../icon.png" Pack="true" PackagePath="/" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.48" PrivateAssets="all" />
+        <InternalsVisibleTo Include="Soenneker.Flywheel.Core" />
     </ItemGroup>
 </Project>

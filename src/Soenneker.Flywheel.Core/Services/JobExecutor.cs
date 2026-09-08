@@ -1,10 +1,10 @@
-using Soenneker.Flywheel.Core.Enums;
+using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Soenneker.Flywheel.Core.Logging;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Core.Services;
@@ -26,7 +26,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         var lost = 0;
         var cancelled = 0;
         Task renewTask = Renew();
-        JobOutcome outcome = Enums.JobOutcome.Succeeded;
+        JobOutcome outcome = Communication.Enums.JobOutcome.Succeeded;
         string? error = null;
         JobLogCapture.Session? logSession = logCapture is not null && logStore is not null ? logCapture.Begin(lease, logStore) : null;
         if (lease.Job.Attempt > 1)
@@ -42,7 +42,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         }
         catch (Exception ex)
         {
-            outcome = Enums.JobOutcome.Failed;
+            outcome = Communication.Enums.JobOutcome.Failed;
             // Do not persist exception messages/stacks, which may contain credentials or payload data.
             error = ex is OperationCanceledException ? "Execution interrupted or timed out" : ex.GetType().Name;
             logger.LogWarning(ex, "Job {JobId} attempt {Attempt} failed: {Error}", lease.Job.Id, lease.Job.Attempt, error);
@@ -56,7 +56,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         }
         if (Volatile.Read(ref lost) == 0)
         {
-            if (Volatile.Read(ref cancelled) != 0) outcome = Enums.JobOutcome.Cancelled;
+            if (Volatile.Read(ref cancelled) != 0) outcome = Communication.Enums.JobOutcome.Cancelled;
             using var commit = new CancellationTokenSource(options.LeaseDuration / 3);
             await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.Attempt, Random.Shared.NextDouble()), commit.Token);
         }
@@ -72,13 +72,13 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(renewal.Token);
                     deadline.CancelAfter(options.LeaseDuration / 3);
                     LeaseStatus status = await store.Renew(lease, options.LeaseDuration, deadline.Token).WaitAsync(deadline.Token);
-                    if (status == Enums.LeaseStatus.Lost)
+                    if (status == Communication.Enums.LeaseStatus.Lost)
                     {
                         Interlocked.Exchange(ref lost, 1);
                         await execution.CancelAsync();
                         return;
                     }
-                    if (status == Enums.LeaseStatus.CancellationRequested)
+                    if (status == Communication.Enums.LeaseStatus.CancellationRequested)
                     {
                         Interlocked.Exchange(ref cancelled, 1);
                         await execution.CancelAsync();

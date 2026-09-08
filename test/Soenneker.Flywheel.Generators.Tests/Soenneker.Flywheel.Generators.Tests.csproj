@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.2" />
-        <PackageReference Include="Soenneker.Tests.Unit" Version="4.0.1313" />
+        <PackageReference Include="Soenneker.Tests.Unit" Version="4.0.1314" />
         <PackageReference Include="TUnit" Version="1.66.27" />
     </ItemGroup>
 

@@ -8,14 +8,14 @@ internal sealed class DashboardBrowserTestHandler(HttpMessageHandler inner) : De
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (!request.Options.TryGetValue(new HttpRequestOptionsKey<IDictionary<string, object>>("WebAssemblyFetchOptions"), out var options) ||
-            !options.TryGetValue("credentials", out var credentials) || !Equals(credentials, "include"))
+        if (!request.Options.TryGetValue(new HttpRequestOptionsKey<IDictionary<string, object>>("WebAssemblyFetchOptions"), out IDictionary<string, object>? options) ||
+            !options.TryGetValue("credentials", out object? credentials) || !Equals(credentials, "include"))
             throw new InvalidOperationException("Flywheel request omitted browser credentials.");
-        var cookies = _cookies.GetCookieHeader(request.RequestUri!);
+        string cookies = _cookies.GetCookieHeader(request.RequestUri!);
         if (cookies.Length > 0) request.Headers.TryAddWithoutValidation("Cookie", cookies);
-        var response = await base.SendAsync(request, cancellationToken);
-        if (response.Headers.TryGetValues("Set-Cookie", out var values))
-            foreach (var value in values) _cookies.SetCookies(request.RequestUri!, value);
+        HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
+        if (response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values))
+            foreach (string value in values) _cookies.SetCookies(request.RequestUri!, value);
         return response;
     }
 }

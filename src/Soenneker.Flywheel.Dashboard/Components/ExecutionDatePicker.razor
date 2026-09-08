@@ -1,0 +1,65 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+
+<Popover @bind-Open="_open">
+    <PopoverTrigger AsChild="true"><Button Variant="ButtonVariant.Outline" aria-label="Select execution date range"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.CalendarDays" Size="Size.Is4" />@Label</Button></PopoverTrigger>
+    <PopoverContent Width="Width.Auto" UseDefaultMotion="false">
+        <Div Display="Display.Flex" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is2" Margin="Margin.FromBottom.Is3">
+            <Button Variant="ButtonVariant.Ghost" OnClick="SelectLive">Live</Button>
+            @foreach (var preset in Presets)
+            {
+                <Button Variant="ButtonVariant.Ghost" OnClick="() => SelectRange(new CalendarDateRange(preset.GetStart(Max), preset.GetEnd(Max)))">@preset.Label</Button>
+            }
+        </Div>
+        <Calendar Mode="CalendarSelectionMode.Range" SelectedRange="@_draft"
+                  SelectedRangeChanged="SelectRange" Min="@Min" Max="@Max" />
+        @if (CanClear)
+        {
+            <Button Variant="ButtonVariant.Ghost" OnClick="Clear">Clear selection</Button>
+        }
+    </PopoverContent>
+</Popover>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Live";
+    [Parameter] public DateOnly Min { get; set; }
+    [Parameter] public DateOnly Max { get; set; }
+    [Parameter] public IReadOnlyList<PresetDateRangePickerOption> Presets { get; set; } = [];
+    [Parameter] public CalendarDateRange? Range { get; set; }
+    [Parameter] public EventCallback<CalendarDateRange?> RangeChanged { get; set; }
+    [Parameter] public EventCallback LiveSelected { get; set; }
+    [Parameter] public EventCallback ClearSelected { get; set; }
+    [Parameter] public bool CanClear { get; set; }
+
+    private bool _open;
+    private CalendarDateRange? _draft;
+    private CalendarDateRange? _previousRange;
+
+    protected override void OnParametersSet()
+    {
+        if (Equals(_previousRange, Range)) return;
+        _previousRange = Range;
+        _draft = Range;
+    }
+
+    private async Task SelectRange(CalendarDateRange? range)
+    {
+        _draft = range;
+        if (range?.From is not { } from || range.To is not { } to || from > to) return;
+        _open = false;
+        await RangeChanged.InvokeAsync(range);
+    }
+
+    private async Task SelectLive()
+    {
+        _open = false;
+        _draft = null;
+        await LiveSelected.InvokeAsync();
+    }
+
+    private async Task Clear()
+    {
+        _open = false;
+        await ClearSelected.InvokeAsync();
+    }
+}

@@ -1,4 +1,4 @@
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 

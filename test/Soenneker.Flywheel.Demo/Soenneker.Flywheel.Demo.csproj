@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <UserSecretsId>soenneker-flywheel-demo</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
+    <ProjectReference Include="../../src/Soenneker.Flywheel.Redis/Soenneker.Flywheel.Redis.csproj" />
+    <ProjectReference Include="../../src/Soenneker.Flywheel.Generators/Soenneker.Flywheel.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

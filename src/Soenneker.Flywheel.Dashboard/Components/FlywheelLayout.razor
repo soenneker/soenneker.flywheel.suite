@@ -1,17 +1,69 @@
 @namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Lucide.Enums.Icons
+@using Microsoft.AspNetCore.Components.Routing
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
+@inject DashboardNavigationOptions DashboardNavigation
+@inject DashboardSessionState Session
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardBoardConnection BoardConnection
+@inject ActivityTotalsState ActivityTotals
+@inject NavigationManager Navigation
 
-@if (SharedHeader)
+@if (_checking)
+{
+    <Paragraph role="status">Loading dashboard…</Paragraph>
+}
+else if (_error is not null)
+{
+    <Alert role="alert"><AlertTitle>Unable to load dashboard</AlertTitle><AlertDescription>@_error</AlertDescription></Alert>
+}
+else if (Session.IsAuthenticated)
+{
+    <SidebarProvider SidebarWidth="14rem" CloseMobileOnNavigation="true" >
+        <Sidebar Collapsible="SidebarCollapsible.Icon" >
+            <SidebarHeader>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton Href="@DashboardNavigation.HomePath" Tooltip="Flywheel" aria-label="Flywheel" >
+                            <Icon Name="LucideIcon.Circle" Size="Size.Is4" />
+                            <Span FontWeight="FontWeight.Semibold" >Flywheel</Span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarHeader>
+            <SidebarContent>
+                <SidebarGroup>
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton Href="flywheel/recurring" Match="NavLinkMatch.All" Tooltip="Recurring jobs" aria-label="Recurring jobs" >
+                                <Icon Name="LucideIcon.Repeat" Size="Size.Is4" /><Span>Recurring jobs</Span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton Href="flywheel/scheduled" Match="NavLinkMatch.All" Tooltip="Scheduled jobs" aria-label="Scheduled jobs" >
+                                <Icon Name="LucideIcon.Clock" Size="Size.Is4" /><Span>Scheduled jobs</Span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton Href="flywheel/servers" Match="NavLinkMatch.Prefix" Tooltip="Servers" aria-label="Servers" >
+                                <Icon Name="LucideIcon.Server" Size="Size.Is4" /><Span>Servers</Span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+            </SidebarContent>
+        </Sidebar>
+        <SidebarInset MinWidth="MinWidth.Is0" Style="flex: 1; min-width: 0; margin: 0;" >
+            <FlywheelHeader />
+            @Body
+        </SidebarInset>
+    </SidebarProvider>
+}
+else if (IsSignInPage)
 {
     @Body
 }
-else
-{
-    <FlywheelShell>@Body</FlywheelShell>
-}
 
-@code {
-    /// <summary>Indicates that the application shell already owns a persistent header.</summary>
-    [CascadingParameter(Name = "FlywheelSharedHeader")]
-    public bool SharedHeader { get; set; }
-}
+<Sonner />

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Soenneker.Flywheel.Core.Dashboard.Filters;
 using Soenneker.Flywheel.Core.Dashboard.Abstract;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
@@ -25,7 +25,7 @@ public sealed class FlywheelServersController(IServerStore nodes, IDashboardSnap
     public async Task<IActionResult> Get(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
-        ServerView? server = await nodes.GetServer(id, cancellationToken);
+        WorkerServerView? server = await nodes.GetServer(id, cancellationToken);
         return server is null ? NotFound() : Ok(snapshots.Server(server));
     }
 

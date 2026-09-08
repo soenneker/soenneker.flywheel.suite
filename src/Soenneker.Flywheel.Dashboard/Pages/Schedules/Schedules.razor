@@ -1,0 +1,70 @@
+@page "/flywheel/recurring"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Schedules
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+@inherits JobsPageBase
+@layout FlywheelLayout
+@inject ISonnerService Sonner
+
+<PageTitle>Recurring jobs · Flywheel</PageTitle>
+
+<Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
+    @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
+    <Drawer @ref="_drawer" Visible="@(_selectedSchedule is not null)" VisibleChanged="OnDrawerVisibleChanged" Direction="right" TrapFocus="true" ShowBackdrop="true">
+        <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+            <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Recurring jobs</H3></Div>
+            <DataTable Options="@_recurringTableOptions" TotalRecords="@FilteredRecurring.Count" OnInteraction="SearchRecurring">
+                <TopContent>
+                    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
+                        <DataTableSearch Placeholder="Search" AriaLabel="Search recurring jobs" />
+                        <SidebarTrigger Display="Display.Flex.OnMd.None" aria-label="Open navigation menu"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Menu" Size="Size.Is5" /></SidebarTrigger>
+                    </Div>
+                </TopContent>
+                <TableContent>
+                    <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Schedule</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Next run</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Action</Th></Tr></Thead><Tbody>
+                    @foreach (RecurringScheduleView schedule in FilteredRecurring.Skip(RecurringOffset).Take(_recurringPageSize))
+                    {
+                        <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="schedule.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowScheduleDrawer(schedule)" @onkeydown="e => OpenScheduleDrawer(e, schedule)">
+                            <Td><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@($"flywheel/recurring/{Uri.EscapeDataString(schedule.Id)}")">@schedule.Name</Anchor></span></Td>
+                            <Td>@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : $"{schedule.Cron} ({schedule.TimeZoneId})")</Td>
+                            <Td><JobTimestamp StartsAt="true" Value="@schedule.DueAt" /></Td>
+                            <td class="p-2 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
+                                <Button OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Loading="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">Run now</Button>
+                            </td>
+                        </Tr>
+                    }
+                    </Tbody>
+                </TableContent>
+                <BottomContent>
+                    @if (_scheduleError is not null)
+                    {
+                        <Paragraph role="status">@_scheduleError</Paragraph>
+                    }
+                    else if (_schedules is null)
+                    {
+                        <Paragraph>Loading schedules…</Paragraph>
+                    }
+                    else if (!FilteredRecurring.Any())
+                    {
+                        <Paragraph TextColor="TextColor.MutedForeground">No matching recurring jobs.</Paragraph>
+                    }
+                    <Div Display="Display.Flex" ItemsAlign="Items.Center" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Gap="Gap.Is4" Margin="Margin.FromTop.Is4">
+                        <DataTablePageSizeSelector Label="Rows per page" />
+                        <DataTablePagination />
+                    </Div>
+                    @if (_schedules?.Recurring.Count == 200)
+                    {
+                        <Small TextColor="TextColor.MutedForeground">Search and paging cover the next 200 recurring jobs.</Small>
+                    }
+                </BottomContent>
+            </DataTable>
+        </Div>
+        <DrawerContent Style="width: 100vw; max-width: 40rem;" Padding="Padding.Is4.OnMd.Is6">
+            @if (_selectedSchedule is { } selectedSchedule)
+            {
+                <DrawerTitle ScreenReader="ScreenReader.Only">@selectedSchedule.Name</DrawerTitle>
+                <Schedule Value="@selectedSchedule" Embedded="true" Running="@_startingSchedules.Contains(selectedSchedule.Id)" RunRequested="RunRecurring" />
+            }
+        </DrawerContent>
+    </Drawer>
+</Div>

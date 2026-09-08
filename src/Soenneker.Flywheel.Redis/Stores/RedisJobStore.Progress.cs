@@ -1,4 +1,4 @@
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Redis.Util.Atomics;
 using StackExchange.Redis;
 

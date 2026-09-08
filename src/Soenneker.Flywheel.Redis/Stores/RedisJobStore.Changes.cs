@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;

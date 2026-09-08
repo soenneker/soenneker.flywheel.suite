@@ -10,6 +10,9 @@ public sealed class FlywheelHub(DashboardSubscriptions subscriptions) : Hub<IFly
     public Task SubscribeBoard(int version, string? query, int offset, int count, bool summary, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null) =>
         subscriptions.Subscribe(Context.ConnectionId, "Board", version, query, offset, count, summary, null, Context.ConnectionAborted, startAt, endAt);
 
+    public Task SubscribeFilteredBoard(int version, string? query, int offset, int count, bool summary, DateTimeOffset? startAt, DateTimeOffset? endAt, string? excludedStates) =>
+        subscriptions.Subscribe(Context.ConnectionId, "Board", version, query, offset, count, summary, null, Context.ConnectionAborted, startAt, endAt, excludedStates);
+
     public Task SubscribeJob(int version, string jobId) =>
         subscriptions.Subscribe(Context.ConnectionId, "Job", version, null, 0, 1, false, jobId, Context.ConnectionAborted);
 

@@ -3,8 +3,7 @@ using Soenneker.Flywheel.Core.Dashboard.Abstract;
 using Soenneker.Flywheel.Communication.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
@@ -41,6 +40,16 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
         return Ok(snapshots.History(await history.GetHistory(start, end, cancellationToken)));
     }
 
+    /// <summary>Returns matching retained job counts by current state and update time, independent of pagination.</summary>
+    [HttpGet("history/search")]
+    public async Task<IActionResult> SearchHistory(CancellationToken cancellationToken, [FromQuery] string? q = null,
+        [FromQuery] DateTimeOffset? startAt = null, [FromQuery] DateTimeOffset? endAt = null)
+    {
+        if (q?.Length > 200 || startAt.HasValue != endAt.HasValue || startAt >= endAt) return BadRequest();
+        if (store is not IJobSearchHistoryStore history) return StatusCode(501);
+        return Ok(await history.GetSearchHistory(q, startAt, endAt, cancellationToken));
+    }
+
     /// <summary>Returns the configured aggregate activity retention.</summary>
     [HttpGet("history/options")]
     public IActionResult HistoryOptions() => store is IJobHistoryStore history
@@ -69,13 +78,11 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
     [HttpGet("search")]
     public async Task<IActionResult> Search(CancellationToken cancellationToken, [FromQuery] string? q = null,
         [FromQuery] int offset = 0, [FromQuery] int count = 50, [FromQuery] DateTimeOffset? startAt = null,
-        [FromQuery] DateTimeOffset? endAt = null)
+        [FromQuery] DateTimeOffset? endAt = null, [FromQuery] string? excludedStates = null)
     {
-        if (offset < 0 || count is < 1 or > 200 || q?.Length > 200 || startAt.HasValue != endAt.HasValue || startAt >= endAt) return BadRequest();
+        if (!DashboardJobSearch.IsValid(excludedStates) || offset < 0 || count is < 1 or > 200 || q?.Length > 200 || startAt.HasValue != endAt.HasValue || startAt >= endAt) return BadRequest();
         if (startAt.HasValue && store is not IJobTimeRangeSearchStore) return StatusCode(501);
-        JobSearchResult result = startAt is { } start && endAt is { } end
-            ? await ((IJobTimeRangeSearchStore)store).Search(q, start, end, offset, count, cancellationToken)
-            : await store.Search(q, offset, count, cancellationToken);
+        JobSearchResult result = await DashboardJobSearch.Search(store, q, offset, count, startAt, endAt, excludedStates, cancellationToken);
         return Ok(new SearchResult(result.Items.Select(snapshots.Job).ToList(), result.TotalCount));
     }
 

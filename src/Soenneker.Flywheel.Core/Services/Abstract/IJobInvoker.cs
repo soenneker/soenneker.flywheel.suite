@@ -1,6 +1,6 @@
 namespace Soenneker.Flywheel.Core.Services.Abstract;
 
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Dtos;
 
 /// <summary>Compile-time generated invocation adapter resolved inside an execution scope.</summary>
 public interface IJobInvoker

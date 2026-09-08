@@ -1,0 +1,28 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+
+<Drawer @ref="_drawer" Visible="@(_selectedJob is not null)" VisibleChanged="OnVisibleChanged" Direction="right" TrapFocus="true" ShowBackdrop="true">
+    <DrawerContent Style="width: 100vw; max-width: 56rem;" Padding="Padding.Is4.OnMd.Is6">
+        @if (_selectedJob is { } job)
+        {
+            <DrawerTitle ScreenReader="ScreenReader.Only">@job.Name</DrawerTitle>
+            <Soenneker.Flywheel.Dashboard.Pages.Jobs.Job @key="job.Id" JobId="@job.Id" Embedded="true" />
+        }
+    </DrawerContent>
+</Drawer>
+
+@code {
+    private Drawer? _drawer;
+    private JobView? _selectedJob;
+
+    /// <summary>Shows the execution details without leaving the current page.</summary>
+    public async Task Show(JobView job)
+    {
+        _selectedJob = job;
+        await InvokeAsync(StateHasChanged);
+        if (_drawer is not null) await _drawer.Show();
+    }
+
+    private void OnVisibleChanged(bool visible) { if (!visible) _selectedJob = null; }
+}

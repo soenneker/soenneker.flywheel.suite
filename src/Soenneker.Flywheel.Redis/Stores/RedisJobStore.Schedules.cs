@@ -1,8 +1,8 @@
 using Soenneker.Cron.Parser;
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Dtos;
-using Soenneker.Flywheel.Core.Requests;
-using Soenneker.Flywheel.Core.Responses;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Communication.Requests;
+using Soenneker.Flywheel.Communication.Responses;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
@@ -14,7 +14,7 @@ public sealed partial class RedisJobStore
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200 || request.IdempotencyKey is not null || request.Delay != TimeSpan.Zero)
             throw new ArgumentException("Invalid cron schedule.");
-        var cron = CronParser.Parse(expression, timeZoneId, includeSeconds);
+        CronSchedule cron = CronParser.Parse(expression, timeZoneId, includeSeconds);
         var schedule = new Schedule(Create(request, ""), 0, Cron: expression, TimeZoneId: timeZoneId, IncludeSeconds: includeSeconds);
         string key = Key(id);
         IDatabase db = await Database(cancellationToken);
@@ -22,8 +22,8 @@ public sealed partial class RedisJobStore
         {
             Mutation mutation = await Begin(db, cancellationToken);
             if (await db.HashExistsAsync(Schedules, key).WaitAsync(cancellationToken)) return false;
-            var next = cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(mutation.Now))
-                ?? throw new ArgumentException("Cron expression has no future occurrence.", nameof(expression));
+            DateTimeOffset next = cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(mutation.Now))
+                                  ?? throw new ArgumentException("Cron expression has no future occurrence.", nameof(expression));
             mutation.Transaction.Queue(t => t.HashSetAsync(Schedules, key, Serialize(schedule)));
             mutation.Transaction.Queue(t => t.SortedSetAddAsync(ScheduleDue, key, next.ToUnixTimeMilliseconds()));
             Publish(mutation, new JobChange("Schedules"));
@@ -58,7 +58,7 @@ public sealed partial class RedisJobStore
     private static JobRecord Occurrence(Schedule schedule, string id) => schedule.Job with
     {
         Id = id, State = JobState.Scheduled, Attempt = 0, Version = 0, Token = null,
-        Owner = null, LeaseUntil = 0, CancelRequested = false, Error = null
+        Owner = null, LeaseUntil = 0, CancelRequested = false, Error = null, StartedAt = 0, CompletedAt = 0
     };
 
     public async Task<string?> RunRecurring(string scheduleId, CancellationToken cancellationToken = default)

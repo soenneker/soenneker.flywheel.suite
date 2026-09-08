@@ -17,8 +17,10 @@ internal sealed class FlywheelLiveSubscription(string id, SignalRWebClient clien
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken, cancellationToken);
         await client.StartConnection(linked.Token);
     }
-    public Task SubscribeBoard(int version, string query, int offset, int count, DateTimeOffset? startAt, DateTimeOffset? endAt, CancellationToken cancellationToken) =>
-        client.Connection.InvokeAsync(nameof(IFlywheelDashboardHub.SubscribeBoard), version, query, offset, count, true, startAt, endAt, cancellationToken);
+    public Task SubscribeBoard(int version, string query, int offset, int count, DateTimeOffset? startAt, DateTimeOffset? endAt, CancellationToken cancellationToken, string? excludedStates = null) =>
+        !string.IsNullOrEmpty(excludedStates)
+            ? client.Connection.InvokeAsync(nameof(IFlywheelDashboardHub.SubscribeFilteredBoard), version, query, offset, count, true, startAt, endAt, excludedStates, cancellationToken)
+            : client.Connection.InvokeAsync(nameof(IFlywheelDashboardHub.SubscribeBoard), version, query, offset, count, true, startAt, endAt, cancellationToken);
     public Task SubscribeJob(int version, string jobId, CancellationToken cancellationToken) => client.Connection.InvokeAsync(nameof(IFlywheelDashboardHub.SubscribeJob), version, jobId, cancellationToken);
     public Task SubscribeLogs(int version, string jobId, CancellationToken cancellationToken) => client.Connection.InvokeAsync(nameof(IFlywheelDashboardHub.SubscribeLogs), version, jobId, cancellationToken);
 

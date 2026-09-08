@@ -1,6 +1,6 @@
 using System;
-using Soenneker.Flywheel.Core.Enums;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Enums;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Tests.Jobs;
 public sealed class FlywheelTests
@@ -9,7 +9,7 @@ public sealed class FlywheelTests
     public void DispatchPolicyValidationAndLegacyDefaults()
     {
         var legacy = System.Text.Json.JsonSerializer.Deserialize<JobPolicy>("{\"MaxAttempts\":2}")!;
-        if (legacy.Priority != Soenneker.Flywheel.Core.Enums.JobPriority.Normal) throw new Exception("Legacy priority changed");
+        if (legacy.Priority != Soenneker.Flywheel.Communication.Enums.JobPriority.Normal) throw new Exception("Legacy priority changed");
         foreach (MethodPolicy policy in new[] { new MethodPolicy { MaxConcurrency = 0 }, new MethodPolicy { RateLimit = -1 },
                      new MethodPolicy { RateWindow = TimeSpan.Zero } })
         {
@@ -17,8 +17,8 @@ public sealed class FlywheelTests
             catch (ArgumentOutOfRangeException) { }
         }
         new MethodPolicy().Validate();
-        foreach (JobPriority priority in new[] { Soenneker.Flywheel.Core.Enums.JobPriority.Low, Soenneker.Flywheel.Core.Enums.JobPriority.Normal,
-                     Soenneker.Flywheel.Core.Enums.JobPriority.High, Soenneker.Flywheel.Core.Enums.JobPriority.Critical })
+        foreach (JobPriority priority in new[] { Soenneker.Flywheel.Communication.Enums.JobPriority.Low, Soenneker.Flywheel.Communication.Enums.JobPriority.Normal,
+                     Soenneker.Flywheel.Communication.Enums.JobPriority.High, Soenneker.Flywheel.Communication.Enums.JobPriority.Critical })
         {
             var policy = new JobPolicy { Priority = priority };
             policy.Validate();

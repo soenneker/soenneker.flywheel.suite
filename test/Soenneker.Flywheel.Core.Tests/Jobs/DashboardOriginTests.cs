@@ -21,11 +21,11 @@ public sealed class DashboardOriginTests
             options.PasswordPhc = PasswordPhc;
             options.AllowedOrigins = ["https://localhost:7004"];
         });
-        await using var provider = services.BuildServiceProvider();
+        await using ServiceProvider provider = services.BuildServiceProvider();
         var app = new ApplicationBuilder(provider);
         app.UseFlywheelDashboard();
         app.Run(context => { context.Response.StatusCode = 204; return Task.CompletedTask; });
-        var pipeline = app.Build();
+        RequestDelegate pipeline = app.Build();
 
         async Task<DefaultHttpContext> Send(string? origin, string path = "/flywheel/jobs", bool preflight = false, bool websocket = false)
         {
@@ -49,18 +49,18 @@ public sealed class DashboardOriginTests
             return context;
         }
 
-        foreach (var origin in new[] { "https://evil.example", "https://localhost:7005", "http://localhost:7004", "null", "https://localhost:7004.evil.example", "https://localhost:7004/path" })
+        foreach (string origin in new[] { "https://evil.example", "https://localhost:7005", "http://localhost:7004", "null", "https://localhost:7004.evil.example", "https://localhost:7004/path" })
         {
             if ((await Send(origin)).Response.StatusCode != 403 ||
                 (await Send(origin, "/flywheel/hub", websocket: true)).Response.StatusCode != 403)
                 throw new Exception($"Untrusted origin was allowed: {origin}");
         }
-        foreach (var origin in new[] { null, "https://localhost:7002", "https://localhost:7004" })
+        foreach (string? origin in new[] { null, "https://localhost:7002", "https://localhost:7004" })
             if ((await Send(origin)).Response.StatusCode != 204)
                 throw new Exception($"Expected origin rejected: {origin}");
         if ((await Send("https://localhost:7004", "/flywheel/hub", websocket: true)).Response.StatusCode != 204)
             throw new Exception("Allowed WebSocket handshake rejected.");
-        var preflight = await Send("https://localhost:7004", preflight: true);
+        DefaultHttpContext preflight = await Send("https://localhost:7004", preflight: true);
         if (preflight.Response.StatusCode != 204 || preflight.Response.Headers.AccessControlAllowOrigin != "https://localhost:7004" ||
             preflight.Response.Headers.AccessControlAllowCredentials != "true")
             throw new Exception("Credentialed preflight was not allowed.");
@@ -71,7 +71,7 @@ public sealed class DashboardOriginTests
     [Test]
     public void RejectsInvalidConfiguration()
     {
-        foreach (var origin in new[] { "*", "null", "https://*.example.com", "https://example.com/path", "https://user@example.com", "https://example.com?query=1", "https://example.com#fragment" })
+        foreach (string origin in new[] { "*", "null", "https://*.example.com", "https://example.com/path", "https://user@example.com", "https://example.com?query=1", "https://example.com#fragment" })
         {
             try
             {

@@ -1,6 +1,6 @@
-using Soenneker.Flywheel.Core.Responses;
-using Soenneker.Flywheel.Core.Requests;
-using Soenneker.Flywheel.Core.Dtos;
+using Soenneker.Flywheel.Communication.Responses;
+using Soenneker.Flywheel.Communication.Requests;
+using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 
@@ -14,10 +14,10 @@ public interface IJobStore
     Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default);
 
     /// <summary>Renews only an unexpired current lease using storage time.</summary>
-    Task<Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default);
+    Task<Communication.Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default);
 
     /// <summary>Commits an outcome or retry atomically. Returns false for stale/expired ownership.</summary>
-    Task<bool> Finish(JobLease lease, Enums.JobOutcome outcome, string? error, TimeSpan retryDelay,
+    Task<bool> Finish(JobLease lease, Communication.Enums.JobOutcome outcome, string? error, TimeSpan retryDelay,
         CancellationToken cancellationToken = default);
 
     /// <summary>Durably cancels pending work or requests cooperative cancellation of an execution.</summary>

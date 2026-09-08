@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Services;
-using Soenneker.Flywheel.Core.Services.Abstract;
 
 namespace Soenneker.Flywheel.Core.Tests.Runtime;
 

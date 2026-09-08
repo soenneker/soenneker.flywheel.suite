@@ -1,5 +1,5 @@
 @namespace Soenneker.Flywheel.Dashboard
-@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Dtos.Results.Operation
 @using Soenneker.Quark
 @inherits LeptonCancellable
 @inject ActivityTotalsState ActivityTotals
@@ -12,9 +12,8 @@
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.Is0" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
         <Div Display="Display.None.OnMd.Flex" Width="Width.IsFull.OnMd.Auto" Flex="Flex.None.OnMd.Is1" FlexDirection="FlexDirection.Row" ItemsAlign="Items.Center" Gap="Gap.Is4" Justify="Justify.Between">
             <Div Display="Display.Flex" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
-                @for (var i = 0; i < HeaderLabels.Length; i++)
+                @foreach (int index in HeaderOrder)
                 {
-                    var index = i;
                     <Div>
                         <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@HeaderTitle(index)">@HeaderLabels[index]</Span>
                         @if (HeaderHref(index) is { } href)
@@ -41,7 +40,8 @@
 </Div>
 
 @code {
-    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers"];
+    private static readonly int[] HeaderOrder = [0, 6, 1, 2, 3, 4, 5];
+    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers", "Queued"];
 
     protected override void OnInitialized() => ActivityTotals.Changed += OnChanged;
 
@@ -49,26 +49,30 @@
 
     private string HeaderValue(int index) => index switch
     {
+        6 => ActivityTotals.QueuedCount?.ToString("N0") ?? "—",
         0 => ActivityTotals.ScheduledCount?.ToString("N0") ?? "—",
         1 => ActivityTotals.RunningCount?.ToString("N0") ?? "—",
         4 => ActivityTotals.ServerCount?.ToString("N0") ?? "—",
-        5 => ActivityTotals.TotalWorkers?.ToString("N0") ?? "—",
+        5 => ActivityTotals.RunningCount is { } busy && ActivityTotals.TotalWorkers is { } total ? $"{busy:N0}/{total:N0}" : "—",
         _ => ActivityTotals.Totals is { } totals ? totals[index - 1].ToString("N0") : "—"
     };
 
     private static string? HeaderHref(int index) => index switch
     {
-        0 => "/flywheel/scheduled",
-        4 => "/flywheel/servers",
+        6 => "flywheel",
+        0 => "flywheel/scheduled",
+        1 => "flywheel",
+        4 => "flywheel/servers",
         _ => null
     };
 
     private static string? HeaderTitle(int index) => index switch
     {
-        0 => "Jobs currently scheduled, independent of the selected date range",
+        6 => "Jobs ready to run, waiting for an available worker",
+        0 => "Jobs waiting for a future start time, independent of the selected date range",
         1 => "Jobs executing now, independent of the selected date range",
         4 => "Servers currently reporting live heartbeats",
-        5 => "Total active worker capacity across live servers",
+        5 => "Busy workers / total worker capacity across live servers; idle workers await work",
         _ => null
     };
 
@@ -76,10 +80,10 @@
     {
         try
         {
-            var response = await Consumer.Logout(CancellationToken);
+            OperationResult<object> response = await Consumer.Logout(CancellationToken);
             response.EnsureSucceeded();
             Session.SetAuthenticated(false);
-            Navigation.NavigateTo(DashboardNavigation.HomePath == "/" ? "/signin" : DashboardNavigation.HomePath, forceLoad: true);
+            Navigation.NavigateTo("signin", replace: true);
         }
         catch
         {
