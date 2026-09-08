@@ -61,7 +61,7 @@ jobs:
           for component in Communication Core Redis Generators Dashboard; do
             dotnet pack "src/Soenneker.Flywheel.$component/Soenneker.Flywheel.$component.csproj" -c Release --no-build --no-restore -o artifacts/packages
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: flywheel-packages
           path: artifacts/packages/*
