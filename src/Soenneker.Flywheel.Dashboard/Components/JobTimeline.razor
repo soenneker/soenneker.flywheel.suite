@@ -1,0 +1,63 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+
+<Div TextSize="TextSize.Sm" Style="max-width: 40rem; min-width: 0;">
+    <H3 TextSize="TextSize.Xs" FontWeight="FontWeight.Semibold" TextColor="TextColor.MutedForeground" Margin="Margin.Is0">Activity</H3>
+    <Div Style="overflow-x: auto; padding-top: .5rem;" tabindex="0" role="region" aria-label="Job timeline">
+        <Timeline Orientation="horizontal" Value="2" AriaLabel="Job timeline" Style="width: 100%;">
+            <TimelineItem Step="1" Style="@ItemStyle">
+                <TimelineHeader>
+                    <TimelineTitle Style="margin: 0 0 .375rem; font-size: .875rem; font-weight: 600;">Created</TimelineTitle>
+                    <TimelineDate Style="margin: 0; line-height: 1.6;"><JobTimestamp ShowAbsolute="true" Value="@Job.CreatedAt" /></TimelineDate>
+                </TimelineHeader>
+                <TimelineIndicator Style="@IndicatorStyle" />
+                <TimelineSeparator Style="@SeparatorStyle" />
+            </TimelineItem>
+            <TimelineItem Step="2" Style="@ItemStyle">
+                <TimelineHeader>
+                    <TimelineTitle Style="margin: 0 0 .375rem; font-size: .875rem; font-weight: 600;">Updated</TimelineTitle>
+                    <TimelineDate Style="margin: 0; line-height: 1.6;"><JobTimestamp ShowAbsolute="true" Value="@Job.UpdatedAt" /></TimelineDate>
+                </TimelineHeader>
+                <TimelineIndicator Style="@IndicatorStyle" />
+                <TimelineSeparator Style="@SeparatorStyle" />
+                <TimelineContent Style="margin: 0; font-size: .75rem; color: var(--muted-foreground);">
+                    @(Job.MaxAttempts is { } max ? $"{Job.Attempt} of {max} attempts used" : $"{Job.Attempt} attempts used")
+                </TimelineContent>
+            </TimelineItem>
+            @if (Job.State == "Scheduled")
+            {
+                <TimelineItem Step="3" Style="@ItemStyle">
+                    <TimelineHeader>
+                        <TimelineTitle Style="margin: 0 0 .375rem; font-size: .875rem; font-weight: 600;">@(Job.Attempt > 0 ? "Retry due" : "Scheduled for")</TimelineTitle>
+                        <TimelineDate Style="margin: 0; line-height: 1.6;"><JobTimestamp StartsAt="true" ShowAbsolute="true" Value="@Job.DueAt" /></TimelineDate>
+                    </TimelineHeader>
+                    <TimelineIndicator Style="@PendingIndicatorStyle" />
+                    <TimelineSeparator Style="@SeparatorStyle" />
+                </TimelineItem>
+            }
+            @if (Job.State == "Running")
+            {
+                <TimelineItem Step="3" Style="@ItemStyle">
+                    <TimelineHeader>
+                        <TimelineTitle Style="margin: 0 0 .375rem; font-size: .875rem; font-weight: 600;">Worker lease expires</TimelineTitle>
+                        <TimelineDate Style="margin: 0; line-height: 1.6;"><JobTimestamp ShowAbsolute="true" Value="@Job.LeaseUntil" /></TimelineDate>
+                    </TimelineHeader>
+                    <TimelineIndicator Style="@PendingIndicatorStyle" />
+                    <TimelineSeparator Style="@SeparatorStyle" />
+                </TimelineItem>
+            }
+        </Timeline>
+    </Div>
+</Div>
+
+@code {
+    private const string ItemStyle = "flex: 1 0 9rem; width: auto; margin-top: 1.25rem; padding-right: 1rem; gap: .25rem;";
+    private const string IndicatorStyle = "top: -1rem; left: 0; width: .5rem; height: .5rem; transform: none; translate: none; border: 0; background: var(--primary);";
+    private const string PendingIndicatorStyle = IndicatorStyle + "border: 1px solid var(--muted-foreground); background: transparent;";
+    private const string SeparatorStyle = "top: calc(-1rem + 3px); left: .875rem; width: calc(100% - 1.25rem); height: 2px; transform: none; translate: none; background: var(--border);";
+
+    /// <summary>The current execution snapshot displayed in the timeline.</summary>
+    [Parameter, EditorRequired]
+    public JobView Job { get; set; } = null!;
+}

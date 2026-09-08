@@ -1,0 +1,30 @@
+[
+  {
+    "Scenario": "idle",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 0.6708069999999999,
+    "BytesPerOperation": 4840,
+    "RedisCommandsPerOperation": 5
+  },
+  {
+    "Scenario": "backlog-1000",
+    "Iterations": 30,
+    "MillisecondsPerOperation": 17.0775,
+    "BytesPerOperation": 22935044,
+    "RedisCommandsPerOperation": 57
+  },
+  {
+    "Scenario": "renew",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 1.603709,
+    "BytesPerOperation": 56031,
+    "RedisCommandsPerOperation": 23
+  },
+  {
+    "Scenario": "logs-50",
+    "Iterations": 50,
+    "MillisecondsPerOperation": 1.496072,
+    "BytesPerOperation": 164809,
+    "RedisCommandsPerOperation": 65
+  }
+]

@@ -1,0 +1,13 @@
+<div class="code-example" data-language="@Language" data-label="@Label">
+    <div class="quark-editor" hidden>
+        <CodeEditor Text="@Text" Language="@Language" ReadOnly="true" Theme="quarkLight" AutoHeight="true" MinLines="1" MaxLines="null" Minimap="false" ShowCopyButton="true" />
+    </div>
+    <pre class="code-fallback" tabindex="0" aria-label="@Label"><code>@Text</code></pre>
+    <span class="copy-status" role="status" aria-live="polite"></span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter] public string Language { get; set; } = "csharp";
+    [Parameter] public string Label { get; set; } = "Code example";
+}

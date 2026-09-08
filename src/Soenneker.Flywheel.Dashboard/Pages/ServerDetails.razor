@@ -1,0 +1,87 @@
+@page "/flywheel/servers/{ServerId}"
+@namespace Soenneker.Flywheel.Dashboard.Pages
+@using System.Net
+@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Quark
+@layout FlywheelLayout
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardSessionState Session
+@inherits LeptonCancellable
+
+<PageTitle>@(_server?.Id ?? "Server") · Flywheel</PageTitle>
+<Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull">
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="/flywheel/servers" Variant="ButtonVariant.Secondary" aria-label="Back to servers">←</Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
+    @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load server</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
+    else if (_server is null) { <Paragraph role="status">@(_missing ? "This server is no longer reporting a heartbeat." : "Loading server…")</Paragraph> }
+    else
+    {
+        <Grid Columns="GridCols.Is1.OnMd.Is3" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Active workers</Span><Span>@_server.Workers.ToString("N0")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div></Grid>
+        <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Active executions</H3>
+        @if (_server.RunningJobs.Count == 0) { <Paragraph role="status">This server is live and currently idle.</Paragraph> }
+        else
+        {
+            <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th><Th>Progress</Th></Tr></Thead><Tbody>
+            @foreach (JobView job in _server.RunningJobs)
+            {
+                <Tr @key="job.Id"><Td><Anchor Href="@($"/flywheel/jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
+            }
+            </Tbody></Table>
+        }
+    }
+</Main>
+
+@code {
+    [Parameter] public string ServerId { get; set; } = "";
+    private ServerView? _server;
+    private bool _missing;
+    private string? _error;
+    private Task? _refreshLoop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        _refreshLoop = RefreshLoop();
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            var response = await Consumer.GetServer(ServerId, CancellationToken);
+            if (response.StatusCode == (int)HttpStatusCode.Unauthorized)
+            {
+                Session.SetAuthenticated(false);
+                _server = null;
+                _error = "Your session has expired. Sign in again.";
+                return;
+            }
+            if (response.Succeeded) Session.SetAuthenticated(true);
+            _missing = response.StatusCode == (int)HttpStatusCode.NotFound;
+            _server = _missing ? null : response.Value;
+            if (!_missing) response.EnsureSucceeded();
+            _error = null;
+        }
+        catch (Exception) when (!IsDisposed && !IsCancellationRequested) { _error = "Refresh failed. Flywheel will retry automatically."; }
+    }
+
+    private async Task RefreshLoop()
+    {
+        var cancellationToken = CancellationToken;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await Refresh();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (_refreshLoop is not null) await _refreshLoop;
+    }
+}

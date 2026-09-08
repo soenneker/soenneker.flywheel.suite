@@ -1,0 +1,78 @@
+@page "/flywheel/servers"
+@namespace Soenneker.Flywheel.Dashboard.Pages
+@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Quark
+@layout FlywheelLayout
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardSessionState Session
+@inherits LeptonCancellable
+
+<PageTitle>Servers · Flywheel</PageTitle>
+<Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull">
+    <Div Margin="Margin.FromBottom.Is6"><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold">Servers</H2><Paragraph TextColor="TextColor.MutedForeground">Live workers currently contributing to this Flywheel namespace.</Paragraph></Div>
+    @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load servers</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
+    else if (_servers is null) { <Paragraph role="status">Loading servers…</Paragraph> }
+    else if (_servers.Count == 0) { <Paragraph role="status">No live servers are reporting heartbeats.</Paragraph> }
+    else
+    {
+        <Table><Thead><Tr><Th>Server</Th><Th>Active workers</Th><Th>Running jobs</Th><Th>Heartbeat valid until</Th></Tr></Thead><Tbody>
+        @foreach (ServerView server in _servers)
+        {
+            <Tr @key="server.Id"><Td><Anchor Href="@($"/flywheel/servers/{Uri.EscapeDataString(server.Id)}")">@server.Id</Anchor></Td><Td>@server.Workers.ToString("N0")</Td><Td>@server.RunningJobs.Count</Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
+        }
+        </Tbody></Table>
+    }
+</Main>
+
+@code {
+    private List<ServerView>? _servers;
+    private string? _error;
+    private Task? _refreshLoop;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        _refreshLoop = RefreshLoop();
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            var response = await Consumer.GetServers(CancellationToken);
+            if (response.StatusCode == 401)
+            {
+                Session.SetAuthenticated(false);
+                _servers = null;
+                _error = "Your session has expired. Sign in again.";
+                return;
+            }
+            response.EnsureSucceeded();
+            _servers = response.Value ?? [];
+            Session.SetAuthenticated(true);
+            _error = null;
+        }
+        catch (Exception) when (!IsDisposed && !IsCancellationRequested) { _error = "Refresh failed. Flywheel will retry automatically."; }
+    }
+
+    private async Task RefreshLoop()
+    {
+        var cancellationToken = CancellationToken;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await Refresh();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (_refreshLoop is not null) await _refreshLoop;
+    }
+}

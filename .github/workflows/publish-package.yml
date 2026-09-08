@@ -1,0 +1,63 @@
+name: publish-package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Finish a release before starting another; do not cancel partially published packages.
+concurrency:
+  group: flywheel-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/build-and-test.yml
+    with:
+      version: 5.0.${{ github.run_number }}
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [Communication, Core, Redis, Generators, Dashboard]
+    steps:
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: flywheel-packages
+          path: artifacts
+      - name: Deploy ${{ matrix.package }} to NuGet
+        env:
+          NUGET_TOKEN: ${{ secrets.NUGET__TOKEN }}
+          PACKAGE: Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg
+        run: dotnet nuget push "artifacts/$PACKAGE" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_TOKEN" --skip-duplicate
+      - name: Deploy ${{ matrix.package }} to GitHub Packages
+        env:
+          GH_TOKEN: ${{ secrets.GH__TOKEN }}
+          PACKAGE: Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg
+        run: dotnet nuget push "artifacts/$PACKAGE" --source https://nuget.pkg.github.com/soenneker/index.json --api-key "$GH_TOKEN" --skip-duplicate
+  release:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: flywheel-packages
+          path: artifacts
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: 5.0.${{ github.run_number }}
+        run: gh release create "v$VERSION" artifacts/*.nupkg --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes

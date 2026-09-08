@@ -1,0 +1,101 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Microsoft.AspNetCore.Components.Routing
+@inject DashboardNavigationOptions DashboardNavigation
+@inject NavigationManager Navigation
+@inject INavigationInterception NavigationInterception
+@inject IScrollToLocationHash ScrollToLocationHash
+@implements IDisposable
+
+@if (_route.Page == DashboardPage.NotFound)
+{
+    @if (NotFound is not null)
+    {
+        @NotFound(_path)
+    }
+    else
+    {
+        <p role="alert">Page not found.</p>
+    }
+}
+else
+{
+    <FlywheelLayout>
+        <Body>
+            @switch (_route.Page)
+            {
+                case DashboardPage.Dashboard:
+                    <Soenneker.Flywheel.Dashboard.Pages.Dashboard @key="_route" />
+                    break;
+                case DashboardPage.SignIn:
+                    <Soenneker.Flywheel.Dashboard.Pages.SignIn @key="_route" />
+                    break;
+                case DashboardPage.Recurring:
+                    <Soenneker.Flywheel.Dashboard.Pages.RecurringJobs @key="_route" />
+                    break;
+                case DashboardPage.Scheduled:
+                    <Soenneker.Flywheel.Dashboard.Pages.ScheduledJobs @key="_route" />
+                    break;
+                case DashboardPage.Jobs:
+                    <Soenneker.Flywheel.Dashboard.Pages.JobDetails @key="_route" JobId="@(_route.Id!)" />
+                    break;
+                case DashboardPage.Servers:
+                    <Soenneker.Flywheel.Dashboard.Pages.Servers @key="_route" />
+                    break;
+                case DashboardPage.ServerDetails:
+                    <Soenneker.Flywheel.Dashboard.Pages.ServerDetails @key="_route" ServerId="@(_route.Id!)" />
+                    break;
+            }
+        </Body>
+    </FlywheelLayout>
+}
+
+@code {
+    /// <summary>Content for host pages or unknown URLs. Receives the base-relative path without the query string or fragment. Routes are not discovered from assemblies.</summary>
+    [Parameter]
+    public RenderFragment<string>? NotFound { get; set; }
+
+    private DashboardRoute _route;
+    private string _path = "";
+    private bool _refreshScroll;
+    private bool _disposed;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    protected override void OnParametersSet() => ResolveRoute();
+
+    private void ResolveRoute()
+    {
+        var relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+        _path = relative.Split('?', '#')[0];
+        _route = DashboardRoute.Match(relative, DashboardNavigation.HomePath);
+        _refreshScroll = true;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+                return;
+            ResolveRoute();
+            StateHasChanged();
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await NavigationInterception.EnableNavigationInterceptionAsync();
+        if (!_disposed && _refreshScroll)
+        {
+            _refreshScroll = false;
+            await ScrollToLocationHash.RefreshScrollPositionForHash(Navigation.Uri);
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

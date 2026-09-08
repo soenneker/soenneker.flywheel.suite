@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+        <IsPackable>false</IsPackable><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Redis/Soenneker.Flywheel.Redis.csproj" /></ItemGroup>
+</Project>

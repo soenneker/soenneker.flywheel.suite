@@ -1,0 +1,95 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Quark
+@inherits LeptonCancellable
+@inject ActivityTotalsState ActivityTotals
+@inject DashboardSessionState Session
+@inject DashboardNavigationOptions DashboardNavigation
+@inject IFlywheelDashboardConsumer Consumer
+@inject NavigationManager Navigation
+
+<Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4" Style="width: 100%; max-width: none; margin: 0; padding-bottom: 0;">
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.Is0" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+        <Div Display="Display.None.OnMd.Flex" Width="Width.IsFull.OnMd.Auto" Flex="Flex.None.OnMd.Is1" FlexDirection="FlexDirection.Row" ItemsAlign="Items.Center" Gap="Gap.Is4" Justify="Justify.Between">
+            <Div Display="Display.Flex" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
+                @for (var i = 0; i < HeaderLabels.Length; i++)
+                {
+                    var index = i;
+                    <Div>
+                        <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@HeaderTitle(index)">@HeaderLabels[index]</Span>
+                        @if (HeaderHref(index) is { } href)
+                        {
+                            <Anchor Href="@href" Display="Display.Block" aria-label="@($"View {HeaderLabels[index].ToLowerInvariant()}")"><Strong>@HeaderValue(index)</Strong></Anchor>
+                        }
+                        else
+                        {
+                            <Strong Display="Display.Block">@HeaderValue(index)</Strong>
+                        }
+                    </Div>
+                }
+            </Div>
+            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
+                <Div role="status" title="@(ActivityTotals.Live ? "Real-time connection established" : "Real-time connection unavailable; reload if it does not reconnect")" Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
+                    <Span aria-hidden="true" Display="Display.InlineBlock" Size="Size.Is2" Rounded="Rounded.Full" BackgroundColor="@(ActivityTotals.Live ? BackgroundColor.Token("green-600") : BackgroundColor.Token("amber-600"))"></Span>
+                    <Span>@(ActivityTotals.Live ? "Connected" : "Disconnected")</Span>
+                </Div>
+                <Button OnClick="Logout" Variant="ButtonVariant.Secondary">Sign out</Button>
+            </Div>
+        </Div>
+        <Div Margin="Margin.FromLeft.Auto"><FlywheelThemeToggle /></Div>
+    </Div>
+</Div>
+
+@code {
+    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers"];
+
+    protected override void OnInitialized() => ActivityTotals.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private string HeaderValue(int index) => index switch
+    {
+        0 => ActivityTotals.ScheduledCount?.ToString("N0") ?? "—",
+        1 => ActivityTotals.RunningCount?.ToString("N0") ?? "—",
+        4 => ActivityTotals.ServerCount?.ToString("N0") ?? "—",
+        5 => ActivityTotals.TotalWorkers?.ToString("N0") ?? "—",
+        _ => ActivityTotals.Totals is { } totals ? totals[index - 1].ToString("N0") : "—"
+    };
+
+    private static string? HeaderHref(int index) => index switch
+    {
+        0 => "/flywheel/scheduled",
+        4 => "/flywheel/servers",
+        _ => null
+    };
+
+    private static string? HeaderTitle(int index) => index switch
+    {
+        0 => "Jobs currently scheduled, independent of the selected date range",
+        1 => "Jobs executing now, independent of the selected date range",
+        4 => "Servers currently reporting live heartbeats",
+        5 => "Total active worker capacity across live servers",
+        _ => null
+    };
+
+    private async Task Logout()
+    {
+        try
+        {
+            var response = await Consumer.Logout(CancellationToken);
+            response.EnsureSucceeded();
+            Session.SetAuthenticated(false);
+            Navigation.NavigateTo(DashboardNavigation.HomePath == "/" ? "/signin" : DashboardNavigation.HomePath, forceLoad: true);
+        }
+        catch
+        {
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        ActivityTotals.Changed -= OnChanged;
+        await base.DisposeAsync();
+    }
+}

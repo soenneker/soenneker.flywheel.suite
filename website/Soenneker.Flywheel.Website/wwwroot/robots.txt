@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://flywheel.soenneker.com/sitemap.xml

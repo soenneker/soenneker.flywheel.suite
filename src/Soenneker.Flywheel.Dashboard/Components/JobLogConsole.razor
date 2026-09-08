@@ -1,0 +1,105 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+@inherits LeptonCancellable
+@inject NavigationManager Navigation
+@inject IFlywheelLiveClient Live
+
+<Section aria-label="Job execution logs"  Margin="Margin.FromTop.Is3">
+    <Field Padding="Padding.Is3.OnY" Style="width: 24rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" Placeholder="Search" aria-label="Search logs" /></Field>
+    @if (_error is not null)
+    {
+        <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
+    }
+    <ConsolePanel Text="@ConsoleText" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
+        @if (_loading && _entries.Count == 0)
+        {
+            <Paragraph Margin="Margin.Is0">Loading logs…</Paragraph>
+        }
+        else if (_entries.Count > 0 && !FilteredEntries.Any())
+        {
+            <Paragraph Margin="Margin.Is0">No matching logs.</Paragraph>
+        }
+        @foreach (var entry in FilteredEntries)
+        {
+            <Div @key="entry.Id" Padding="Padding.Is1.OnY" Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" TextColor="@(entry.Level is "Error" or "Critical" ? TextColor.Destructive : TextColor.Token("inherit"))">@FormatEntry(entry)</Div>
+        }
+    </ConsolePanel>
+</Section>
+
+@code {
+
+    /// <summary>Identifier of the job whose execution logs are displayed.</summary>
+    [Parameter, EditorRequired]
+    public string JobId { get; set; } = "";
+
+    private readonly string _signalId = $"flywheel-logs-{Guid.NewGuid():N}";
+    private List<LogEntry> _entries = [];
+    private IFlywheelLiveSubscription? _connection;
+    private Task? _connecting;
+    private string? _jobId;
+    private int _version;
+    private bool _loading;
+    private string? _error;
+    private string _filter = "";
+    private IEnumerable<LogEntry> FilteredEntries => _entries.Where(entry =>
+        string.IsNullOrWhiteSpace(_filter) ||
+        $"{entry.Message} {entry.Level} {entry.Category} Attempt {entry.Attempt}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatEntry(LogEntry entry) =>
+        $"{DateTimeOffset.FromUnixTimeMilliseconds(entry.Timestamp):yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}";
+
+    private string ConsoleText => string.Join(Environment.NewLine, FilteredEntries.Select(FormatEntry));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_jobId == JobId) return;
+        _jobId = JobId;
+        _version++;
+        _entries = [];
+        _filter = "";
+        _loading = true;
+        if (_connection?.IsConnected == true) await SubscribeLive();
+        else _connecting ??= Connect();
+    }
+
+    private Task SubscribeLive() => _connection is null ? Task.CompletedTask :
+        _connection.SubscribeLogs(_version, JobId, CancellationToken);
+
+    private async Task Connect()
+    {
+        try
+        {
+            _connection = await Live.Logs(_signalId, snapshot => InvokeAsync(() =>
+            {
+                if (IsDisposed || IsCancellationRequested || snapshot.Version != _version || snapshot.JobId != JobId) return;
+                _entries = snapshot.Entries ?? [];
+                _error = snapshot.Entries is null ? "Logs are unavailable from this job store." : null;
+                _loading = false;
+                StateHasChanged();
+            }), () => InvokeAsync(SubscribeLive),
+                () => InvokeAsync(() => { _error = "Live logs disconnected. Reconnecting…"; StateHasChanged(); }), CancellationToken);
+            await _connection.Start(CancellationToken);
+            if (!IsDisposed && !IsCancellationRequested && !_connection.IsConnected)
+            {
+                _loading = false;
+                _error = "Live updates are unavailable. Reload the page to reconnect.";
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
+        catch (Exception)
+        {
+            _error = "Live logs are unavailable. Reload the page to reconnect.";
+            _loading = false;
+            if (!IsDisposed && !IsCancellationRequested) await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (_connecting is not null) await _connecting;
+        if (_connection is not null) await _connection.DisposeAsync();
+    }
+}

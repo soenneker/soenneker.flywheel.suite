@@ -1,0 +1,36 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+
+@if (Value > 0)
+{
+    @if (StartsAt)
+    {
+        <DateUntil Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" ExpiredText="Starts now" title="@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'")" />
+    }
+    else
+    {
+    <DateRelative Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" title="@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'")" />
+    }
+    @if (ShowAbsolute)
+    {
+        <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</Span>
+    }
+}
+else
+{
+    <span>—</span>
+}
+
+@code {
+    /// <summary>The UTC Unix timestamp in milliseconds, or zero when unavailable.</summary>
+    [Parameter]
+    public long Value { get; set; }
+
+    /// <summary>Shows the exact UTC time beneath the relative time, including on touch devices.</summary>
+    [Parameter]
+    public bool ShowAbsolute { get; set; }
+
+    /// <summary>Counts down to a scheduled start and displays Starts now once due.</summary>
+    [Parameter]
+    public bool StartsAt { get; set; }
+}

@@ -1,0 +1,17 @@
+@namespace Soenneker.Flywheel.Dashboard
+@inherits LayoutComponentBase
+
+@if (SharedHeader)
+{
+    @Body
+}
+else
+{
+    <FlywheelShell>@Body</FlywheelShell>
+}
+
+@code {
+    /// <summary>Indicates that the application shell already owns a persistent header.</summary>
+    [CascadingParameter(Name = "FlywheelSharedHeader")]
+    public bool SharedHeader { get; set; }
+}

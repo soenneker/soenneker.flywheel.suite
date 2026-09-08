@@ -1,0 +1,109 @@
+@page "/"
+<PageTitle>Flywheel — Background jobs for .NET</PageTitle>
+
+<Section Class="hero">
+    <Div Class="hero-label"><Span Class="status-dot" aria-hidden="true"></Span><Span>Background jobs for .NET</Span></Div>
+    <Div Class="hero-grid">
+        <H1>Background work.<br /><span>Everything in view.</span></H1>
+        <Div Class="hero-intro">
+            <Paragraph Class="hero-description">Schedule, retry, and chain jobs with Redis. Follow every execution in a live Blazor dashboard.</Paragraph>
+            <Div Class="hero-actions"><Button Href="/getting-started/" ButtonSize="ButtonSize.Lg">Start building <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Button><Anchor Href="https://github.com/soenneker/soenneker.flywheel.core" Class="text-link">View source <Icon Name="LucideIcon.ArrowUpRight" Size="Size.Is4" /></Anchor></Div>
+            <Paragraph Class="hero-meta">.NET 10 <span aria-hidden="true">·</span> Open source <span aria-hidden="true">·</span> MIT licensed</Paragraph>
+        </Div>
+    </Div>
+</Section>
+
+<Section Id="dashboard" Class="dashboard-section">
+    <figure>
+        <Div Class="preview-bar"><Span><span class="status-dot" aria-hidden="true"></span> The Flywheel dashboard</Span><Anchor Href="/dashboard/" Class="text-link">Explore the dashboard <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Anchor></Div>
+        <Div Class="screenshot-frame"><Anchor Href="/images/dashboard.png" aria-label="View full-size dashboard screenshot"><img src="/images/dashboard.png" width="1600" height="1050" alt="Flywheel dashboard showing job activity, searchable jobs, execution states, and recurring schedules using demo data" fetchpriority="high" /></Anchor></Div>
+        <figcaption class="screenshot-caption"><Span>One place for job activity, queues, and recurring schedules.</Span><Span>Illustrative demo data</Span></figcaption>
+    </figure>
+</Section>
+
+<Section Class="features-section">
+    <Div Class="section-heading"><Span Class="section-label">01 / ORCHESTRATE</Span><H2>Keep the work moving.</H2><Paragraph>From a single queued task to a recurring workflow.</Paragraph></Div>
+    <Div Class="feature-grid">
+        <Div><Icon Name="LucideIcon.Clock" Size="Size.Is5" /><H3>Run on your schedule</H3><Paragraph>Queue work now, delay it until later, or use recurring cron schedules with time-zone support.</Paragraph></Div>
+        <Div><Icon Name="LucideIcon.RotateCcw" Size="Size.Is5" /><H3>Give failures a path forward</H3><Paragraph>Control retry backoff and attempt limits. Cancel work or move exhausted jobs to dead-letter storage.</Paragraph></Div>
+        <Div><Icon Name="LucideIcon.GitBranch" Size="Size.Is5" /><H3>Make the next step automatic</H3><Paragraph>Chain jobs so each step follows a successful execution, waiting through retries along the way.</Paragraph></Div>
+        <Div><Icon Name="LucideIcon.Layers" Size="Size.Is5" /><H3>Keep workers coordinated</H3><Paragraph>Use shared leases, concurrency limits, and rate limits to coordinate work across instances.</Paragraph></Div>
+    </Div>
+</Section>
+
+<Section Id="examples" Class="examples-section">
+    <Div Class="section-heading"><Span Class="section-label">02 / WRITE THE WORK</Span><H2>One client. Your schedule.</H2><Paragraph>Enqueue now, run later, or make it a routine.</Paragraph></Div>
+    <Div Class="example-list">
+        <Div Class="example-row"><Div><H3>Enqueue</H3><Paragraph>Save a job to Redis. Let a background worker pick it up.</Paragraph></Div><CodeExample Text="@EnqueueExample" Label="Enqueue example" /></Div>
+        <Div Class="example-row"><Div><H3>Delay</H3><Paragraph>Give a job a little time before it becomes eligible to run.</Paragraph></Div><CodeExample Text="@DelayExample" Label="Delayed job example" /></Div>
+        <Div Class="example-row"><Div><H3>Schedule</H3><Paragraph>Choose a specific time for a one-off job.</Paragraph></Div><CodeExample Text="@ScheduleExample" Label="Scheduled job example" /></Div>
+        <Div Class="example-row"><Div><H3>Recurring</H3><Paragraph>Repeat a job at a fixed interval with a stable schedule ID.</Paragraph></Div><CodeExample Text="@RecurringExample" Label="Recurring job example" /></Div>
+        <Div Class="example-row"><Div><H3>Cron</H3><Paragraph>Run every weekday at 9 a.m. in the time zone you choose.</Paragraph></Div><CodeExample Text="@CronExample" Label="Cron schedule example" /></Div>
+    </Div>
+    <Paragraph Class="example-note">These examples use the typed job from the <Anchor Href="/getting-started/">setup guide</Anchor> and an injected <code>IJobClient</code>. Reusing a recurring or cron ID leaves the existing schedule unchanged.</Paragraph>
+</Section>
+
+<Section Class="execution-section">
+    <Div Class="execution-heading"><Div><Span Class="section-label">03 / OBSERVE</Span><H2>See what happened.<br />Know where to look.</H2></Div><Div><Paragraph>Go from a job's state to its execution history. Inspect attempts, timing, and captured <code>ILogger</code> output in one place.</Paragraph><Anchor Href="/dashboard/" Class="text-link">Meet the dashboard <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Anchor></Div></Div>
+    <figure><Div Class="screenshot-frame"><Anchor Href="/images/execution.png" aria-label="View full-size execution screenshot"><img src="/images/execution.png" width="1600" height="1050" alt="Flywheel job details with attempt information and captured demo report logs" loading="lazy" /></Anchor></Div><figcaption class="screenshot-caption"><Span>Execution details, with the logs that tell the story.</Span><Span>Illustrative demo data</Span></figcaption></figure>
+</Section>
+
+<Section Class="architecture-section">
+    <Div Class="section-heading"><Span Class="section-label">04 / UNDER THE HOOD</Span><H2>Built to fit your .NET app.</H2></Div>
+    <Div Class="architecture-grid">
+        <Div><Span Class="technical-label">COMPILE-TIME DISPATCH</Span><H3>Typed jobs. Direct calls.</H3><Paragraph>The source generator discovers your job methods and creates typed invokers at build time. Job dispatch needs no runtime reflection.</Paragraph></Div>
+        <Div><Span Class="technical-label">OPTIONAL DASHBOARD</Span><H3>Your browser handles the UI.</H3><Paragraph>The Blazor WebAssembly dashboard connects over HTTP and SignalR. UI rendering stays in the browser; your server handles jobs, API requests, and live updates.</Paragraph></Div>
+    </Div>
+</Section>
+
+<Section Id="getting-started" Class="getting-started">
+    <Div><Span Class="section-label">05 / GET STARTED</Span><H2>Your next job<br />starts here.</H2><Paragraph>Add the packages. Register Flywheel.<br />Enqueue your first typed job.</Paragraph><Button Href="/getting-started/" ButtonSize="ButtonSize.Lg">Follow the setup guide <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Button></Div>
+    <Div Class="code-panel"><Div Class="code-header"><Span>Register and enqueue</Span><Span>C# · excerpt</Span></Div><CodeExample Text="@RegistrationExample" Label="Registration and enqueue example" Language="csharp" /><Div Class="code-footer"><Anchor Href="/getting-started/" Class="text-link">Get the complete, runnable example <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Anchor></Div></Div>
+</Section>
+
+@code {
+    private const string EnqueueExample = """
+await client.Enqueue(
+    FlywheelJobs.MessageJobs_Write,
+    new Message("Hello from Flywheel"));
+""";
+
+    private const string DelayExample = """
+await client.Enqueue(
+    FlywheelJobs.MessageJobs_Write,
+    new Message("In ten minutes"),
+    delay: TimeSpan.FromMinutes(10));
+""";
+
+    private const string ScheduleExample = """
+await client.Schedule(
+    FlywheelJobs.MessageJobs_Write,
+    new Message("Tomorrow at this time"),
+    DateTimeOffset.UtcNow.AddDays(1));
+""";
+
+    private const string RecurringExample = """
+await client.Recurring(
+    "hourly-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Every hour"),
+    TimeSpan.FromHours(1));
+""";
+
+    private const string CronExample = """
+await client.Schedule(
+    "weekday-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Good morning"), "0 9 * * MON-FRI",
+    timeZoneId: "America/Chicago");
+""";
+
+    private const string RegistrationExample = """
+builder.Services.AddFlywheel()
+    .AddRedis(options =>
+        options.ConnectionString = "localhost:6379")
+    .AddGeneratedJobs();
+
+await client.Enqueue(
+    FlywheelJobs.MessageJobs_Write,
+    new Message("Hello from Flywheel"));
+""";
+}

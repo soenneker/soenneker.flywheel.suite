@@ -1,0 +1,18 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@inject IThemeInterop Theme
+
+<ThemeToggleButton IsDark="@_isDark" AriaLabel="@(_isDark ? "Switch to light mode" : "Switch to dark mode")" OnClick="Toggle" />
+
+@code {
+    private bool _isDark;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _isDark = await Theme.Initialize();
+        StateHasChanged();
+    }
+
+    private async Task Toggle() => _isDark = await Theme.Toggle();
+}

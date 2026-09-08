@@ -1,0 +1,1 @@
+# Waiting for local project Tailwind manifest generation.

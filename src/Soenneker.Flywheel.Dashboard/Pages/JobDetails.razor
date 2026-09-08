@@ -1,0 +1,109 @@
+@page "/jobs/{JobId}"
+@namespace Soenneker.Flywheel.Dashboard.Pages
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Dashboard
+@layout FlywheelLayout
+@inject DashboardNavigationOptions DashboardNavigation
+@inherits LeptonCancellable
+
+@if (!Embedded)
+{
+    <PageTitle>@(_job?.Name ?? "Job details") · Flywheel</PageTitle>
+}
+
+@if (_login)
+{
+    <FlywheelBoard SignedIn="Reload" />
+}
+else
+{
+    <Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull" MinWidth="MinWidth.Is0" Style="@(Embedded ? "width: 100%; max-width: none; margin: 0; padding: 0;" : "width: 100%; padding-top: 1rem;")">
+        <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is4" Margin="Margin.FromBottom.Is4">
+            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap">
+                @if (!Embedded)
+                {
+                    <Button Href="@DashboardNavigation.HomePath" Variant="ButtonVariant.Secondary" aria-label="Back to all jobs" title="All jobs">←</Button>
+                }
+                <H2 Margin="Margin.Is0" style="border: 0; padding: 0;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : _loading ? "Loading job…" : "Job details"))</H2>
+                @if (_job is not null)
+                {
+                    <JobStatusBadge State="@_job.State" CancelRequested="@_job.CancelRequested" />
+                }
+            </Div>
+            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
+                @if (_job?.State is "Scheduled" or "Running" or "Waiting")
+                {
+                    <Button OnClick="Cancel" Disabled="@(_cancelling || _job.CancelRequested)" Variant="ButtonVariant.Destructive">
+                        @(_job.CancelRequested ? "Cancellation requested" : "Cancel job")
+                    </Button>
+                }
+                @if (Embedded)
+                {
+                    <DrawerClose AsChild="true"><Button Variant="ButtonVariant.Secondary" aria-label="Close job details">Close</Button></DrawerClose>
+                }
+            </Div>
+        </Div>
+        @if (!string.IsNullOrWhiteSpace(_job?.Description))
+        {
+            <Paragraph TextColor="TextColor.MutedForeground" TextBreak="TextBreak.Words" Margin="Margin.FromBottom.Is5">@_job.Description</Paragraph>
+        }
+        <Grid aria-label="Job overview" Columns="GridCols.Is1" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+                <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is2" Style="width: 24rem; max-width: 100%;">
+                    <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" id="job-id-label" >Job ID</Span>
+                    <CopyField Value="@JobId" AriaLabelledBy="job-id-label" CopyLabel="Copy job ID" CopyButtonVariant="ButtonVariant.Secondary" />
+                </Div>
+            </Div>
+            @if (_job is not null)
+            {
+                <Grid aria-label="Job properties" Columns="GridCols.Is2.OnMd.Is4" Style="display: flex; flex-wrap: wrap; gap: 1.25rem 3rem;" Gap="Gap.Is5" TextSize="TextSize.Sm">
+                    <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Priority</Span><Span Display="Display.Block">@(_job.Priority ?? "Unavailable")</Span></Div>
+                    <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
+                    @if (_job.State == "Running")
+                    {
+                        <Div MinWidth="MinWidth.Is0"><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Worker</Span><Span TextBreak="TextBreak.All">@(_job.Owner ?? "Not assigned")</Span></Div>
+                    }
+                    @if (_job.ParentJobId is { } parentId)
+                    {
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Previous step</Span><a href="@($"jobs/{Uri.EscapeDataString(parentId)}")">View previous job</a></Div>
+                    }
+                    @if (_job.NextJobId is { } nextId)
+                    {
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next step</Span><a href="@($"jobs/{Uri.EscapeDataString(nextId)}")">View next job</a></Div>
+                    }
+                </Grid>
+                @if (_job.Progress is { } progress)
+                {
+                    <Div Space="Space.Y.Is2" Margin="Margin.FromTop.Is5" role="status" aria-live="polite">
+                        <Div Display="Display.Flex" Justify="Justify.Between" Gap="Gap.Is4" TextSize="TextSize.Sm">
+                            <Span TextBreak="TextBreak.All">@(_job.ProgressMessage ?? "In progress")</Span>
+                            <Span>@($"{progress:0.#}%")</Span>
+                        </Div>
+                        <Progress ProgressValue="@((int)Math.Round(progress))" Max="100" AriaValueText="@($"{progress:0.#}%")" />
+                    </Div>
+                }
+                <JobTimeline Job="@_job" />
+            }
+        </Grid>
+        @if (_error is not null)
+        {
+            <Alert role="alert"><AlertTitle>Request failed</AlertTitle><AlertDescription>@_error <Button OnClick="RefreshPage" Variant="ButtonVariant.Secondary">Reload page</Button></AlertDescription></Alert>
+        }
+        @if (_missing)
+        {
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Job not found</H3></Div><Div>This job may have expired or been removed. Return to the overview to find another execution.</Div></Div>
+        }
+        else if (_job is null)
+        {
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div><Paragraph role="status">@(_loading ? "Loading execution…" : "Execution details are unavailable. Reload the page to retry.")</Paragraph></Div></Div>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(_job.Error))
+            {
+                <Alert role="alert"><AlertTitle>Last execution error</AlertTitle><AlertDescription><Div Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" FontFamily="FontFamily.Mono" TextSize="TextSize.Sm">@_job.Error</Div></AlertDescription></Alert>
+            }
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div><JobLogConsole @key="_job.Id" JobId="@_job.Id" /></Div></Div>
+        }
+    </Main>
+}

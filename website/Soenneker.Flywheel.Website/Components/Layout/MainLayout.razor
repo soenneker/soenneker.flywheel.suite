@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+<Anchor Href="#main" Class="skip-link">Skip to content</Anchor>
+<Div Class="site">
+    <header class="site-header">
+        <Anchor Href="/" Class="brand" aria-label="Flywheel home"><img src="/favicon.svg" width="28" height="28" alt="" /><Span>Flywheel</Span></Anchor>
+        <nav aria-label="Main navigation"><Anchor Href="/dashboard/" Class="nav-dashboard">Dashboard</Anchor><Anchor Href="https://github.com/soenneker/soenneker.flywheel.core">GitHub <Icon Name="LucideIcon.ArrowUpRight" Size="Size.Is4" /></Anchor><Anchor Href="/getting-started/" Class="nav-cta">Get started <Icon Name="LucideIcon.ArrowRight" Size="Size.Is4" /></Anchor></nav>
+    </header>
+    <main id="main" tabindex="-1">@Body</main>
+    <footer class="site-footer">
+        <Div Class="footer-brand"><Anchor Href="/" Class="brand"><img src="/favicon.svg" width="22" height="22" alt="" />Flywheel</Anchor><Span>Background jobs for .NET.<br />Open source. MIT licensed.</Span></Div>
+        <nav aria-label="Package source repositories"><Anchor Href="https://github.com/soenneker/soenneker.flywheel.core">Core <Icon Name="LucideIcon.ArrowUpRight" Size="Size.Is3" /></Anchor><Anchor Href="https://github.com/soenneker/soenneker.flywheel.redis">Redis <Icon Name="LucideIcon.ArrowUpRight" Size="Size.Is3" /></Anchor><Anchor Href="https://github.com/soenneker/soenneker.flywheel.dashboard">Dashboard <Icon Name="LucideIcon.ArrowUpRight" Size="Size.Is3" /></Anchor></nav>
+    </footer>
+</Div>

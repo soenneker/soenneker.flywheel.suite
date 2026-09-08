@@ -1,0 +1,68 @@
+@page "/getting-started"
+<PageTitle>Get started — Flywheel</PageTitle>
+<article class="docs">
+<nav class="docs-nav" aria-label="Guides"><Anchor Href="/getting-started/" aria-current="page">Runner setup</Anchor><Anchor Href="/dashboard/">Dashboard setup</Anchor></nav>
+<H1>Run your first job.</H1>
+<Paragraph>Start with .NET 10 and Redis 6.0.9 or newer.</Paragraph>
+<H2>1. Create an app</H2>
+<CodeExample Text="@CreateAppExample" Label="Create an app commands" Language="shell" />
+<Paragraph>Add <code>PrivateAssets="all"</code> to the Generators package reference in your project file. Start Redis at <code>localhost:6379</code>, or update the connection string below.</Paragraph>
+<H2>2. Define and enqueue a job</H2>
+<Paragraph>Replace <code>Program.cs</code> with:</Paragraph>
+<CodeExample Text="@FirstJobExample" Label="Complete first job example" Language="csharp" />
+<Paragraph>The source generator creates <code>FlywheelJobs</code> and typed invokers at build time. Dispatch calls your job method directly, without runtime reflection.</Paragraph>
+<H2>3. Run it</H2>
+<CodeExample Text="@RunExample" Label="Run the application command" Language="shell" />
+<Paragraph>Look for “Hello from Flywheel” in the console. Enqueue saves the job to Redis; a background worker executes it. In your application services, inject <code>IJobClient</code> to submit work.</Paragraph>
+<Paragraph>Jobs can run more than once. Make handlers safe to retry and pass cancellation tokens through to async work.</Paragraph>
+<H2>Next steps</H2>
+<Paragraph><Anchor Href="/dashboard/">Add the dashboard</Anchor> to search jobs and inspect executions, or see <Anchor Href="https://github.com/soenneker/soenneker.flywheel.core#queue-and-schedule-jobs">scheduling and recurring jobs</Anchor>.</Paragraph>
+</article>
+
+@code {
+    private const string CreateAppExample = """
+dotnet new web -n FlywheelExample
+cd FlywheelExample
+dotnet add package Soenneker.Flywheel.Core
+dotnet add package Soenneker.Flywheel.Redis
+dotnet add package Soenneker.Flywheel.Generators
+""";
+
+    private const string FirstJobExample = """
+using Soenneker.Flywheel.Core.Attributes;
+using Soenneker.Flywheel.Core.Registrars;
+using Soenneker.Flywheel.Core.Services.Abstract;
+using Soenneker.Flywheel.Generated;
+using Soenneker.Flywheel.Redis;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddFlywheel(options => options.Workers = 4)
+    .AddRedis(options => options.ConnectionString = "localhost:6379")
+    .AddGeneratedJobs();
+
+var app = builder.Build();
+var client = app.Services.GetRequiredService<IJobClient>();
+
+await client.Enqueue(FlywheelJobs.MessageJobs_Write,
+    new Message("Hello from Flywheel"));
+
+await app.RunAsync();
+
+public sealed record Message(string Text);
+
+public sealed class MessageJobs(ILogger<MessageJobs> logger)
+{
+    [FlywheelJob("message.write.v1")]
+    public Task Write(Message message, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("{Message}", message.Text);
+        return Task.CompletedTask;
+    }
+}
+""";
+
+    private const string RunExample = """
+dotnet run
+""";
+}

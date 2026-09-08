@@ -1,0 +1,18 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+
+<Badge Style="@($"background-color: color-mix(in srgb, {Accent} 18%, transparent); color: {Foreground}; border: 1px solid color-mix(in srgb, {Accent} 38%, transparent);")">@Label</Badge>
+
+@code {
+    /// <summary>The job's durable lifecycle state.</summary>
+    [Parameter] public string State { get; set; } = "";
+
+    /// <summary>Whether cancellation has been requested for the job.</summary>
+    [Parameter] public bool CancelRequested { get; set; }
+
+    private string Accent => JobStatusColors.Accent(EffectiveState);
+    private string Foreground => JobStatusColors.Foreground(EffectiveState);
+
+    private string EffectiveState => CancelRequested && State == "Running" ? "Cancelling" : State;
+    private string Label => EffectiveState == "DeadLettered" ? "Dead lettered" : EffectiveState;
+}

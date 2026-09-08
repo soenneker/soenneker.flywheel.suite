@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.2" />
+        <PackageReference Include="Soenneker.Tests.Unit" Version="4.0.1313" />
+        <PackageReference Include="TUnit" Version="1.66.27" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Soenneker.Flywheel.Generators\Soenneker.Flywheel.Generators.csproj" />
+    </ItemGroup>
+
+<ItemGroup><PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" /><ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" /></ItemGroup></Project>
