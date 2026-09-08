@@ -1,6 +1,22 @@
+[![NuGet](https://img.shields.io/nuget/v/Soenneker.Flywheel.Core.svg?style=for-the-badge)](https://www.nuget.org/packages/Soenneker.Flywheel.Core/)
+[![Publish](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/publish-package.yml)
+[![Downloads](https://img.shields.io/nuget/dt/Soenneker.Flywheel.Core.svg?style=for-the-badge)](https://www.nuget.org/packages/Soenneker.Flywheel.Core/)
+[![Build and test](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/build-and-test.yml?label=build%20and%20test&style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/build-and-test.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/codeql.yml?label=CodeQL&style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/codeql.yml)
+
 # Soenneker.Flywheel.Suite
 
-Background jobs, Redis storage, source generators, and a live Blazor dashboard in one solution. Scaffolded with `soenneker.nuget.builder`.
+Background jobs, Redis storage, source generators, and a live Blazor dashboard in one solution.
+
+**Background work. Everything in view.**
+
+Queue a typed job, coordinate workers across instances, and follow each execution in the live Blazor dashboard.
+
+[![Flywheel dashboard with live activity, job states, and searchable executions](docs/images/dashboard.png)](https://flywheel.soenneker.com)
+
+*The optional Flywheel Dashboard, shown with illustrative demo data.*
+
+[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](docs/dashboard.md) · [Run the demo](demo/Soenneker.Flywheel.Demo/README.md)
 
 ## Packages
 

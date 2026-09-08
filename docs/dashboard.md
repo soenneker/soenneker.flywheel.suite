@@ -12,13 +12,13 @@ Blazor WebAssembly dashboard for Flywheel. Search jobs, view status and live log
 
 See activity as it happens, find the job that needs attention, and read the logs your handlers already write.
 
-[![Flywheel dashboard showing live job activity and execution states](docs/images/dashboard.png)](https://flywheel.soenneker.com)
+[![Flywheel dashboard showing live job activity and execution states](images/dashboard.png)](https://flywheel.soenneker.com)
 
 ### Follow every attempt
 
 Open an execution to inspect its state, attempts, timing, and captured `ILogger` output.
 
-[![Flywheel execution details with a report job and its captured logs](docs/images/execution.png)](https://flywheel.soenneker.com)
+[![Flywheel execution details with a report job and its captured logs](images/execution.png)](https://flywheel.soenneker.com)
 
 *Screenshots use isolated, illustrative demo data.*
 

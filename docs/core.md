@@ -12,7 +12,7 @@ Background jobs for .NET with Redis storage, retries, scheduling, and job chains
 
 Queue a typed job, coordinate workers across instances, and follow each execution in the live Blazor dashboard.
 
-[![Flywheel dashboard with live activity, job states, and searchable executions](docs/images/dashboard.png)](https://flywheel.soenneker.com)
+[![Flywheel dashboard with live activity, job states, and searchable executions](images/dashboard.png)](https://flywheel.soenneker.com)
 
 *The optional Flywheel Dashboard, shown with illustrative demo data.*
 
