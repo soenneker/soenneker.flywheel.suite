@@ -11,6 +11,6 @@
     <ProjectReference Include="../../src/Soenneker.Flywheel.Redis/Soenneker.Flywheel.Redis.csproj" />
     <ProjectReference Include="../../src/Soenneker.Flywheel.Generators/Soenneker.Flywheel.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="../Soenneker.Flywheel.Dashboard.Demo/Soenneker.Flywheel.Dashboard.Demo.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.12" />
   </ItemGroup>
 </Project>
