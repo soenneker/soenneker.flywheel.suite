@@ -15,11 +15,11 @@
 <CodeExample Text="@InstallExample" Label="Install the dashboard package command" Language="shell" />
 <Paragraph>Register the client in its <code>Program.cs</code>:</Paragraph>
 <CodeExample Text="@ClientExample" Label="Dashboard client registration example" Language="csharp" />
-<Paragraph>Use the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.dashboard/tree/main/test/Soenneker.Flywheel.Dashboard.Demo">WebAssembly demo</Anchor> for the host page, Quark styles, and router. Use <code>FlywheelRouter</code> in the host to match dashboard routes explicitly, without assembly scanning.</Paragraph>
+<Paragraph>Use the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/tree/main/demo/Soenneker.Flywheel.Dashboard.Demo">WebAssembly demo</Anchor> for the host page, Quark styles, and router. Use <code>FlywheelRouter</code> in the host to match dashboard routes explicitly, without assembly scanning.</Paragraph>
 <H2>Connect the server</H2>
 <Paragraph>On the ASP.NET Core host, add dashboard services to your Flywheel registration:</Paragraph>
 <CodeExample Text="@ServerExample" Label="Dashboard server registration example" Language="csharp" />
-<Paragraph>Import <code>Soenneker.Flywheel.Core.Registrars</code>. Configure a PBKDF2 password PHC string, then map the authenticated API and SignalR hub. The <Anchor Href="https://github.com/soenneker/soenneker.flywheel.dashboard/blob/main/test/Soenneker.Flywheel.Sample/Program.cs">complete sample server</Anchor> includes password hashing, authentication, rate limiting, and endpoint setup.</Paragraph>
+<Paragraph>Import <code>Soenneker.Flywheel.Core.Registrars</code>. Configure a PBKDF2 password PHC string, then map the authenticated API and SignalR hub. The <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/blob/main/demo/Soenneker.Flywheel.Demo/Program.cs">complete sample server</Anchor> includes password hashing, authentication, rate limiting, and endpoint setup.</Paragraph>
 <Paragraph>Serve the client and API over the same HTTPS origin. Static WebAssembly files can be delivered by a CDN or Cloudflare Worker, with API and WebSocket traffic routed to the ASP.NET Core backend. Static hosting alone does not run Flywheel or connect to Redis.</Paragraph>
 <Paragraph>UI rendering stays in the browser. API queries and live updates still consume backend resources.</Paragraph>
 <H2>Built-in routes</H2>
@@ -30,15 +30,15 @@
 <tr><td><code>/flywheel/scheduled</code></td><td>Pending jobs and retries</td></tr>
 <tr><td><code>/jobs/&#123;JobId&#125;</code></td><td>Execution details and logs</td></tr>
 </tbody></table>
-<Paragraph>The default home is <code>/flywheel</code>. With <code>FlywheelRouter</code>, setting <code>HomePath = "/"</code> serves the dashboard at the root without an <code>Index.razor</code> wrapper. Other host pages can be rendered explicitly through its <code>NotFound</code> fragment. See the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.dashboard#pages-and-navigation">routing guide</Anchor> to host it at <code>/</code>.</Paragraph>
+<Paragraph>The default home is <code>/flywheel</code>. With <code>FlywheelRouter</code>, setting <code>HomePath = "/"</code> serves the dashboard at the root without an <code>Index.razor</code> wrapper. Other host pages can be rendered explicitly through its <code>NotFound</code> fragment. See the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/blob/main/docs/dashboard.md#pages-and-navigation">routing guide</Anchor> to host it at <code>/</code>.</Paragraph>
 </article>
 
 @code {
     private const string DemoExample = """
-git clone https://github.com/soenneker/soenneker.flywheel.dashboard.git
-cd soenneker.flywheel.dashboard
+git clone https://github.com/soenneker/soenneker.flywheel.suite.git
+cd soenneker.flywheel.suite
 dotnet dev-certs https --trust
-dotnet run --project test/Soenneker.Flywheel.Demo
+dotnet run --project demo/Soenneker.Flywheel.Demo
 """;
 
     private const string InstallExample = """

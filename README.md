@@ -34,7 +34,7 @@ dotnet build Soenneker.Flywheel.Suite.slnx
 dotnet test --project test/Soenneker.Flywheel.Dashboard.Tests
 ```
 
-Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:16379`. The performance runner is separate from the automated test projects. The product website is included under `website/Soenneker.Flywheel.Website`.
+Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:16379`. The performance runner is separate from the automated test projects. The product website is included under `website/Soenneker.Flywheel.Website`. Its separate [website workflow](.github/workflows/website.yml) exports and deploys the static site to Cloudflare; see [website development and deployment](website/Soenneker.Flywheel.Website/README.md).
 
 Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. Dashboard navigation supports `/` and custom home paths, independently of the configured backend address.
 
