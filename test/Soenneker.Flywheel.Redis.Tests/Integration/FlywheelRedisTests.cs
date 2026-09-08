@@ -358,10 +358,15 @@ public sealed partial class FlywheelRedisTests
         JobSearchResult next = await store.Search("invoices", offset: 1, count: 1);
         Check(next.TotalCount == 2 && next.Items.Single().Id == older, "Pagination applied before filtering");
         Check((await store.Search(older.ToUpperInvariant())).Items.Single().Id == older, "ID search failed");
-        Check((await store.Search("scheduled")).TotalCount == 122, "State search failed");
+        Check((await store.Search("queued")).TotalCount == 122, "Queued state search failed");
+        Check((await store.Search("scheduled")).TotalCount == 0, "Scheduled search included queued jobs");
         Check((await store.Search("payload-only")).TotalCount == 0, "Search included a private payload");
         Check((await store.Search(".*")).TotalCount == 0, "Search interpreted a pattern");
         Check((await store.Search("   ", count: 10)).TotalCount == 122, "Blank query should list all jobs");
+        string scheduled = await store.Enqueue(Request() with { Delay = TimeSpan.FromHours(1) });
+        JobSearchResult scheduledJobs = await store.Search("scheduled");
+        Check(scheduledJobs.TotalCount == 1 && scheduledJobs.Items.Single().Id == scheduled, "Scheduled state search failed");
+        Check((await store.Search("queued")).TotalCount == 122, "Queued search included future scheduled jobs");
         JobLease lease = (await store.Claim("Search-Worker", TimeSpan.FromSeconds(30)))!;
         Check((await store.Search("search-worker")).Items.Single().Id == lease.Job.Id, "Worker search failed");
         Check((await store.Search("invoices", offset: 50)).Items.Count == 0, "Out-of-range page should be empty");
