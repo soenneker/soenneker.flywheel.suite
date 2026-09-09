@@ -16,6 +16,10 @@
         {
             <Paragraph Margin="Margin.Is0">Loading logs…</Paragraph>
         }
+        else if (!_loading && _entries.Count == 0 && _error is null)
+        {
+            <Paragraph Margin="Margin.Is0">No logs recorded for this execution.</Paragraph>
+        }
         else if (_entries.Count > 0 && !FilteredEntries.Any())
         {
             <Paragraph Margin="Margin.Is0">No matching logs.</Paragraph>
