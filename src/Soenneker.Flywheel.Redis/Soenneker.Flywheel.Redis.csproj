@@ -44,6 +44,6 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.3" />
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Redis.Semaphores" Version="4.0.55" />
+        <PackageReference Include="Soenneker.Redis.Semaphores" Version="4.0.56" />
     </ItemGroup>
 </Project>
