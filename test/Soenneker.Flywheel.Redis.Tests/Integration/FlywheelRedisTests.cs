@@ -283,7 +283,7 @@ public sealed partial class FlywheelRedisTests
         JobRecord job = (await store.Get(id!))!;
         Check(job.State == JobState.Scheduled && job.Attempt == 0 && job.Version == 0 && !job.CancelRequested, "Manual run inherited execution state");
         Check(job.Payload == "{\"value\":42}" && job.Policy.MaxAttempts == 3, "Stored payload or policy lost");
-        Check((await store.ListRecurring()).Single() == schedule, "Manual run changed the recurring schedule");
+        Check((await store.ListRecurring()).Single() == schedule with { LastExecutionStatus = "Queued" }, "Manual run changed the recurring schedule metadata");
         Check((await store.Claim("manual", TimeSpan.FromSeconds(30)))!.Job.Id == id, "Manual execution is not immediately eligible");
         Check(await store.RunRecurring("missing") is null, "Missing schedule queued a job");
     });

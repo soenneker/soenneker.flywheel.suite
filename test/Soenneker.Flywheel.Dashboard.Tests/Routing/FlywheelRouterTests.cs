@@ -19,21 +19,33 @@ public sealed class FlywheelRouterTests
     [Arguments("/flywheel", "", "NotFound", null)]
     [Arguments("/", "missing", "NotFound", null)]
     [Arguments("/flywheel", "flywheel", "Dashboard", null)]
-    [Arguments("/", "FLYWHEEL/", "Dashboard", null)]
-    [Arguments("/", "flywheel/recurring", "Recurring", null)]
-    [Arguments("/", "flywheel/recurring/daily%20one", "Schedule", "daily one")]
-    [Arguments("/", "flywheel/recurring/a%252Fb", "Schedule", "a%2Fb")]
-    [Arguments("/", "flywheel/recurring/a/b", "NotFound", null)]
-    [Arguments("/", "flywheel/scheduled", "Scheduled", null)]
+    [Arguments("/", "FLYWHEEL/", "NotFound", null)]
+    [Arguments("/", "recurring", "Recurring", null)]
+    [Arguments("/", "recurring/daily%20one", "Schedule", "daily one")]
+    [Arguments("/", "scheduled", "Scheduled", null)]
+    [Arguments("/", "servers", "Servers", null)]
+    [Arguments("/", "servers/node%201", "ServerDetails", "node 1")]
+    [Arguments("/flywheel", "recurring", "NotFound", null)]
+    [Arguments("/flywheel", "flywheel/recurring", "Recurring", null)]
+    [Arguments("/flywheel", "flywheel/recurring/daily%20one", "Schedule", "daily one")]
+    [Arguments("/flywheel", "flywheel/recurring/a%252Fb", "Schedule", "a%2Fb")]
+    [Arguments("/flywheel", "flywheel/recurring/a/b", "NotFound", null)]
+    [Arguments("/flywheel", "flywheel/scheduled", "Scheduled", null)]
     [Arguments("/", "signin", "SignIn", null)]
     [Arguments("/", "jobs/example", "Jobs", "example")]
     [Arguments("/", "jobs/a%20b%2Fc?x=1#log", "Jobs", "a b/c")]
     [Arguments("/", "jobs/a%252Fb", "Jobs", "a%2Fb")]
     [Arguments("/", "jobs/", "NotFound", null)]
     [Arguments("/", "jobs/a/b", "NotFound", null)]
-    [Arguments("/", "flywheel/servers", "Servers", null)]
-    [Arguments("/", "flywheel/servers/node%201/", "ServerDetails", "node 1")]
-    [Arguments("/", "flywheel/servers/a/b", "NotFound", null)]
+    [Arguments("/flywheel", "flywheel/servers", "Servers", null)]
+    [Arguments("/flywheel", "flywheel/servers/node%201/", "ServerDetails", "node 1")]
+    [Arguments("/flywheel", "flywheel/servers/a/b", "NotFound", null)]
+    [Arguments("/", "flywheel", "NotFound", null)]
+    [Arguments("/", "flywheel/recurring", "NotFound", null)]
+    [Arguments("/", "flywheel/recurring/daily", "NotFound", null)]
+    [Arguments("/", "flywheel/scheduled", "NotFound", null)]
+    [Arguments("/", "flywheel/servers", "NotFound", null)]
+    [Arguments("/", "flywheel/servers/node", "NotFound", null)]
     public void MatchesExplicitRoutes(string homePath, string relativePath, string expectedPage, string? expectedId)
     {
         DashboardRoute route = DashboardRoute.Match(relativePath, homePath);
@@ -102,17 +114,17 @@ public sealed class FlywheelRouterTests
     public async Task SchedulePagesShareLayoutAndConnectionWithoutLoadingOverview()
     {
         var live = new BoardConnectionTestClient();
-        await VerifyRendering("/", "https://example.test/", "https://example.test/flywheel/recurring", async (component, navigation, handler) =>
+        await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
         {
             Check(component.ToHtmlString().Contains("Search recurring jobs"), "Recurring page did not render.");
             Check(!component.ToHtmlString().Contains("Search scheduled jobs"), "Recurring page rendered scheduled content.");
             Check(!component.ToHtmlString().Contains("Activity chart"), "Recurring page rendered the overview chart.");
             Check(live.Connections == 1, "The layout did not start its connection.");
-            navigation.NavigateTo("/flywheel/scheduled");
+            navigation.NavigateTo("/scheduled");
             await component.QuiescenceTask;
             Check(component.ToHtmlString().Contains("Search scheduled jobs"), "Scheduled page did not render.");
             Check(!component.ToHtmlString().Contains("Search recurring jobs"), "The previous page remained mounted.");
-            navigation.NavigateTo("/flywheel/servers");
+            navigation.NavigateTo("/servers");
             await component.QuiescenceTask;
             Check(live.Connections == 1 && !live.Transport.Disposed, "Navigation recreated the layout connection.");
             Check(handler.Paths.Count(path => path.EndsWith("/jobs/search")) == 1, "Navigation repeated the layout authentication check or loaded overview executions.");
@@ -122,7 +134,7 @@ public sealed class FlywheelRouterTests
             await component.QuiescenceTask;
             Check(component.ToHtmlString().Contains("Activity chart"), "The overview page did not render its own chart.");
             Check(!handler.Paths.Any(path => path.EndsWith("/jobs/history")), "The live overview loaded five-minute historical buckets.");
-            navigation.NavigateTo("/flywheel/recurring");
+            navigation.NavigateTo("/recurring");
             await component.QuiescenceTask;
             Check(!component.ToHtmlString().Contains("Activity chart"), "The overview remained mounted on a schedule page.");
             Check(live.Connections == 1 && !live.Transport.Disposed, "Leaving the overview disposed the layout's connection.");
@@ -134,7 +146,7 @@ public sealed class FlywheelRouterTests
     public async Task SessionExpiryRedirectsToStandaloneSignInAndClosesTheLayoutConnection()
     {
         var live = new BoardConnectionTestClient();
-        await VerifyRendering("/", "https://example.test/", "https://example.test/flywheel/recurring", async (component, navigation, handler) =>
+        await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
         {
             handler.Authenticated = false;
             navigation.NavigateTo("jobs/expired");
@@ -155,15 +167,15 @@ public sealed class FlywheelRouterTests
             new("daily one", "Daily report", 60000, 0),
             new("weekly%2Ftwo", "Weekly cleanup", 3600000, 0)
         ], []);
-        await VerifyRendering("/", "https://example.test/", "https://example.test/flywheel/recurring/daily%20one", async (component, navigation, handler) =>
+        await VerifyRendering("/", "https://example.test/", "https://example.test/recurring/daily%20one", async (component, navigation, handler) =>
         {
             Check(component.ToHtmlString().Contains("Daily report"), "Schedule detail did not resolve the selected schedule.");
             Check(!component.ToHtmlString().Contains("Weekly cleanup"), "Schedule detail rendered other schedules.");
-            navigation.NavigateTo("/flywheel/recurring/weekly%252Ftwo");
+            navigation.NavigateTo("/recurring/weekly%252Ftwo");
             await component.QuiescenceTask;
             Check(component.ToHtmlString().Contains("Weekly cleanup"), "Schedule detail did not update its route parameter.");
             Check(!component.ToHtmlString().Contains("Daily report"), "The previous schedule remained visible.");
-            navigation.NavigateTo("/flywheel/recurring/missing");
+            navigation.NavigateTo("/recurring/missing");
             await component.QuiescenceTask;
             Check(component.ToHtmlString().Contains("Schedule unavailable"), "An absent schedule displayed stale details.");
             Check(live.Connections == 1 && !live.Transport.Disposed, "Detail navigation recreated the layout connection.");

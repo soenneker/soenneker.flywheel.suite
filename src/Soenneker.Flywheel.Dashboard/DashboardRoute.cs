@@ -7,21 +7,22 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
     public static DashboardRoute Match(string baseRelativePath, string homePath)
     {
         string path = baseRelativePath.Split('?', '#')[0].TrimEnd('/');
-        if (path.Equals("flywheel", StringComparison.OrdinalIgnoreCase) || (path.Length == 0 && homePath == "/"))
+        if (path.Equals(homePath.Trim('/'), StringComparison.OrdinalIgnoreCase))
             return new(DashboardPage.Dashboard);
         if (path.Equals("signin", StringComparison.OrdinalIgnoreCase))
             return new(DashboardPage.SignIn);
-        if (path.Equals("flywheel/recurring", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Recurring);
-        if (path.Equals("flywheel/scheduled", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Scheduled);
-        if (path.Equals("flywheel/servers", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Servers);
         if (TryReadId(path, "jobs/", out string? jobId))
             return new(DashboardPage.Jobs, jobId);
-        if (TryReadId(path, "flywheel/servers/", out string? serverId))
+        string prefix = homePath == "/" ? "" : homePath.Trim('/') + "/";
+        if (path.Equals(prefix + "recurring", StringComparison.OrdinalIgnoreCase))
+            return new(DashboardPage.Recurring);
+        if (path.Equals(prefix + "scheduled", StringComparison.OrdinalIgnoreCase))
+            return new(DashboardPage.Scheduled);
+        if (path.Equals(prefix + "servers", StringComparison.OrdinalIgnoreCase))
+            return new(DashboardPage.Servers);
+        if (TryReadId(path, prefix + "servers/", out string? serverId))
             return new(DashboardPage.ServerDetails, serverId);
-        if (TryReadId(path, "flywheel/recurring/", out string? scheduleId))
+        if (TryReadId(path, prefix + "recurring/", out string? scheduleId))
             return new(DashboardPage.Schedule, scheduleId);
         return new(DashboardPage.NotFound);
     }

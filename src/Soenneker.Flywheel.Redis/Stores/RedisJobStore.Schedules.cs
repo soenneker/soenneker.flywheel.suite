@@ -73,11 +73,20 @@ public sealed partial class RedisJobStore
             var schedule = Decode<Schedule>(await db.HashGetAsync(Schedules, scheduleId).WaitAsync(cancellationToken));
             if (schedule is null)
                 return null;
-            Insert(mutation, Occurrence(schedule, id), 0);
+            Insert(mutation, Occurrence(schedule, id) with { ScheduleId = scheduleId }, 0);
+            schedule = schedule with { LastExecutionId = id, LastExecutionStatus = null };
+            mutation.Transaction.Queue(t => t.HashSetAsync(Schedules, scheduleId, Serialize(schedule)));
+            Publish(mutation, new JobChange("Schedules"));
             if (await mutation.Transaction.Execute(cancellationToken))
                 return id;
             await Retry(attempt, cancellationToken);
         }
+    }
+
+    public async Task<long> GetRecurringCount(CancellationToken cancellationToken = default)
+    {
+        IDatabase db = await Database(cancellationToken);
+        return await db.SortedSetLengthAsync(ScheduleDue).WaitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<RecurringJobView>> ListRecurring(int count = 50,
@@ -95,13 +104,20 @@ public sealed partial class RedisJobStore
             ids[i] = entries[i].Element;
         RedisValue[] values = await db.HashGetAsync(Schedules, ids)
                                       .WaitAsync(cancellationToken);
+        Schedule?[] schedules = values.Select(Decode<Schedule>).ToArray();
+        RedisValue[] executionIds = schedules.Select(s => (RedisValue)(s?.LastExecutionId ?? "")).ToArray();
+        RedisValue[] executions = await db.HashGetAsync(Jobs, executionIds).WaitAsync(cancellationToken);
+        long now = await Time(db, cancellationToken);
         var result = new List<RecurringJobView>();
         for (var i = 0; i < entries.Length; i++)
         {
-            var schedule = Decode<Schedule>(values[i]);
+            var schedule = schedules[i];
+            var execution = Decode<JobRecord>(executions[i]);
+            string? status = execution is null ? schedule?.LastExecutionStatus :
+                execution.CancelRequested && execution.State == JobState.Running ? "Cancelling" : execution.DisplayState(now);
             if (schedule is not null)
                 result.Add(new((string)entries[i].Element!, schedule.Job.Name, schedule.Interval,
-                    (long)entries[i].Score, schedule.Cron, schedule.TimeZoneId, schedule.IncludeSeconds));
+                    (long)entries[i].Score, schedule.Cron, schedule.TimeZoneId, schedule.IncludeSeconds, status));
         }
 
         return result;
@@ -167,8 +183,9 @@ public sealed partial class RedisJobStore
             var schedule = Decode<Schedule>(await db.HashGetAsync(Schedules, id).WaitAsync(ct));
             if (schedule is null)
                 return;
-            schedule = schedule with { Sequence = checked(schedule.Sequence + 1) };
-            Insert(mutation, Occurrence(schedule, Guid.NewGuid().ToString("N")), 0);
+            string executionId = Guid.NewGuid().ToString("N");
+            schedule = schedule with { Sequence = checked(schedule.Sequence + 1), LastExecutionId = executionId, LastExecutionStatus = null };
+            Insert(mutation, Occurrence(schedule, executionId) with { ScheduleId = id }, 0);
             long? next = schedule.Cron is null
                 ? checked((long)due + ((mutation.Now - (long)due) / schedule.Interval + 1) * schedule.Interval)
                 : CronParser.Parse(schedule.Cron, schedule.TimeZoneId, schedule.IncludeSeconds)
@@ -242,6 +259,15 @@ public sealed partial class RedisJobStore
                 Mutation mutation = await Begin(db, ct);
                 var job = Decode<JobRecord>(await db.HashGetAsync(Jobs, id).WaitAsync(ct));
                 if (job is not null && !IsTerminal(job.State)) break;
+                if (job?.ScheduleId is { } scheduleId)
+                {
+                    var schedule = Decode<Schedule>(await db.HashGetAsync(Schedules, scheduleId).WaitAsync(ct));
+                    if (schedule?.LastExecutionId == id)
+                    {
+                        schedule = schedule with { LastExecutionStatus = job.DisplayState(mutation.Now) };
+                        mutation.Transaction.Queue(t => t.HashSetAsync(Schedules, scheduleId, Serialize(schedule)));
+                    }
+                }
                 RedisValue reverse = await db.HashGetAsync(DedupeReverse, id).WaitAsync(ct);
                 if (!reverse.IsNull)
                 {

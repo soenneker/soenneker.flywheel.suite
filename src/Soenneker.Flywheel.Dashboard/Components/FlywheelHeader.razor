@@ -40,8 +40,8 @@
 </Div>
 
 @code {
-    private static readonly int[] HeaderOrder = [0, 6, 1, 2, 3, 4, 5];
-    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers", "Queued"];
+    private static readonly int[] HeaderOrder = [7, 0, 6, 1, 2, 3, 4, 5];
+    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers", "Queued", "Recurring"];
 
     protected override void OnInitialized() => ActivityTotals.Changed += OnChanged;
 
@@ -49,6 +49,7 @@
 
     private string HeaderValue(int index) => index switch
     {
+        7 => ActivityTotals.RecurringCount?.ToString("N0") ?? "—",
         6 => ActivityTotals.QueuedCount?.ToString("N0") ?? "—",
         0 => ActivityTotals.ScheduledCount?.ToString("N0") ?? "—",
         1 => ActivityTotals.RunningCount?.ToString("N0") ?? "—",
@@ -57,17 +58,19 @@
         _ => ActivityTotals.Totals is { } totals ? totals[index - 1].ToString("N0") : "—"
     };
 
-    private static string? HeaderHref(int index) => index switch
+    private string? HeaderHref(int index) => index switch
     {
-        6 => "flywheel",
-        0 => "flywheel/scheduled",
-        1 => "flywheel",
-        4 => "flywheel/servers",
+        7 => DashboardNavigation.Path("recurring"),
+        6 => DashboardNavigation.Path(),
+        0 => DashboardNavigation.Path("scheduled"),
+        1 => DashboardNavigation.Path(),
+        4 => DashboardNavigation.Path("servers"),
         _ => null
     };
 
     private static string? HeaderTitle(int index) => index switch
     {
+        7 => "Recurring jobs with an active schedule",
         6 => "Jobs ready to run, waiting for an available worker",
         0 => "Jobs waiting for a future start time, independent of the selected date range",
         1 => "Jobs executing now, independent of the selected date range",

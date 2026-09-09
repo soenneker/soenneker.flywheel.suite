@@ -8,6 +8,8 @@ public sealed record JobRecord
 
     /// <summary>Unique identifier of the job or retained entry.</summary>
     public required string Id { get; init; }
+    /// <summary>Recurring schedule that created this execution, or null for non-recurring jobs.</summary>
+    public string? ScheduleId { get; init; }
     /// <summary>Stable job name used for registration and persisted work.</summary>
     public required string Name { get; init; }
     /// <summary>Optional human-readable description displayed by dashboard clients.</summary>

@@ -1,3 +1,4 @@
+@inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/recurring/{ScheduleId}"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Schedules
 @using Soenneker.Quark
@@ -35,7 +36,7 @@
                 }
                 else
                 {
-                    <Button Href="flywheel/recurring" Variant="ButtonVariant.Secondary">All recurring jobs</Button>
+                    <Button Href="@DashboardNavigation.Path("recurring")" Variant="ButtonVariant.Secondary">All recurring jobs</Button>
                 }
             </Div>
         </Div>
@@ -65,6 +66,6 @@
     {
         <H2 TextSize="TextSize.Xl">Schedule unavailable</H2>
         <Paragraph>This schedule is not in the current schedule list.</Paragraph>
-        <Anchor Href="flywheel/recurring">View recurring jobs</Anchor>
+        <Anchor Href="@DashboardNavigation.Path("recurring")">View recurring jobs</Anchor>
     }
 </Div>

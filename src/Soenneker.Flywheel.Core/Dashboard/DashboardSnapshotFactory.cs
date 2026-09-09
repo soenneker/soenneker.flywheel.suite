@@ -16,7 +16,7 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
         new(server.Id, server.ExpiresAt, server.Workers, server.RunningJobs.Select(Job).ToList());
 
     public ScheduleView Schedules(IEnumerable<RecurringJobView> recurring, IEnumerable<JobRecord> scheduled) =>
-        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds)).ToList(),
+        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus)).ToList(),
             scheduled.Select(Job).ToList());
 
     public List<Communication.Responses.JobHistoryPoint> History(IEnumerable<Communication.Responses.JobHistoryPoint> history) =>

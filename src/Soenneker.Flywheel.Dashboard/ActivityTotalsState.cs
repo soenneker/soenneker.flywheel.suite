@@ -5,6 +5,7 @@ namespace Soenneker.Flywheel.Dashboard;
 internal sealed class ActivityTotalsState
 {
     public double[]? Totals { get; private set; }
+    public long? RecurringCount { get; private set; }
     public long? QueuedCount { get; private set; }
     public long? ScheduledCount { get; private set; }
     public long? RunningCount { get; private set; }
@@ -33,9 +34,10 @@ internal sealed class ActivityTotalsState
                 values[2] += point.DeadLettered;
             }
         }
-        bool changed = QueuedCount != queued || ScheduledCount != scheduled || RunningCount != snapshot.RunningCount ||
+        bool changed = RecurringCount != snapshot.RecurringCount || QueuedCount != queued || ScheduledCount != scheduled || RunningCount != snapshot.RunningCount ||
             ServerCount != snapshot.ServerCount || TotalWorkers != snapshot.TotalWorkers ||
             (Totals is null ? values is not null : values is null || !Totals.AsSpan().SequenceEqual(values));
+        RecurringCount = snapshot.RecurringCount;
         QueuedCount = queued;
         ScheduledCount = scheduled;
         RunningCount = snapshot.RunningCount;
@@ -47,6 +49,7 @@ internal sealed class ActivityTotalsState
     public void Clear()
     {
         Totals = null;
+        RecurringCount = null;
         QueuedCount = null;
         ScheduledCount = null;
         RunningCount = null;

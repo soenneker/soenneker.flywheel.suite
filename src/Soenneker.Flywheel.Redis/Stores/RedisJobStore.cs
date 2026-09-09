@@ -14,7 +14,7 @@ using StackExchange.Redis;
 namespace Soenneker.Flywheel.Redis;
 
 public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJobTimeRangeSearchStore, INodeStore,
-    IJobLogStore, IJobScheduleStore, IJobHistoryStore, IRecurringJobRunner, IMethodPolicyStore, IJobChangeFeed,
+    IJobLogStore, IJobScheduleStore, IRecurringJobCountStore, IJobHistoryStore, IRecurringJobRunner, IMethodPolicyStore, IJobChangeFeed,
     ICronJobStore, IJobChainStore, IJobProgressStore, IServerStore, IJobLiveActivityStore, IJobSearchHistoryStore
 {
     private readonly Func<CancellationToken, Task<IDatabase>> _database;

@@ -80,6 +80,9 @@ public sealed partial class DashboardSubscriptions(
                 totalWorkers = await serverStore.GetTotalWorkerCount(ct);
                 serverCount = (await serverStore.ListServers(200, ct)).Count;
             }
+            long? recurringCount = store is IRecurringJobCountStore recurringStore
+                ? await recurringStore.GetRecurringCount(ct)
+                : null;
             ScheduleView? schedules = null;
             IReadOnlyList<JobHistoryPoint>? liveActivity = summary && store is IJobLiveActivityStore liveStore
                 ? await liveStore.GetLiveActivity(ct)
@@ -88,7 +91,7 @@ public sealed partial class DashboardSubscriptions(
                 schedules = snapshots.Schedules(await scheduleStore.ListRecurring(200, ct), await scheduleStore.ListScheduled(200, ct));
             await client.BoardSnapshot(new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
                 result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
-                liveActivity?.ToList())).WaitAsync(ct);
+                liveActivity?.ToList(), recurringCount)).WaitAsync(ct);
         }
         else if (kind == "Job")
         {

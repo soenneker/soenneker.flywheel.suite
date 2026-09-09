@@ -26,7 +26,7 @@ else if (Session.IsAuthenticated)
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton Href="@DashboardNavigation.HomePath" Tooltip="Flywheel" aria-label="Flywheel" >
+                        <SidebarMenuButton Href="@DashboardNavigation.Path()" Tooltip="Flywheel" aria-label="Flywheel" >
                             <Icon Name="LucideIcon.Circle" Size="Size.Is4" />
                             <Span FontWeight="FontWeight.Semibold" >Flywheel</Span>
                         </SidebarMenuButton>
@@ -37,17 +37,17 @@ else if (Session.IsAuthenticated)
                 <SidebarGroup>
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <SidebarMenuButton Href="flywheel/recurring" Match="NavLinkMatch.All" Tooltip="Recurring jobs" aria-label="Recurring jobs" >
+                            <SidebarMenuButton Href="@DashboardNavigation.Path("recurring")" Match="NavLinkMatch.All" Tooltip="Recurring jobs" aria-label="Recurring jobs" >
                                 <Icon Name="LucideIcon.Repeat" Size="Size.Is4" /><Span>Recurring jobs</Span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton Href="flywheel/scheduled" Match="NavLinkMatch.All" Tooltip="Scheduled jobs" aria-label="Scheduled jobs" >
+                            <SidebarMenuButton Href="@DashboardNavigation.Path("scheduled")" Match="NavLinkMatch.All" Tooltip="Scheduled jobs" aria-label="Scheduled jobs" >
                                 <Icon Name="LucideIcon.Clock" Size="Size.Is4" /><Span>Scheduled jobs</Span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <SidebarMenuButton Href="flywheel/servers" Match="NavLinkMatch.Prefix" Tooltip="Servers" aria-label="Servers" >
+                            <SidebarMenuButton Href="@DashboardNavigation.Path("servers")" Match="NavLinkMatch.Prefix" Tooltip="Servers" aria-label="Servers" >
                                 <Icon Name="LucideIcon.Server" Size="Size.Is4" /><Span>Servers</Span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

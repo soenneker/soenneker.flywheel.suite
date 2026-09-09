@@ -1,3 +1,4 @@
+@inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/servers/{ServerId}"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Servers
 @using System.Net
@@ -11,7 +12,7 @@
 
 <PageTitle>@(_server?.Id ?? "Server") · Flywheel</PageTitle>
 <Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull">
-    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="/flywheel/servers" Variant="ButtonVariant.Secondary" aria-label="Back to servers">←</Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="@DashboardNavigation.Path("servers")" Variant="ButtonVariant.Secondary" aria-label="Back to servers">←</Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
     @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load server</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
     else if (_server is null) { <Paragraph role="status">@(_missing ? "This server is no longer reporting a heartbeat." : "Loading server…")</Paragraph> }
     else
@@ -24,7 +25,7 @@
             <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th><Th>Progress</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
-                <Tr @key="job.Id"><Td><Anchor Href="@($"/flywheel/jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
+                <Tr @key="job.Id"><Td><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
             }
             </Tbody></Table>
         }

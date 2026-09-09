@@ -1,3 +1,4 @@
+@inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/servers"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Servers
 @using Soenneker.Dtos.Results.Operation
@@ -22,7 +23,7 @@
                 <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th>Server</Th><Th>Workers (busy / total)</Th><Th>Running jobs</Th><Th>Heartbeat valid until</Th></Tr></Thead><Tbody>
         @foreach (ServerView server in FilteredServers.Skip(ServerOffset).Take(_pageSize))
         {
-            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td><Anchor Href="@($"/flywheel/servers/{Uri.EscapeDataString(server.Id)}")">@server.Id</Anchor></Td><Td>@($"{server.RunningJobs.Count:N0}/{server.Workers:N0}")</Td><Td>@server.RunningJobs.Count</Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
+            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td><Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(server.Id)}"))">@server.Id</Anchor></Td><Td>@($"{server.RunningJobs.Count:N0}/{server.Workers:N0}")</Td><Td>@server.RunningJobs.Count</Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
         }
                 </Tbody>
             </TableContent>
