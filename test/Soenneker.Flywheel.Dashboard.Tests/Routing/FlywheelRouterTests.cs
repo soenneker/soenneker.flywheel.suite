@@ -182,7 +182,8 @@ public sealed class FlywheelRouterTests
                 .Select(index => new JobHistoryPoint(now - 60000 + index * 1000, 0, index == 60 ? 1 : 0, index == 60 ? 1 : 0, 0)).ToList();
             await live.Snapshot(new LiveBoard(live.Transport.Version, [], 0, null, null, LiveActivity: points));
             string html = component.ToHtmlString();
-            Check(html.Contains("Started"), "The live chart omitted job starts");
+            Check(html.Contains(">Running</button>"), "The live chart omitted running concurrency");
+            Check(!html.Contains("Started"), "The live chart included the retired job starts series");
             Check(html.Contains("data-scroll-enabled=\"true\"") && html.Contains("data-scroll-duration=\"1000\""),
                 "Live activity must use one-second Quark scrolling");
             Check(html.Contains($"data-scroll-x-min=\"{now - 60000}\""), "The chart did not retain a full minute of live samples");
