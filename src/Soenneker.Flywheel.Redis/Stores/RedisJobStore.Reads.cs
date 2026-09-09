@@ -94,6 +94,7 @@ public sealed partial class RedisJobStore
             return new(await List(offset, count, cancellationToken), total);
         }
 
+        long now = await Time(db, cancellationToken);
         var items = new List<JobRecord>(count);
         var matches = 0;
         string? cursor = null;
@@ -104,7 +105,7 @@ public sealed partial class RedisJobStore
             {
                 if (!job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                    !job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !job.DisplayState(now).Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !(job.Owner?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
                     continue;
                 if (matches++ >= offset && items.Count < count)
@@ -129,6 +130,7 @@ public sealed partial class RedisJobStore
         IDatabase db = await Database(cancellationToken);
         long minimum = startAt.ToUnixTimeMilliseconds();
         long maximum = endAt.ToUnixTimeMilliseconds();
+        long now = await Time(db, cancellationToken);
         var items = new List<JobRecord>(count);
         var matches = 0;
         string? cursor = null;
@@ -140,7 +142,7 @@ public sealed partial class RedisJobStore
                 if (job.UpdatedAt < minimum || job.UpdatedAt >= maximum || query.Length != 0 &&
                     !job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                    !job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !job.DisplayState(now).Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !(job.Owner?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
                     continue;
                 if (matches++ >= offset && items.Count < count)

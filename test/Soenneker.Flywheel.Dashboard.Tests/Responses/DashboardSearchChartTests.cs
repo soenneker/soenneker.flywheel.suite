@@ -118,12 +118,18 @@ public sealed class DashboardSearchChartTests
         totals.UpdateRunning(1);
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         typeof(FlywheelHeader).GetProperty("ActivityTotals", flags)!.SetValue(header, totals);
+        var navigation = new DashboardNavigationOptions();
+        typeof(FlywheelHeader).GetProperty("DashboardNavigation", flags)!.SetValue(header, navigation);
         var value = typeof(FlywheelHeader).GetMethod("HeaderValue", flags)!;
         if ((string)value.Invoke(header, [5])! != "1/8") throw new Exception("Header does not show busy / capacity");
         totals.UpdateRunning(0);
         if ((string)value.Invoke(header, [5])! != "0/8") throw new Exception("Idle workers are shown as busy");
-        var href = typeof(FlywheelHeader).GetMethod("HeaderHref", BindingFlags.Static | BindingFlags.NonPublic)!;
-        if ((string)href.Invoke(null, [1])! != "flywheel") throw new Exception("Running does not link home");
+        var href = typeof(FlywheelHeader).GetMethod("HeaderHref", flags)!;
+        if ((string)href.Invoke(header, [1])! != "flywheel") throw new Exception("Running does not link home");
+        navigation.HomePath = "/jobs";
+        if ((string)href.Invoke(header, [1])! != "jobs") throw new Exception("Running does not link to the configured home");
+        navigation.HomePath = "/";
+        if ((string)href.Invoke(header, [1])! != "") throw new Exception("Running does not link to the application root");
     }
 
     [Test]

@@ -13,6 +13,7 @@ public sealed partial class RedisJobStore
             throw new ArgumentOutOfRangeException(nameof(query));
         query = query?.Trim() ?? "";
         IDatabase db = await Database(cancellationToken);
+        long now = await Time(db, cancellationToken);
         var buckets = new SortedDictionary<long, JobHistoryPoint>();
         string? cursor = null;
         while (true)
@@ -24,13 +25,13 @@ public sealed partial class RedisJobStore
                     endAt is { } end && job.UpdatedAt >= end.ToUnixTimeMilliseconds() ||
                     query.Length != 0 && !job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                    !job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !job.DisplayState(now).Contains(query, StringComparison.OrdinalIgnoreCase) &&
                     !(job.Owner?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)) continue;
                 long timestamp = job.UpdatedAt / 300000 * 300000;
                 JobHistoryPoint point = buckets.GetValueOrDefault(timestamp) ?? new(timestamp, 0, 0, 0, 0);
                 buckets[timestamp] = job.State.Value switch
                 {
-                    0 when job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) == "Queued" => point with { Queued = point.Queued + 1 },
+                    0 when job.DisplayState(now) == "Queued" => point with { Queued = point.Queued + 1 },
                     0 => point with { Scheduled = point.Scheduled + 1 },
                     1 => point with { Running = point.Running + 1 },
                     2 => point with { Succeeded = point.Succeeded + 1 },

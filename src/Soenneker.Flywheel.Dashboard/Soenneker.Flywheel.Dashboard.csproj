@@ -42,16 +42,16 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.6" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1353" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1355" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.699" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2500" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.700" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2501" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.76" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.229" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1486" />
         <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.815" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.241" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.243" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.72" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>

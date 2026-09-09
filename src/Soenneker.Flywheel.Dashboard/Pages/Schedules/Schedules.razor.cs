@@ -72,7 +72,9 @@ public partial class Schedules
                         ? descending ? filtered.OrderByDescending(s => s.DueAt) : filtered.OrderBy(s => s.DueAt)
                         : descending ? ordered.ThenByDescending(s => s.DueAt) : ordered.ThenBy(s => s.DueAt);
             }
-            return _filteredRecurring = (ordered?.ThenBy(s => s.Id, StringComparer.Ordinal) ?? filtered).ToArray();
+            return _filteredRecurring = ordered is not null
+                ? ordered.ThenBy(s => s.Id, StringComparer.Ordinal).ToArray()
+                : filtered as IReadOnlyList<RecurringScheduleView> ?? filtered.ToArray();
         }
     }
     private readonly HashSet<string> _startingSchedules = [];

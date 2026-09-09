@@ -18,11 +18,13 @@ public sealed partial class FlywheelDashboardTests
     {
         var password = Guid.NewGuid().ToString("N");
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.Host.UseDefaultServiceProvider(options => { options.ValidateOnBuild = true; options.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
         builder.Services.AddFlywheel().AddDashboard(o => o.PasswordPhc = Pbkdf2HashingUtil.Hash(password));
         var store = new SearchStore();
         builder.Services.RemoveAll<IHostedService>(); builder.Services.AddSingleton<IJobStore>(store);
         builder.Services.AddSingleton<IJobLogStore>(store);
+        builder.Services.AddSingleton<INodeStore>(store);
         await using WebApplication app = builder.Build();
         app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
         app.MapFlywheelDashboard();
