@@ -33,12 +33,15 @@ public partial class Schedules
         if (_selectedSchedule is { } selected && _schedules is not null)
             _selectedSchedule = _schedules.Recurring.FirstOrDefault(schedule => schedule.Id == selected.Id) ?? selected;
     }
-    private readonly DataTableOptions _recurringTableOptions = new() { DefaultPageSize = 10, SearchDebounceMs = 300 };
+    private readonly DataTableOptions _recurringTableOptions = new() { DefaultPageSize = 50, SearchDebounceMs = 300 };
+    private List<DataTableOrderRequest> _recurringOrder = [];
     private int _recurringOffset;
-    private int _recurringPageSize = 10;
+    private int _recurringPageSize = 50;
     private int RecurringOffset => Math.Min(_recurringOffset, Math.Max(0, (FilteredRecurring.Count - 1) / _recurringPageSize * _recurringPageSize));
     private void SearchRecurring(DataTableServerSideRequest request)
     {
+        _recurringOrder = request.Order ?? [];
+        _recurringSource = null;
         _recurringSearch = request.Search?.Value?.Trim() ?? "";
         _recurringOffset = Math.Max(0, request.Start);
         _recurringPageSize = Math.Max(1, request.Length);
@@ -53,9 +56,23 @@ public partial class Schedules
                 return _filteredRecurring;
             _recurringSource = source;
             _cachedRecurringSearch = _recurringSearch;
-            return _filteredRecurring = source is null ? [] : _recurringSearch.Length == 0 ? source :
+            IEnumerable<RecurringScheduleView> filtered = source is null ? [] : _recurringSearch.Length == 0 ? source :
                 source.Where(schedule => $"{schedule.Name} {schedule.Id} {schedule.Cron} {schedule.TimeZoneId} Every {IntervalLabel(schedule.Interval)}"
-                    .Contains(_recurringSearch, StringComparison.OrdinalIgnoreCase)).ToArray();
+                    .Contains(_recurringSearch, StringComparison.OrdinalIgnoreCase));
+            IOrderedEnumerable<RecurringScheduleView>? ordered = null;
+            foreach (DataTableOrderRequest order in _recurringOrder)
+            {
+                bool descending = order.Dir == "desc";
+                if (order.Column == 0)
+                    ordered = ordered is null
+                        ? descending ? filtered.OrderByDescending(s => s.Name, StringComparer.OrdinalIgnoreCase) : filtered.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                        : descending ? ordered.ThenByDescending(s => s.Name, StringComparer.OrdinalIgnoreCase) : ordered.ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase);
+                else if (order.Column == 3)
+                    ordered = ordered is null
+                        ? descending ? filtered.OrderByDescending(s => s.DueAt) : filtered.OrderBy(s => s.DueAt)
+                        : descending ? ordered.ThenByDescending(s => s.DueAt) : ordered.ThenBy(s => s.DueAt);
+            }
+            return _filteredRecurring = (ordered?.ThenBy(s => s.Id, StringComparer.Ordinal) ?? filtered).ToArray();
         }
     }
     private readonly HashSet<string> _startingSchedules = [];

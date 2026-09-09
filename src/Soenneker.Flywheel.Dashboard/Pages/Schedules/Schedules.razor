@@ -14,7 +14,7 @@
     <Drawer @ref="_drawer" Visible="@(_selectedSchedule is not null)" VisibleChanged="OnDrawerVisibleChanged" Direction="right" TrapFocus="true" ShowBackdrop="true">
         <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
             <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Recurring jobs</H3></Div>
-            <DataTable Options="@_recurringTableOptions" TotalRecords="@FilteredRecurring.Count" OnInteraction="SearchRecurring">
+            <DataTable Style="table-layout: fixed; width: 100%; min-width: 52rem;" Options="@_recurringTableOptions" TotalRecords="@FilteredRecurring.Count" OnInteraction="SearchRecurring">
                 <TopContent>
                     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
                         <DataTableSearch Placeholder="Search" AriaLabel="Search recurring jobs" />
@@ -22,12 +22,19 @@
                     </Div>
                 </TopContent>
                 <TableContent>
-                    <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Schedule</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Last execution status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Next run</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Action</Th></Tr></Thead><Tbody>
+                    <colgroup>
+                        <col />
+                        <col style="width: 25%;" />
+                        <col style="width: 12rem;" />
+                        <col style="width: 9rem;" />
+                        <col style="width: 7rem;" />
+                    </colgroup>
+                    <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3" Sortable="true" Data="Name">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Schedule</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Last execution status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3" Sortable="true" Data="DueAt">Next run</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Action</Th></Tr></Thead><Tbody>
                     @foreach (RecurringScheduleView schedule in FilteredRecurring.Skip(RecurringOffset).Take(_recurringPageSize))
                     {
                         <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="schedule.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowScheduleDrawer(schedule)" @onkeydown="e => OpenScheduleDrawer(e, schedule)">
-                            <Td><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"recurring/{Uri.EscapeDataString(schedule.Id)}"))">@schedule.Name</Anchor></span></Td>
-                            <Td>@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : $"{schedule.Cron} ({schedule.TimeZoneId})")</Td>
+                            <Td Style="overflow-wrap: anywhere;"><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"recurring/{Uri.EscapeDataString(schedule.Id)}"))">@schedule.Name</Anchor></span></Td>
+                            <Td Style="overflow-wrap: anywhere;">@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : $"{schedule.Cron} ({schedule.TimeZoneId})")</Td>
                             <Td>
                                 @if (schedule.LastExecutionStatus is { } status)
                                 {
@@ -40,7 +47,13 @@
                             </Td>
                             <Td><JobTimestamp StartsAt="true" Value="@schedule.DueAt" /></Td>
                             <td class="p-2 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
-                                <Button OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Loading="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">Run now</Button>
+                                <Button OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Style="width: 5.5rem; position: relative;" aria-busy="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">
+                                    <span style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</span>
+                                    @if (_startingSchedules.Contains(schedule.Id))
+                                    {
+                                        <span class="animate-spin rounded-full border-2 border-current border-t-transparent" style="position: absolute; width: 1rem; height: 1rem;" aria-hidden="true"></span>
+                                    }
+                                </Button>
                             </td>
                         </Tr>
                     }
@@ -65,7 +78,7 @@
                     </Div>
                     @if (_schedules?.Recurring.Count == 200)
                     {
-                        <Small TextColor="TextColor.MutedForeground">Search and paging cover the next 200 recurring jobs.</Small>
+                        <Small TextColor="TextColor.MutedForeground">Search, sorting, and paging cover the next 200 recurring jobs.</Small>
                     }
                 </BottomContent>
             </DataTable>
