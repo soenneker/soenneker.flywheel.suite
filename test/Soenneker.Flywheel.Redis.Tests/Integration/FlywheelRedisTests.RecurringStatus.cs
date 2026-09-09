@@ -17,10 +17,14 @@ public sealed partial class FlywheelRedisTests
         Check((await store.ListRecurring()).Single().LastExecutionStatus == "Queued", "Automatic execution was not tracked");
         JobLease first = (await store.Claim("first", TimeSpan.FromSeconds(30)))!;
         Check((await store.ListRecurring()).Single().LastExecutionStatus == "Running", "Running status missing");
-        await store.RunRecurring("status");
+        string scheduleId = (await store.ListRecurring()).Single().Id;
+        string? latestId = await store.RunRecurring(scheduleId);
+        Check(latestId is not null && latestId != first.Job.Id, "Manual run did not create a separate execution");
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Queued", "Manual execution was not tracked");
         await store.Finish(first, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.ListRecurring()).Single().LastExecutionStatus == "Queued", "Older completion replaced latest execution");
         JobLease latest = (await store.Claim("latest", TimeSpan.FromSeconds(30)))!;
+        Check(latest.Job.Id == latestId, "Claim did not return the latest execution");
         await store.Finish(latest, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.ListRecurring()).Single().LastExecutionStatus == "Succeeded", "Completion status missing");
         var cleanup = new RedisJobStore(_ => Task.FromResult(db), ns, retainCompletedJobs: false);
