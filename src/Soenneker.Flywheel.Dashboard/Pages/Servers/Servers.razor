@@ -14,7 +14,7 @@
 <Main Padding="Padding.Is4" Width="Width.IsFull">
     <Div Margin="Margin.FromBottom.Is6"><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold">Servers</H2></Div>
     @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load servers</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
-    else if (_servers is null) { <Paragraph role="status">Loading servers…</Paragraph> }
+    else if (_servers is null) { <Spinner Size="Size.Is5" aria-label="Loading servers…" /> }
     else
     {
         <DataTable Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">

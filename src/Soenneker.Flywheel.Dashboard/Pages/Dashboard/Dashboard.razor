@@ -28,7 +28,7 @@
     }
     @if (_loading)
     {
-        <Paragraph role="status">Loading executions…</Paragraph>
+        <Spinner Size="Size.Is5" aria-label="Loading executions…" />
     }
     else
     {
@@ -47,7 +47,11 @@
                     }
                     else
                     {
-                        <div class="flywheel-activity-chart" aria-label="Activity chart" aria-busy="@_historyLoading">
+                        <div class="flywheel-activity-chart" style="position: relative;" aria-label="Activity chart" aria-busy="@_historyLoading">
+                            @if (_historyLoading)
+                            {
+                                <Spinner Size="Size.Is5" Position="Position.Absolute" Style="top: 0.5rem; right: 0.5rem; z-index: 1;" aria-label="Loading activity" />
+                            }
                             <Chart @ref="_activityChart" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@(UseLiveChart ? LiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions)"
                                    OnRangeSelect="SelectActivityRange"
                                    AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second UTC buckets. Drag a range to filter executions." : (_query.Length > 0 ? "Matching executions by current status and last update time. Static search results." : "Job activity in five-minute UTC buckets. Drag a range to filter executions."))" />

@@ -24,7 +24,7 @@ else
                 {
                     <Button Href="@DashboardNavigation.Path()" Variant="ButtonVariant.Secondary" aria-label="Back to all jobs" title="All jobs">←</Button>
                 }
-                <H2 Margin="Margin.Is0" style="border: 0; padding: 0;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : _loading ? "Loading job…" : "Job details"))</H2>
+                <H2 Margin="Margin.Is0" style="border: 0; padding: 0;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
                 @if (_job is not null)
                 {
                     <JobStatusBadge State="@_job.State" CancelRequested="@_job.CancelRequested" />
@@ -95,7 +95,14 @@ else
         }
         else if (_job is null)
         {
-            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div><Paragraph role="status">@(_loading ? "Loading execution…" : "Execution details are unavailable. Reload the page to retry.")</Paragraph></Div></Div>
+            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div>@if (_loading)
+                {
+                    <Spinner Size="Size.Is5" aria-label="Loading execution" />
+                }
+                else
+                {
+                    <Paragraph role="status">Execution details are unavailable. Reload the page to retry.</Paragraph>
+                }</Div></Div>
         }
         else
         {

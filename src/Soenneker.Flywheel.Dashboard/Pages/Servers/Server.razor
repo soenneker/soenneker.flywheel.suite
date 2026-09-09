@@ -14,7 +14,17 @@
 <Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull">
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="@DashboardNavigation.Path("servers")" Variant="ButtonVariant.Secondary" aria-label="Back to servers">←</Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
     @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load server</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
-    else if (_server is null) { <Paragraph role="status">@(_missing ? "This server is no longer reporting a heartbeat." : "Loading server…")</Paragraph> }
+    else if (_server is null)
+    {
+        @if (_missing)
+        {
+            <Paragraph role="status">This server is no longer reporting a heartbeat.</Paragraph>
+        }
+        else
+        {
+            <Spinner Size="Size.Is5" aria-label="Loading server" />
+        }
+    }
     else
     {
         <Grid Columns="GridCols.Is1.OnMd.Is3" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Workers (busy / total)</Span><Span>@($"{_server.RunningJobs.Count:N0}/{_server.Workers:N0}")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div></Grid>

@@ -14,7 +14,7 @@
     <ConsolePanel Text="@ConsoleText" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
         @if (_loading && _entries.Count == 0)
         {
-            <Paragraph Margin="Margin.Is0">Loading logs…</Paragraph>
+            <Spinner Size="Size.Is5" aria-label="Loading logs…" />
         }
         else if (!_loading && _entries.Count == 0 && _error is null)
         {

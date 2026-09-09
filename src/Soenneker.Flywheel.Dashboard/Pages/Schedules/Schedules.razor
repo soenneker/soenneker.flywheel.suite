@@ -51,7 +51,7 @@
                                     <span style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</span>
                                     @if (_startingSchedules.Contains(schedule.Id))
                                     {
-                                        <span class="animate-spin rounded-full border-2 border-current border-t-transparent" style="position: absolute; width: 1rem; height: 1rem;" aria-hidden="true"></span>
+                                        <Spinner Size="Size.Is4" Position="Position.Absolute" aria-label="Queuing job" />
                                     }
                                 </Button>
                             </td>
@@ -66,7 +66,7 @@
                     }
                     else if (_schedules is null)
                     {
-                        <Paragraph>Loading schedules…</Paragraph>
+                        <Spinner Size="Size.Is5" aria-label="Loading schedules…" />
                     }
                     else if (!FilteredRecurring.Any())
                     {
