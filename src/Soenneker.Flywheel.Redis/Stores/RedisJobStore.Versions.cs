@@ -6,7 +6,7 @@ namespace Soenneker.Flywheel.Redis;
 
 public sealed partial class RedisJobStore
 {
-    public async Task<string> RunOnceForCurrentVersion(EnqueueRequest request, string applicationVersion,
+    public async Task<string> EnqueueForCurrentVersion(EnqueueRequest request, string applicationVersion,
         CancellationToken cancellationToken = default)
     {
         ValidateApplicationVersion(applicationVersion);

@@ -9,7 +9,7 @@ public interface IJobClient
     /// Only runners with the same FlywheelOptions.ApplicationVersion can claim it. Repeated calls return the
     /// original ID even after retention removes the record. Payload and policy from the first call win.
     /// Retries and lease recovery still apply; this is not an exactly-once execution guarantee.</summary>
-    Task<string> RunOnceForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
+    Task<string> EnqueueForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Serializes and persists a registered job; use a stable key for ambiguous enqueue retries.</summary>

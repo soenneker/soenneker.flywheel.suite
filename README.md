@@ -37,7 +37,7 @@ Dashboard does not bring Redis or the server runtime into WebAssembly. Projects 
 From the hosting application, submit a registered job through `IJobClient`:
 
 ```csharp
-await jobs.RunOnceForCurrentVersion(job, payload);
+await jobs.EnqueueForCurrentVersion(job, payload);
 ```
 
 Flywheel automatically identifies the hosting application build and creates one shared job per job name and build within the Redis namespace. Only engines running that exact build can claim it, so older application instances in warmup slots skip the job. The submission marker survives completed-job cleanup; normal retries and lease recovery still apply, so handlers must be idempotent.

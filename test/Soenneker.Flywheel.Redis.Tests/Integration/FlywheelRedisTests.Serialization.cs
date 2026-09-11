@@ -40,7 +40,7 @@ public sealed partial class FlywheelRedisTests
     public Task CamelCaseStoragePreservesOwnership() => WithStore(async (store, db, ns) =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1, RateLimit = 2 });
-        string id = await store.RunOnceForCurrentVersion(Request(), "release-2");
+        string id = await store.EnqueueForCurrentVersion(Request(), "release-2");
         await store.AddRecurring("schedule", Request() with { Name = "recurring.v1" }, TimeSpan.FromHours(1));
         JobLease lease = (await store.ClaimForVersion("worker", TimeSpan.FromSeconds(30), "release-2"))!;
         string prefix = $"flywheel:{{{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ns)))}}}:v1:";

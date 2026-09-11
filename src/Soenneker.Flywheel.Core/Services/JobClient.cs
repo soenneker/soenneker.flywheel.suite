@@ -13,13 +13,13 @@ public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers
     private readonly string _applicationVersion = (options ?? new FlywheelOptions()).ApplicationVersion;
     private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
 
-    public Task<string> RunOnceForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
+    public Task<string> EnqueueForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
         CancellationToken cancellationToken = default)
     {
         EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
         if (store is not IVersionedJobStore versioned)
             throw new NotSupportedException("The job store does not support version-restricted jobs.");
-        return versioned.RunOnceForCurrentVersion(request, _applicationVersion, cancellationToken);
+        return versioned.EnqueueForCurrentVersion(request, _applicationVersion, cancellationToken);
     }
 
     private EnqueueRequest Request<T>(JobDefinition<T> job, T payload, JobPolicy? policy, TimeSpan delay, string? key)

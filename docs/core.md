@@ -76,7 +76,7 @@ Job payloads, typed chain steps, and generated invokers use `Soenneker.Utils.Jso
 Use the typed client when a startup job must be submitted once for the build that queues it:
 
 ```csharp
-await client.RunOnceForCurrentVersion(FlywheelJobs.MessageJobs_Write,
+await client.EnqueueForCurrentVersion(FlywheelJobs.MessageJobs_Write,
     new Message("Initialize this release"));
 ```
 

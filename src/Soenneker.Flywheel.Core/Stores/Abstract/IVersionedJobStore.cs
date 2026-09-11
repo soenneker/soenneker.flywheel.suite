@@ -9,7 +9,7 @@ public interface IVersionedJobStore
     /// <summary>Atomically submits one job per name and application version within the storage namespace.
     /// Repeated calls return its original ID, even after job retention removes the record.
     /// Retries and lease recovery may execute the handler again; handlers must be idempotent.</summary>
-    Task<string> RunOnceForCurrentVersion(EnqueueRequest request, string applicationVersion,
+    Task<string> EnqueueForCurrentVersion(EnqueueRequest request, string applicationVersion,
         CancellationToken cancellationToken = default);
 
     /// <summary>Claims an unrestricted job or a job whose application version exactly matches the runner.
