@@ -15,6 +15,10 @@ public sealed class DashboardSearchChartTests
         var hidden = (HashSet<string>)typeof(DashboardPage).GetField("_hiddenActivitySeries", flags)!.GetValue(page)!;
         hidden.Add("DeadLettered");
         hidden.Add("Scheduled");
+        var groupedHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
+        if ((bool)groupedHidden.Invoke(page, ["Queued / scheduled"])!)
+            throw new Exception("Queued activity must remain visible when only scheduled jobs are hidden");
+        hidden.Add("Queued");
         var isHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
         if (!(bool)isHidden.Invoke(page, ["Failed"])! || !(bool)isHidden.Invoke(page, ["Queued / scheduled"])! ||
             (bool)isHidden.Invoke(page, ["Running"])!)
@@ -125,11 +129,14 @@ public sealed class DashboardSearchChartTests
         totals.UpdateRunning(0);
         if ((string)value.Invoke(header, [5])! != "0/8") throw new Exception("Idle workers are shown as busy");
         var href = typeof(FlywheelHeader).GetMethod("HeaderHref", flags)!;
-        if ((string)href.Invoke(header, [1])! != "flywheel") throw new Exception("Running does not link home");
+        if ((string)href.Invoke(header, [1])! != "flywheel?state=Running") throw new Exception("Running does not link home with its status selected");
+        foreach (var (index, state) in new[] { (6, "Queued"), (2, "Succeeded"), (3, "DeadLettered") })
+            if ((string)href.Invoke(header, [index])! != $"flywheel?state={state}")
+                throw new Exception($"{state} does not link to its dashboard filter");
         navigation.HomePath = "/jobs";
-        if ((string)href.Invoke(header, [1])! != "jobs") throw new Exception("Running does not link to the configured home");
+        if ((string)href.Invoke(header, [1])! != "jobs?state=Running") throw new Exception("Running does not link to the configured home");
         navigation.HomePath = "/";
-        if ((string)href.Invoke(header, [1])! != "") throw new Exception("Running does not link to the application root");
+        if ((string)href.Invoke(header, [1])! != "./?state=Running") throw new Exception("Running does not link to the application root");
     }
 
     [Test]

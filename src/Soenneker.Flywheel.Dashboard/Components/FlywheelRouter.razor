@@ -31,6 +31,8 @@ else
     private DashboardRoute _route;
     private RouteData? _routeData;
     private string _path = "";
+    private string? _currentUri;
+    private string? _previousUri;
     private bool _refreshScroll;
     private bool _disposed;
 
@@ -40,6 +42,11 @@ else
 
     private void ResolveRoute()
     {
+        if (_currentUri != Navigation.Uri)
+        {
+            _previousUri = _currentUri;
+            _currentUri = Navigation.Uri;
+        }
         string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
         _path = relative.Split('?', '#')[0];
         _route = DashboardRoute.Match(relative, DashboardNavigation.HomePath);
@@ -56,7 +63,16 @@ else
             _ => null
         };
         var parameters = new Dictionary<string, object?>();
-        if (_route.Page == DashboardPage.Jobs) parameters[nameof(Pages.Jobs.Job.JobId)] = _route.Id!;
+        if (_route.Page == DashboardPage.Dashboard)
+        {
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+            parameters[nameof(Pages.Dashboard.Dashboard.SelectedState)] = query.TryGetValue("state", out var state) ? state.ToString() : null;
+        }
+        if (_route.Page == DashboardPage.Jobs)
+        {
+            parameters[nameof(Pages.Jobs.Job.JobId)] = _route.Id!;
+            parameters[nameof(Pages.Jobs.Job.BackHref)] = _previousUri;
+        }
         if (_route.Page == DashboardPage.Schedule) parameters[nameof(Pages.Schedules.Schedule.ScheduleId)] = _route.Id!;
         if (_route.Page == DashboardPage.ServerDetails) parameters[nameof(Pages.Servers.Server.ServerId)] = _route.Id!;
         _routeData = pageType is null ? null : new RouteData(pageType, parameters);

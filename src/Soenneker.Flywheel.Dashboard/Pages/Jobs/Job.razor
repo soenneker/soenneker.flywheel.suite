@@ -22,7 +22,7 @@ else
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap">
                 @if (!Embedded)
                 {
-                    <Button Href="@DashboardNavigation.Path()" Variant="ButtonVariant.Secondary" aria-label="Back to all jobs" title="All jobs">←</Button>
+                    <Button Href="@(BackHref ?? DashboardNavigation.Path())" Variant="ButtonVariant.Secondary" aria-label="Back to previous page" title="Back">←</Button>
                 }
                 <H2 Margin="Margin.Is0" style="border: 0; padding: 0;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
                 @if (_job is not null)

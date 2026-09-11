@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Soenneker.Quark;
 using Soenneker.DataTables.Dtos.ServerSideRequest;
@@ -31,7 +32,31 @@ public partial class Dashboard
         _liveClock = AdvanceLiveChart();
     }
 
-    protected override Task OnInitializedAsync() => Task.WhenAll(LoadOverviewHistory(), Reload());
+    /// <summary>The job status to select in the activity graph and execution table.</summary>
+    [Parameter] public string? SelectedState { get; set; }
+
+    private static readonly string[] FilterStates = ["Scheduled", "Queued", "Running", "Succeeded", "DeadLettered", "Cancelled", "Waiting"];
+    private bool _parametersInitialized;
+    private string? _appliedState;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        string? selected = FilterStates.FirstOrDefault(state => string.Equals(state, SelectedState, StringComparison.OrdinalIgnoreCase));
+        if (_parametersInitialized && selected == _appliedState) return;
+        bool firstLoad = !_parametersInitialized;
+        _parametersInitialized = true;
+        _appliedState = selected;
+        _hiddenActivitySeries.Clear();
+        if (selected is not null)
+            foreach (string state in FilterStates)
+                if (state != selected) _hiddenActivitySeries.Add(state);
+        _legendVersion++;
+        _offset = 0;
+        _queryRevision = BoardConnection.NextVersion();
+        _activeRead?.Cancel();
+        if (_jobsTable is not null) await _jobsTable.GoToPage(1);
+        await Task.WhenAll(firstLoad ? LoadOverviewHistory() : Task.CompletedTask, Reload());
+    }
 
     private async Task LoadOverviewHistory()
     {
@@ -102,7 +127,7 @@ public partial class Dashboard
         "Queued / scheduled" => ["Queued", "Scheduled"],
         _ => [name]
     };
-    private bool IsActivitySeriesHidden(string name) => SeriesStates(name).Any(_hiddenActivitySeries.Contains);
+    private bool IsActivitySeriesHidden(string name) => SeriesStates(name).All(_hiddenActivitySeries.Contains);
     private string ExcludedStates => string.Join(',', _hiddenActivitySeries);
     private string ActivitySeriesColor(ChartSeries series) => series.Color ?? JobStatusColors.Accent(SeriesStates(series.Name)[0]);
     private IReadOnlyList<ChartSeries> VisibleActivitySeries => ActivityLegendSeries

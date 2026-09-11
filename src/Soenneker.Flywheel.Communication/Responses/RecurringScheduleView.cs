@@ -11,4 +11,5 @@ public sealed record RecurringScheduleView(
     [property: JsonPropertyName("cron")] string? Cron = null,
     [property: JsonPropertyName("timeZoneId")] string TimeZoneId = "UTC",
     [property: JsonPropertyName("includeSeconds")] bool IncludeSeconds = false,
-    [property: JsonPropertyName("lastExecutionStatus")] string? LastExecutionStatus = null);
+    [property: JsonPropertyName("lastExecutionStatus")] string? LastExecutionStatus = null,
+    [property: JsonPropertyName("lastExecutionId")] string? LastExecutionId = null);

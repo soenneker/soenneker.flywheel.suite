@@ -26,7 +26,7 @@ else if (Session.IsAuthenticated)
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton Href="@DashboardNavigation.Path()" Tooltip="Flywheel" aria-label="Flywheel" >
+                        <SidebarMenuButton Href="@DashboardNavigation.Path()" Match="NavLinkMatch.All" Tooltip="Flywheel home" aria-label="Flywheel home" >
                             <Icon Name="LucideIcon.Circle" Size="Size.Is4" />
                             <Span FontWeight="FontWeight.Semibold" >Flywheel</Span>
                         </SidebarMenuButton>
@@ -54,6 +54,9 @@ else if (Session.IsAuthenticated)
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>
+            <SidebarFooter>
+                <SidebarTrigger aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar" />
+            </SidebarFooter>
         </Sidebar>
         <SidebarInset MinWidth="MinWidth.Is0" Style="flex: 1; min-width: 0; margin: 0;" >
             <FlywheelHeader />

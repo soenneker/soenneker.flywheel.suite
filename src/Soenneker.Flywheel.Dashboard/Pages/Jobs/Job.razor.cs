@@ -33,6 +33,10 @@ public partial class Job
     [Parameter]
     public bool Embedded { get; set; }
 
+    /// <summary>The previous page URL, including its query string and fragment; defaults to the dashboard home for direct visits.</summary>
+    [Parameter]
+    public string? BackHref { get; set; }
+
     private readonly SemaphoreSlim _readGate = new(1);
     private readonly string _signalId = $"flywheel-job-{Guid.NewGuid():N}";
     private JobView? _job;

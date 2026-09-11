@@ -117,7 +117,7 @@ public sealed partial class RedisJobStore
                 execution.CancelRequested && execution.State == JobState.Running ? "Cancelling" : execution.DisplayState(now);
             if (schedule is not null)
                 result.Add(new((string)entries[i].Element!, schedule.Job.Name, schedule.Interval,
-                    (long)entries[i].Score, schedule.Cron, schedule.TimeZoneId, schedule.IncludeSeconds, status));
+                    (long)entries[i].Score, schedule.Cron, schedule.TimeZoneId, schedule.IncludeSeconds, status, schedule.LastExecutionId));
         }
 
         return result;

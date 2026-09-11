@@ -101,6 +101,18 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
+    public async Task JobBackLinkPreservesPreviousPageQueryAndFragment()
+    {
+        await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/recurring?view=recent#schedules", async (component, navigation, handler) =>
+        {
+            navigation.NavigateTo("/jobs/job%201");
+            await component.QuiescenceTask;
+            Check(component.ToHtmlString().Contains("href=\"https://example.test/flywheel/recurring?view=recent#schedules\""),
+                "Job back link lost the originating page, query, or fragment.");
+        }, authenticated: true);
+    }
+
+    [Test]
     public async Task JobParameterIsPassedToConcretePage()
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/jobs/job%201", (component, navigation, handler) =>

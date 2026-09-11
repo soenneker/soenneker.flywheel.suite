@@ -38,7 +38,16 @@
                             <Td>
                                 @if (schedule.LastExecutionStatus is { } status)
                                 {
-                                    <JobStatusBadge State="@status" />
+                                    @if (schedule.LastExecutionId is { Length: > 0 } executionId)
+                                    {
+                                        <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
+                                            <Anchor Href="@($"jobs/{Uri.EscapeDataString(executionId)}")" aria-label="@($"View last execution of {schedule.Name}: {status}")"><JobStatusBadge State="@status" /></Anchor>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <JobStatusBadge State="@status" />
+                                    }
                                 }
                                 else
                                 {
