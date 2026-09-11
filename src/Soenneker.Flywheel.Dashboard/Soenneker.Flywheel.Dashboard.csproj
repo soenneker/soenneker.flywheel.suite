@@ -52,7 +52,7 @@
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1486" />
         <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.815" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.243" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.73" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.74" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
 </Project>
