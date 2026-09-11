@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Soenneker.Utils.Json;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Requests;
@@ -13,7 +14,7 @@ using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
 
-public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJobTimeRangeSearchStore, INodeStore,
+public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IVersionedJobStore, IJobTimeRangeSearchStore, INodeStore,
     IJobLogStore, IJobScheduleStore, IRecurringJobCountStore, IJobHistoryStore, IRecurringJobRunner, IMethodPolicyStore, IJobChangeFeed,
     ICronJobStore, IJobChainStore, IJobProgressStore, IServerStore, IJobLiveActivityStore, IJobSearchHistoryStore
 {
@@ -103,10 +104,10 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
         return Convert.ToHexString(hash);
     }
 
-    private static byte[] Serialize<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value);
+    private static byte[] Serialize<T>(T value) => JsonUtil.SerializeToUtf8Bytes(value!);
 
     private static T? Decode<T>(RedisValue value) where T : class =>
-        value.IsNull ? null : JsonSerializer.Deserialize<T>(((ReadOnlyMemory<byte>)value).Span);
+        value.IsNull ? null : JsonUtil.Deserialize<T>(((ReadOnlyMemory<byte>)value).Span);
 
     private async Task<IDatabase> Database(CancellationToken ct)
     {
@@ -181,7 +182,6 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
         RedisKey liveKey = _prefix + "activity:" + mutation.Now / 1000;
         tx.Queue(t => t.HashIncrementAsync(liveKey, job.State.Value));
         tx.Queue(t => t.KeyExpireAsync(liveKey, LiveActivityExpiry(mutation.Now)));
-        tx.Queue(t => t.HashSetAsync(History, "started", mutation.Now, When.NotExists));
         tx.Queue(t => t.HashIncrementAsync(History, $"{bucket}:{job.State.Value}"));
         tx.Queue(t => t.SortedSetAddAsync(HistoryBuckets, bucket, bucket));
         if (IsTerminal(job.State))
@@ -250,7 +250,10 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
         }
     }
 
-    public async Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default)
+    public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) =>
+        ClaimCore(owner, duration, null, cancellationToken);
+
+    private async Task<JobLease?> ClaimCore(string owner, TimeSpan duration, string? applicationVersion, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
             throw new ArgumentException(nameof(owner));
@@ -264,7 +267,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
             await Task.WhenAll(revisionTask, timeTask).WaitAsync(cancellationToken);
             RedisValue revision = revisionTask.Result;
             long now = timeTask.Result;
-            DispatchCandidate[] candidates = await ReadCandidates(db, now, cancellationToken);
+            DispatchCandidate[] candidates = await ReadCandidates(db, now, applicationVersion, cancellationToken);
             if (candidates.Length == 0)
                 return null;
             StoredPolicy[] policies = await ReadPolicies(db, candidates, cancellationToken);
@@ -317,7 +320,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
                     if (permit is not null)
                     {
                         tx.Require(permit.OwnershipCondition);
-                        tx.Queue(t => t.HashSetAsync(Permits, job.Id, Serialize(permit)));
+                        tx.Queue(t => t.HashSetAsync(Permits, job.Id, Serialize(new StoredPermit(permit.Key, permit.Token))));
                     }
 
                     var token = Guid.NewGuid().ToString("N");
@@ -383,7 +386,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
         if (tokenTask.Result != lease.Token)
             return default;
         JobRecord? job = Decode<JobRecord>(jobTask.Result);
-        var permit = Decode<RedisSemaphorePermit>(permitTask.Result);
+        RedisSemaphorePermit? permit = Decode<StoredPermit>(permitTask.Result)?.ToPermit();
         if (permit is not null && await db.StringGetAsync(permit.Key).WaitAsync(ct) != permit.Token)
             return default;
         return new(job, jobTask.Result, leaseKey, permit);
@@ -435,7 +438,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IJ
     private async Task Release(IDatabase db, Mutation mutation, JobRecord job, CancellationToken ct)
     {
         RedisAtomicTransaction tx = mutation.Transaction;
-        var permit = Decode<RedisSemaphorePermit>(await db.HashGetAsync(Permits, job.Id).WaitAsync(ct));
+        RedisSemaphorePermit? permit = Decode<StoredPermit>(await db.HashGetAsync(Permits, job.Id).WaitAsync(ct))?.ToPermit();
         if (permit is not null)
         {
             RedisValue value = await db.StringGetAsync(permit.Key).WaitAsync(ct);

@@ -173,7 +173,7 @@ public sealed partial class FlywheelRedisTests
     });
 
     [Test]
-    public Task InvalidCronDoesNotWriteAndLegacyIntervalsStillRun() => WithStore(async store =>
+    public Task InvalidCronDoesNotWriteAndIntervalsStillRun() => WithStore(async store =>
     {
         try { await store.AddCron("invalid", Request(), "not cron"); throw new Exception("Bad expression accepted"); }
         catch (FormatException) { }

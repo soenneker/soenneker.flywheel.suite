@@ -5,6 +5,13 @@ namespace Soenneker.Flywheel.Core.Services.Abstract;
 /// <summary>Typed producer API. A completed call means persisted, not executed. Handlers must be idempotent.</summary>
 public interface IJobClient
 {
+    /// <summary>Submits a registered job once per hosting application build across all instances.
+    /// Only runners with the same FlywheelOptions.ApplicationVersion can claim it. Repeated calls return the
+    /// original ID even after retention removes the record. Payload and policy from the first call win.
+    /// Retries and lease recovery still apply; this is not an exactly-once execution guarantee.</summary>
+    Task<string> RunOnceForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Serializes and persists a registered job; use a stable key for ambiguous enqueue retries.</summary>
     Task<string> Enqueue<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null, TimeSpan? delay = null,
         string? idempotencyKey = null, CancellationToken cancellationToken = default);

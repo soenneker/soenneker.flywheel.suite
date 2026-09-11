@@ -1,5 +1,5 @@
 using System;
-using System.Text.Json;
+using Soenneker.Utils.Json;
 
 namespace Soenneker.Flywheel.Core.Tests.Jobs;
 
@@ -18,7 +18,7 @@ public sealed class EnumSerializationTests
         for (var i = 0; i < values.Length; i++)
         {
             var json = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (JsonSerializer.Serialize(values[i]) != json || !values[i].Equals(JsonSerializer.Deserialize<T>(json)))
+            if (JsonUtil.Serialize(values[i]) != json || !values[i].Equals(JsonUtil.Deserialize<T>(json)))
                 throw new Exception($"{typeof(T).Name} changed its persisted value for {values[i]}.");
         }
 

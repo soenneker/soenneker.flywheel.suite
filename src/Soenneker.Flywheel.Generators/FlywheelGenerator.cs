@@ -136,7 +136,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                     schedulePreparation.Append("_ = global::Soenneker.Cron.Parser.CronParser.Parse(")
                                        .Append(expressionLiteral).Append(", ").Append(zoneLiteral).Append(", ")
                                        .Append(seconds).Append(");\n").Append("var payload").Append(i)
-                                       .Append(" = global::System.Text.Json.JsonSerializer.Deserialize<")
+                                       .Append(" = global::Soenneker.Utils.Json.JsonUtil.Deserialize<")
                                        .Append(payload).Append(">(").Append(SymbolDisplay.FormatLiteral(json, true))
                                        .Append(");\n");
                     scheduleRegistrations.Append("await client.Schedule(")
@@ -163,7 +163,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                    .Append(
                        "var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<")
                    .Append(type).Append(">(services);\n")
-                   .Append("var value = global::System.Text.Json.JsonSerializer.Deserialize<").Append(payload)
+                   .Append("var value = global::Soenneker.Utils.Json.JsonUtil.Deserialize<").Append(payload)
                    .Append(">(payload);\n").Append("await handler.@").Append(m.Name)
                    .Append("(value!, ct);\n}}\n}\n}\n");
             context.AddSource("FlywheelJobs.Invoker" + i + ".g.cs", invoker.ToString());

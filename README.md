@@ -32,6 +32,18 @@ Each project produces its own NuGet package. The suite is the repository and sol
 
 Dashboard does not bring Redis or the server runtime into WebAssembly. Projects reference each other directly in this solution; NuGet packing converts those references into separate package dependencies.
 
+## Run once for the current application version
+
+From the hosting application, submit a registered job through `IJobClient`:
+
+```csharp
+await jobs.RunOnceForCurrentVersion(job, payload);
+```
+
+Flywheel automatically identifies the hosting application build and creates one shared job per job name and build within the Redis namespace. Only engines running that exact build can claim it, so older application instances in warmup slots skip the job. The submission marker survives completed-job cleanup; normal retries and lease recovery still apply, so handlers must be idempotent.
+
+See [version-specific jobs](docs/core.md#once-per-hosting-application-version) for build identity overrides and execution semantics.
+
 ## One demo
 
 Install .NET 10 and run Redis 6.0.9 or newer on localhost:6379, then:
@@ -55,6 +67,8 @@ Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:6379
 Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. Dashboard navigation supports `/` and custom home paths, independently of the configured backend address.
 
 ## Releases
+
+JSON contracts use explicit camelCase property names and `Soenneker.Utils.Json`. See [JSON storage contracts](docs/redis.md#json-storage-contracts).
 
 `build-and-test.yml` builds the entire solution, runs the four test projects with Redis, publishes the hosted demo, and packs five separate packages. `publish-package.yml` calls that validation workflow and then runs a deployment matrix with one job per package, publishing to NuGet and GitHub Packages. A GitHub release is created only after every deployment succeeds.
 

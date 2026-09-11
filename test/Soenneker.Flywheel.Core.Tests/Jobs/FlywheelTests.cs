@@ -6,10 +6,8 @@ namespace Soenneker.Flywheel.Core.Tests.Jobs;
 public sealed class FlywheelTests
 {
     [Test]
-    public void DispatchPolicyValidationAndLegacyDefaults()
+    public void DispatchPolicyValidation()
     {
-        var legacy = System.Text.Json.JsonSerializer.Deserialize<JobPolicy>("{\"MaxAttempts\":2}")!;
-        if (legacy.Priority != Soenneker.Flywheel.Communication.Enums.JobPriority.Normal) throw new Exception("Legacy priority changed");
         foreach (MethodPolicy policy in new[] { new MethodPolicy { MaxConcurrency = 0 }, new MethodPolicy { RateLimit = -1 },
                      new MethodPolicy { RateWindow = TimeSpan.Zero } })
         {

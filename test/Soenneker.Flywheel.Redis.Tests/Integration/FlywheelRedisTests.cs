@@ -8,7 +8,6 @@ using Soenneker.Flywheel.Communication.Requests;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
@@ -67,26 +66,6 @@ public sealed partial class FlywheelRedisTests
     });
 
     [Test]
-    public Task HistoryStillIncludesLegacyRecordsBeforeTransitionRecording() => WithStore(async (store, db, ns) =>
-    {
-        string tag =
-            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        string prefix = $"flywheel:{{{tag}}}:v1:";
-        long timestamp = DateTimeOffset.UtcNow.AddMinutes(-30).ToUnixTimeMilliseconds();
-        var legacy = new JobRecord
-        {
-            Id = "legacy", Name = "legacy", Payload = "{}", Policy = new(),
-            CreatedAt = timestamp, UpdatedAt = timestamp, DueAt = timestamp, State = JobState.Succeeded
-        };
-        await db.HashSetAsync(prefix + "jobs", legacy.Id, System.Text.Json.JsonSerializer.Serialize(legacy));
-        await db.SortedSetAddAsync(prefix + "all", legacy.Id, timestamp);
-        await store.Enqueue(Request());
-        IReadOnlyList<JobHistoryPoint> history = await store.GetHistory();
-        Check(history.Sum(p => p.Succeeded) == 1 && history.Sum(p => p.Scheduled) == 1,
-            "Legacy history was dropped or double counted");
-    });
-
-    [Test]
     public Task DispatchFindsHighestPriorityAcrossBatchesAndBlockedFunctions() => WithStore(async store =>
     {
         await store.ConfigureMethod("blocked", new MethodPolicy { MaxConcurrency = 1 });
@@ -114,26 +93,20 @@ public sealed partial class FlywheelRedisTests
     });
 
     [Test]
-    public Task DispatchReadsLegacyPriorityAndEscapedNames() => WithStore(async (store, db, ns) =>
+    public Task DispatchReadsPriorityAndEscapedNames() => WithStore(async store =>
     {
         string low = await store.Enqueue(Request() with
         {
             Name = "other", Policy = new JobPolicy { Priority = JobPriority.Low }
         });
-        string legacy = await store.Enqueue(Request() with
+        string normal = await store.Enqueue(Request() with
         {
             Name = "escaped\\name\"", Payload = "{\"Name\":\"decoy\",\"State\":1}"
         });
-        string tag =
-            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        RedisKey jobsKey = $"flywheel:{{{tag}}}:v1:jobs";
-        JsonNode json = System.Text.Json.Nodes.JsonNode.Parse((string)(await db.HashGetAsync(jobsKey, legacy))!)!;
-        json["Policy"]!.AsObject().Remove("Priority");
-        await db.HashSetAsync(jobsKey, legacy, json.ToJsonString());
-        JobLease claim = (await store.Claim("legacy", TimeSpan.FromSeconds(30)))!;
-        Check(claim.Job.Id == legacy && claim.Job.Policy.Priority == JobPriority.Normal,
-            "Legacy default or escaped name parsing changed");
-        Check((await store.Get(low))!.State == JobState.Scheduled, "Low priority executed ahead of legacy Normal");
+        JobLease claim = (await store.Claim("normal", TimeSpan.FromSeconds(30)))!;
+        Check(claim.Job.Id == normal && claim.Job.Policy.Priority == JobPriority.Normal,
+            "Priority or escaped name parsing changed");
+        Check((await store.Get(low))!.State == JobState.Scheduled, "Low priority executed ahead of Normal");
     });
 
     [Test]
@@ -219,7 +192,7 @@ public sealed partial class FlywheelRedisTests
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
         RedisValue json = await db.HashGetAsync($"flywheel:{{{tag}}}:v1:job-permits", lease.Job.Id);
         var permit =
-            System.Text.Json.JsonSerializer
+            Soenneker.Utils.Json.JsonUtil
                   .Deserialize<Soenneker.Redis.Semaphores.RedisSemaphorePermit>((string)json!)!;
         await db.StringSetAsync(permit.Key, "successor", TimeSpan.FromSeconds(30), false);
         Check(await store.Renew(lease, TimeSpan.FromSeconds(30)) == LeaseStatus.Lost, "Lost semaphore renewed job");

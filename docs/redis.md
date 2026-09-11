@@ -37,3 +37,7 @@ Enable Redis persistence and use `maxmemory-policy noeviction` to prevent job da
 `HistoryRetention` defaults to one day. `RetainCompletedJobs` defaults to `true`; disable it to keep aggregate activity without completed job records after maintenance.
 
 See [Core usage](core.md#usage) to define and enqueue jobs.
+
+## JSON storage contracts
+
+Flywheel's structured Redis records use explicit camelCase `JsonPropertyName` attributes and `Soenneker.Utils.Json` for serialization and deserialization. This includes jobs, schedules, method policies, rate windows, stored semaphore permits, and change notifications. Redis counters, indexes, and log stream fields retain their native representations. Job state and priority retain their numeric JSON values.

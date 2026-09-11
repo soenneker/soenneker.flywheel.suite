@@ -169,54 +169,18 @@ public sealed partial class RedisJobStore
         long first = requestedStart / 300000 * 300000;
         long last = (requestedEnd - 1) / 300000 * 300000;
         int bucketCount = checked((int)((last - first) / 300000 + 1));
-        var fields = new RedisValue[checked(1 + bucketCount * 4)];
-        fields[0] = "started";
-        int fieldIndex = 1;
+        var fields = new RedisValue[checked(bucketCount * 4)];
+        int fieldIndex = 0;
         for (long bucket = first; bucket <= last; bucket += 300000)
         for (var state = 0; state < 4; state++)
             fields[fieldIndex++] = $"{bucket}:{state}";
         RedisValue[] values = await db.HashGetAsync(History, fields).WaitAsync(cancellationToken);
         var points = new List<JobHistoryPoint>(bucketCount);
-        for (var index = 1; index < values.Length; index += 4)
-            points.Add(new(first + (index - 1) / 4 * 300000L, values[index].IsNull ? 0 : (int)values[index],
+        for (var index = 0; index < values.Length; index += 4)
+            points.Add(new(first + index / 4 * 300000L, values[index].IsNull ? 0 : (int)values[index],
                 values[index + 1].IsNull ? 0 : (int)values[index + 1],
                 values[index + 2].IsNull ? 0 : (int)values[index + 2],
                 values[index + 3].IsNull ? 0 : (int)values[index + 3]));
-        long started = values[0].IsNull ? last + 300000 : (long)values[0];
-        if (started <= first)
-            return points;
-        // New namespaces already record every transition. Avoid scanning their entire retained history for
-        // legacy records that cannot exist: a record cannot have been updated before it was created.
-        SortedSetEntry[] oldest = await db.SortedSetRangeByRankWithScoresAsync(All, 0, 0).WaitAsync(cancellationToken);
-        if (oldest.Length == 0 || oldest[0].Score >= started) return points;
-        // Preserve the legacy snapshot fallback without counting transitions recorded by this store twice.
-        string? cursor = null;
-        while (true)
-        {
-            JobRecord[] jobs = await SearchBatch(db, cursor, cancellationToken);
-            foreach (JobRecord job in jobs)
-            {
-                if (job.UpdatedAt < first || job.UpdatedAt >= started)
-                    continue;
-                var index = (int)((job.UpdatedAt - first) / 300000);
-                if (index >= points.Count)
-                    continue;
-                JobHistoryPoint point = points[index];
-                points[index] = job.State.Value switch
-                {
-                    0 => point with { Scheduled = point.Scheduled + 1 },
-                    1 => point with { Running = point.Running + 1 },
-                    2 => point with { Succeeded = point.Succeeded + 1 },
-                    3 => point with { DeadLettered = point.DeadLettered + 1 },
-                    _ => point
-                };
-            }
-
-            if (jobs.Length < 100)
-                break;
-            cursor = jobs[^1].Id;
-        }
-
         return points;
     }
 

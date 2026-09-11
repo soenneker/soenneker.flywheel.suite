@@ -11,33 +11,39 @@ public sealed partial class RedisJobStore
     {
         var reader = new Utf8JsonReader(((ReadOnlyMemory<byte>)value).Span);
         string? name = null;
+        string? applicationVersion = null;
         int state = 0, priority = 1;
         long dueAt = 0;
         while (reader.Read())
         {
             if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1) continue;
-            if (reader.ValueTextEquals("Name"u8))
+            if (reader.ValueTextEquals("name"u8))
             {
                 reader.Read();
                 name = reader.GetString();
             }
-            else if (reader.ValueTextEquals("State"u8))
+            else if (reader.ValueTextEquals("applicationVersion"u8))
+            {
+                reader.Read();
+                applicationVersion = reader.GetString();
+            }
+            else if (reader.ValueTextEquals("state"u8))
             {
                 reader.Read();
                 state = reader.GetInt32();
             }
-            else if (reader.ValueTextEquals("DueAt"u8))
+            else if (reader.ValueTextEquals("dueAt"u8))
             {
                 reader.Read();
                 dueAt = reader.GetInt64();
             }
-            else if (reader.ValueTextEquals("Policy"u8))
+            else if (reader.ValueTextEquals("policy"u8))
             {
                 reader.Read();
                 if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("Job policy must be an object.");
                 while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                 {
-                    bool isPriority = reader.ValueTextEquals("Priority"u8);
+                    bool isPriority = reader.ValueTextEquals("priority"u8);
                     reader.Read();
                     if (isPriority) priority = reader.GetInt32();
                     else reader.Skip();
@@ -49,10 +55,10 @@ public sealed partial class RedisJobStore
                 reader.Skip(); // Do not allocate payload, policy, token or error strings during dispatch selection.
             }
         }
-        return new(name ?? throw new JsonException("Job name is missing."), state, priority, dueAt);
+        return new(name ?? throw new JsonException("Job name is missing."), state, priority, dueAt, applicationVersion);
     }
 
-    private async Task<DispatchCandidate[]> ReadCandidates(IDatabase db, long now, CancellationToken ct)
+    private async Task<DispatchCandidate[]> ReadCandidates(IDatabase db, long now, string? applicationVersion, CancellationToken ct)
     {
         RedisValue[] ids = await db.SortedSetRangeByScoreAsync(Due, stop: now).WaitAsync(ct);
         if (ids.Length == 0) return [];
@@ -67,6 +73,8 @@ public sealed partial class RedisJobStore
                 if (values[i].IsNull) continue;
                 DispatchMetadata metadata = ReadDispatchMetadata(values[i]);
                 if (metadata.State != 0) continue;
+                if (metadata.ApplicationVersion is not null &&
+                    !string.Equals(metadata.ApplicationVersion, applicationVersion, StringComparison.Ordinal)) continue;
                 var candidate = new DispatchCandidate(batch[i], values[i], metadata.Name, metadata.Priority, metadata.DueAt);
                 if (!best.TryGetValue(metadata.Name, out DispatchCandidate previous) || DispatchComparer.Instance.Compare(candidate, previous) < 0)
                     best[metadata.Name] = candidate;

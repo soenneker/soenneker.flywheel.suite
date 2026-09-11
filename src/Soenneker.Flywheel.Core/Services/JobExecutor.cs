@@ -18,7 +18,9 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
 
     public async Task<bool> RunOnce(CancellationToken cancellationToken)
     {
-        JobLease? lease = await store.Claim(options.NodeId, options.LeaseDuration, cancellationToken);
+        JobLease? lease = store is IVersionedJobStore versioned
+            ? await versioned.ClaimForVersion(options.NodeId, options.LeaseDuration, options.ApplicationVersion, cancellationToken)
+            : await store.Claim(options.NodeId, options.LeaseDuration, cancellationToken);
         if (lease is null) return false;
         using var execution = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         execution.CancelAfter(lease.Job.Policy.Timeout);

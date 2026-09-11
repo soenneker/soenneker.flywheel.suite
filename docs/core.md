@@ -55,7 +55,8 @@ await client.Enqueue(FlywheelJobs.MessageJobs_Write,
 
 await app.RunAsync();
 
-public sealed record Message(string Text);
+public sealed record Message(
+    [property: System.Text.Json.Serialization.JsonPropertyName("text")] string Text);
 
 public sealed class MessageJobs(ILogger<MessageJobs> logger)
 {
@@ -67,6 +68,27 @@ public sealed class MessageJobs(ILogger<MessageJobs> logger)
     }
 }
 ```
+
+Job payloads, typed chain steps, and generated invokers use `Soenneker.Utils.Json` with its web defaults. Flywheel's communication contracts declare explicit camelCase `JsonPropertyName` attributes; use the same attributes on your application payloads to keep their wire names stable. A null payload is persisted as JSON `null`.
+
+### Once per hosting application version
+
+Use the typed client when a startup job must be submitted once for the build that queues it:
+
+```csharp
+await client.RunOnceForCurrentVersion(FlywheelJobs.MessageJobs_Write,
+    new Message("Initialize this release"));
+```
+
+Instances sharing the Redis namespace, job name, and application version receive the same job ID. Only engines with that exact application version can claim the job. Older warmup-slot engines skip it without consuming an attempt or blocking ordinary jobs of the same method. The first submission's payload and policy win. A different application build gets its own job; Flywheel does not compare version ordering or suppress older builds' pending jobs.
+
+Flywheel automatically uses the hosting entry assembly's module version ID, identifying the compiled artifact rather than the Flywheel package version. Deploy the same artifact to matching instances. If producers and engines use different entry assemblies, set `FlywheelOptions.ApplicationVersion` to the same immutable release ID on both. It must change between releases; a slot name, instance ID, or constant assembly version is unsuitable.
+
+The once-per-version marker survives completed-job and log cleanup for the lifetime of the Redis namespace. Repeated calls after success, cancellation, or final failure return the original ID, even if its job record has expired. Each job/version pair retains one marker. Normal retry and lease-recovery rules still apply, so handlers must remain idempotent. Use `new JobPolicy { MaxAttempts = 1 }` if only one execution attempt is appropriate, accepting that an interrupted attempt will not recover by running again.
+
+Custom storage providers must implement `IVersionedJobStore`; unsupported providers reject this API.
+
+### Dashboard hosting
 
 When hosting the optional dashboard API, register its credentials with `AddDashboard`, map controllers for its HTTP endpoints, and let Flywheel map its authenticated real-time endpoint:
 

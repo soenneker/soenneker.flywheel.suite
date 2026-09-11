@@ -10,7 +10,8 @@ public interface IJobStore
     /// <summary>Atomically persists a job and its eligibility index; a retained idempotency key returns the original id.</summary>
     Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Atomically claims one due job, assigning a unique capability and increasing its fencing version.</summary>
+    /// <summary>Atomically claims one unrestricted due job, assigning a unique capability and increasing its fencing
+    /// version. Version-restricted jobs must be skipped; use IVersionedJobStore for version-aware claims.</summary>
     Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default);
 
     /// <summary>Renews only an unexpired current lease using storage time.</summary>

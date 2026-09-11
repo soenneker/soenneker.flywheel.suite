@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Communication.Requests;
@@ -9,5 +10,10 @@ namespace Soenneker.Flywheel.Communication.Requests;
 /// <param name="Delay">Delay before the job becomes eligible to execute.</param>
 /// <param name="IdempotencyKey">Optional key used to deduplicate enqueue requests while the key is retained.</param>
 /// <param name="Description">Optional human-readable description displayed by dashboard clients.</param>
-public sealed record EnqueueRequest(string Name, string Payload, JobPolicy Policy, TimeSpan Delay, string? IdempotencyKey = null,
-    string? Description = null);
+public sealed record EnqueueRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("payload")] string Payload,
+    [property: JsonPropertyName("policy")] JobPolicy Policy,
+    [property: JsonPropertyName("delay")] TimeSpan Delay,
+    [property: JsonPropertyName("idempotencyKey")] string? IdempotencyKey = null,
+    [property: JsonPropertyName("description")] string? Description = null);

@@ -129,6 +129,6 @@ With `FlywheelRouter`, this serves the dashboard at `/` without a host-owned `In
 
 Remove any server-side `app.MapGet("/", ... Results.Redirect("/flywheel"))` mapping so the existing `MapFallbackToFile("index.html")` serves the root page. Home links and sign-in redirects use the configured home path. The built-in `/flywheel` page, recurring and scheduled pages, job detail routes, and `/flywheel` API and hub endpoints keep their existing paths.
 
-Updates use SignalR. Keep Core, Redis, and Dashboard versions compatible when deploying. Job logs come from `ILogger<T>` and are visible to signed-in dashboard users.
+Updates use SignalR. Job logs come from `ILogger<T>` and are visible to signed-in dashboard users.
 
 See [Core usage](core.md#usage) to define and enqueue jobs.

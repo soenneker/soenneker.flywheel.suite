@@ -1,20 +1,28 @@
+using System.Text.Json.Serialization;
+
 namespace Soenneker.Flywheel.Communication.Dtos;
 
 /// <summary>Persisted execution policy; attempt limits include recovered executions.</summary>
 public sealed record JobPolicy
 {
     /// <summary>Dispatch priority among due jobs. Defaults to Normal.</summary>
+    [JsonPropertyName("priority")]
     public Enums.JobPriority Priority { get; init; } = Enums.JobPriority.Normal;
 
     /// <summary>Maximum execution attempts, including attempts recovered after a lost lease.</summary>
+    [JsonPropertyName("maxAttempts")]
     public int MaxAttempts { get; init; } = 5;
     /// <summary>Maximum duration of one execution attempt.</summary>
+    [JsonPropertyName("timeout")]
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
     /// <summary>Base delay before retrying the first failed attempt.</summary>
+    [JsonPropertyName("initialBackoff")]
     public TimeSpan InitialBackoff { get; init; } = TimeSpan.FromSeconds(5);
     /// <summary>Maximum retry delay after exponential backoff and jitter are applied.</summary>
+    [JsonPropertyName("maxBackoff")]
     public TimeSpan MaxBackoff { get; init; } = TimeSpan.FromHours(1);
     /// <summary>Fractional random variation applied to the retry delay, from zero through one.</summary>
+    [JsonPropertyName("jitter")]
     public double Jitter { get; init; } = .2;
 
     /// <summary>Validates priority, attempt limits, timeout, backoff bounds, and finite jitter between zero and one.</summary>

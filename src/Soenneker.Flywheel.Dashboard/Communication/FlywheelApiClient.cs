@@ -1,4 +1,5 @@
-using System.Net.Http.Json;
+using System.Text;
+using Soenneker.Utils.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 using Soenneker.Blazor.ApiClient.Dtos;
@@ -41,13 +42,13 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
     {
         using var content = new MultipartFormDataContent();
         content.Add(new StreamContent(options.Stream), "file", options.FileName);
-        if (options.Object is not null) content.Add(JsonContent.Create(options.Object), "metadata");
+        if (options.Object is not null) content.Add(CreateJsonContent(options.Object), "metadata");
         return await SendContent(HttpMethod.Post, options.Uri, content, cancellationToken);
     }
 
     private async ValueTask<HttpResponseMessage> Send(HttpMethod method, string uri, object? body, CancellationToken cancellationToken)
     {
-        using JsonContent? content = body is null ? null : JsonContent.Create(body);
+        using StringContent? content = body is null ? null : CreateJsonContent(body);
         return await SendContent(method, uri, content, cancellationToken);
     }
 
@@ -62,10 +63,13 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
         {
             using HttpResponseMessage response = await Get("flywheel/csrf", cancellationToken: cancellationToken);
             response.EnsureSuccessStatusCode();
-            Csrf csrf = await response.Content.ReadFromJsonAsync<Csrf>(cancellationToken: cancellationToken)
+            Csrf csrf = await JsonUtil.Deserialize<Csrf>(response, cancellationToken: cancellationToken)
                         ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");
             request.Headers.Add("X-Flywheel-CSRF", csrf.Token);
         }
         return await http.SendAsync(request, cancellationToken);
     }
+
+    private static StringContent CreateJsonContent(object value) =>
+        new(JsonUtil.Serialize(value) ?? "null", Encoding.UTF8, "application/json");
 }

@@ -1,7 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace Soenneker.Flywheel.Redis;
 
 public sealed partial class RedisJobStore
 {
-    // Numeric window representation is compatible with existing persisted method policies.
-    private sealed record StoredPolicy(int MaxConcurrency = 0, int RateLimit = 0, long RateWindow = 60000);
+    private sealed record StoredPolicy(
+        [property: JsonPropertyName("maxConcurrency")] int MaxConcurrency = 0,
+        [property: JsonPropertyName("rateLimit")] int RateLimit = 0,
+        [property: JsonPropertyName("rateWindow")] long RateWindow = 60000);
 }

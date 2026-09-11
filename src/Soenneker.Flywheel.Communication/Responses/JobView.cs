@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Soenneker.Flywheel.Communication.Responses;
 
 /// <param name="Id">Unique identifier of the job or retained entry.</param>
@@ -14,7 +16,7 @@ namespace Soenneker.Flywheel.Communication.Responses;
 /// <param name="Owner">Node that owns the current lease, if any.</param>
 /// <param name="ParentJobId">Previous step in a saved chain, if any.</param>
 /// <param name="NextJobId">Next step in a saved chain, if any.</param>
-/// <param name="MaxAttempts">Maximum attempts, or null when an older server does not provide it.</param>
+/// <param name="MaxAttempts">Maximum execution attempts.</param>
 /// <param name="TimeoutSeconds">Execution timeout per attempt, in seconds.</param>
 /// <param name="Priority">Dispatch priority for eligible work.</param>
 /// <param name="Progress">Latest progress percentage for the current attempt.</param>
@@ -23,7 +25,27 @@ namespace Soenneker.Flywheel.Communication.Responses;
 /// <param name="Description">Optional human-readable description of the job.</param>
 /// <param name="StartedAt">Start of the latest attempt in UTC Unix milliseconds, or zero when unavailable.</param>
 /// <param name="CompletedAt">Terminal completion time in UTC Unix milliseconds, or zero when unavailable.</param>
-public sealed record JobView(string Id, string Name, string State, int Attempt, long UpdatedAt, bool CancelRequested, string? Error,
-    long Version, long CreatedAt, long DueAt, long LeaseUntil, string? Owner, string? ParentJobId = null, string? NextJobId = null,
-    int? MaxAttempts = null, double? TimeoutSeconds = null, string? Priority = null, double? Progress = null,
-    string? ProgressMessage = null, long ProgressUpdatedAt = 0, string? Description = null, long StartedAt = 0, long CompletedAt = 0);
+public sealed record JobView(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("attempt")] int Attempt,
+    [property: JsonPropertyName("updatedAt")] long UpdatedAt,
+    [property: JsonPropertyName("cancelRequested")] bool CancelRequested,
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("version")] long Version,
+    [property: JsonPropertyName("createdAt")] long CreatedAt,
+    [property: JsonPropertyName("dueAt")] long DueAt,
+    [property: JsonPropertyName("leaseUntil")] long LeaseUntil,
+    [property: JsonPropertyName("owner")] string? Owner,
+    [property: JsonPropertyName("parentJobId")] string? ParentJobId = null,
+    [property: JsonPropertyName("nextJobId")] string? NextJobId = null,
+    [property: JsonPropertyName("maxAttempts")] int? MaxAttempts = null,
+    [property: JsonPropertyName("timeoutSeconds")] double? TimeoutSeconds = null,
+    [property: JsonPropertyName("priority")] string? Priority = null,
+    [property: JsonPropertyName("progress")] double? Progress = null,
+    [property: JsonPropertyName("progressMessage")] string? ProgressMessage = null,
+    [property: JsonPropertyName("progressUpdatedAt")] long ProgressUpdatedAt = 0,
+    [property: JsonPropertyName("description")] string? Description = null,
+    [property: JsonPropertyName("startedAt")] long StartedAt = 0,
+    [property: JsonPropertyName("completedAt")] long CompletedAt = 0);

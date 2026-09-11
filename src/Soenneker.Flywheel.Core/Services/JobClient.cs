@@ -1,15 +1,26 @@
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Soenneker.Flywheel.Communication.Requests;
-using System.Text.Json;
+using Soenneker.Utils.Json;
 using Soenneker.Cron.Parser;
 using Soenneker.Flywheel.Communication.Dtos;
+using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Core.Services;
 
-public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers) : IJobClient
+public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
 {
+    private readonly string _applicationVersion = (options ?? new FlywheelOptions()).ApplicationVersion;
     private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+
+    public Task<string> RunOnceForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
+        if (store is not IVersionedJobStore versioned)
+            throw new NotSupportedException("The job store does not support version-restricted jobs.");
+        return versioned.RunOnceForCurrentVersion(request, _applicationVersion, cancellationToken);
+    }
 
     private EnqueueRequest Request<T>(JobDefinition<T> job, T payload, JobPolicy? policy, TimeSpan delay, string? key)
     {
@@ -17,7 +28,7 @@ public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers
             throw new InvalidOperationException($"Unregistered job: {job.Name}");
         policy ??= new JobPolicy();
         policy.Validate();
-        return new EnqueueRequest(job.Name, JsonSerializer.Serialize(payload), policy, delay, key, job.Description);
+        return new EnqueueRequest(job.Name, JsonUtil.Serialize(payload) ?? "null", policy, delay, key, job.Description);
     }
 
     public Task<string> Enqueue<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null, TimeSpan? delay = null,
