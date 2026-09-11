@@ -41,7 +41,7 @@
                                     @if (schedule.LastExecutionId is { Length: > 0 } executionId)
                                     {
                                         <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
-                                            <Anchor Href="@($"jobs/{Uri.EscapeDataString(executionId)}")" aria-label="@($"View last execution of {schedule.Name}: {status}")"><JobStatusBadge State="@status" /></Anchor>
+                                            <Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(executionId)}"))" aria-label="@($"View last execution of {schedule.Name}: {status}")"><JobStatusBadge State="@status" /></Anchor>
                                         </span>
                                     }
                                     else

@@ -9,8 +9,8 @@ using Soenneker.Flywheel.Communication.Requests;
 
 namespace Soenneker.Flywheel.Dashboard.Consumers;
 
-public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILogger<FlywheelDashboardConsumer> logger)
-    : CoreConsumer(apiClient, logger, "flywheel"), IFlywheelDashboardConsumer
+public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILogger<FlywheelDashboardConsumer> logger, DashboardNavigationOptions navigation)
+    : CoreConsumer(apiClient, logger, navigation.EnginePath == "/" ? "./" : navigation.EnginePath.Trim('/')), IFlywheelDashboardConsumer
 {
     public ValueTask<OperationResult<SearchResult>> Search(string query = "", int offset = 0, int count = 50,
         DateTimeOffset? startAt = null, DateTimeOffset? endAt = null, CancellationToken cancellationToken = default, string? excludedStates = null) =>
@@ -58,13 +58,13 @@ public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILog
 
     private async ValueTask<OperationResult<T>> Read<T>(string path, CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await ApiClient.Get($"{PrefixUri}/{path}", cancellationToken: cancellationToken);
+        using HttpResponseMessage response = await ApiClient.Get(navigation.EngineEndpoint(path), cancellationToken: cancellationToken);
         return await Convert<T>(response, cancellationToken);
     }
 
     private async ValueTask<OperationResult<T>> Write<T>(string path, object? body, CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await ApiClient.Post($"{PrefixUri}/{path}", body, logResponse: false,
+        using HttpResponseMessage response = await ApiClient.Post(navigation.EngineEndpoint(path), body, logResponse: false,
             cancellationToken: cancellationToken);
         return await Convert<T>(response, cancellationToken);
     }

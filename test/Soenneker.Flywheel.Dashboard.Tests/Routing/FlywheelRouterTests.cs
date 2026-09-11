@@ -32,6 +32,11 @@ public sealed class FlywheelRouterTests
     [Arguments("/flywheel", "flywheel/recurring/a/b", "NotFound", null)]
     [Arguments("/flywheel", "flywheel/scheduled", "Scheduled", null)]
     [Arguments("/", "signin", "SignIn", null)]
+    [Arguments("/flywheel", "flywheel/signin", "SignIn", null)]
+    [Arguments("/flywheel", "signin", "NotFound", null)]
+    [Arguments("/operations/dashboard", "operations/dashboard/signin", "SignIn", null)]
+    [Arguments("/operations/dashboard", "operations/dashboard/jobs/one", "Jobs", "one")]
+    [Arguments("/operations/dashboard", "operations/dashboard/servers/node", "ServerDetails", "node")]
     [Arguments("/", "jobs/example", "Jobs", "example")]
     [Arguments("/", "jobs/a%20b%2Fc?x=1#log", "Jobs", "a b/c")]
     [Arguments("/", "jobs/a%252Fb", "Jobs", "a%2Fb")]
@@ -105,7 +110,7 @@ public sealed class FlywheelRouterTests
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/recurring?view=recent#schedules", async (component, navigation, handler) =>
         {
-            navigation.NavigateTo("/jobs/job%201");
+            navigation.NavigateTo("/flywheel/jobs/job%201");
             await component.QuiescenceTask;
             Check(component.ToHtmlString().Contains("href=\"https://example.test/flywheel/recurring?view=recent#schedules\""),
                 "Job back link lost the originating page, query, or fragment.");
@@ -115,7 +120,7 @@ public sealed class FlywheelRouterTests
     [Test]
     public async Task JobParameterIsPassedToConcretePage()
     {
-        await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/jobs/job%201", (component, navigation, handler) =>
+        await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/jobs/job%201", (component, navigation, handler) =>
         {
             Check(handler.Paths.Contains("/flywheel/jobs/job%201"), "Job ID was not passed to the concrete page.");
             return Task.CompletedTask;
@@ -215,13 +220,38 @@ public sealed class FlywheelRouterTests
         }, authenticated: true, live: live);
     }
 
+    [Test]
+    [Arguments("/", "/api/engine")]
+    [Arguments("/operations/dashboard", "/")]
+    [Arguments("/operations/dashboard", "/api/engine")]
+    public async Task DashboardAndEnginePrefixesAreIndependent(string homePath, string enginePath)
+    {
+        string home = homePath.Trim('/');
+        string pagePrefix = home.Length == 0 ? "" : home + "/";
+        string engine = enginePath.Trim('/');
+        string apiPrefix = engine.Length == 0 ? "" : engine + "/";
+        const string applicationBase = "https://example.test/application/";
+        await VerifyRendering(homePath, applicationBase, applicationBase + pagePrefix + "servers", (component, navigation, handler) =>
+        {
+            Check(handler.Paths.Contains("/application/" + apiPrefix + "servers"), "Server request ignored the engine prefix or application base.");
+            Check(!component.ToHtmlString().Contains("Could not load servers"), "Server page failed to load.");
+            Check(component.ToHtmlString().Contains($"href=\"{pagePrefix}recurring\""), "Navigation ignored the dashboard prefix.");
+            return Task.CompletedTask;
+        }, authenticated: true, enginePath: enginePath);
+        await VerifyRendering(homePath, applicationBase, applicationBase + pagePrefix + "servers", (component, navigation, handler) =>
+        {
+            Check(navigation.Uri == applicationBase + pagePrefix + "signin", "Sign-in ignored the dashboard prefix.");
+            return Task.CompletedTask;
+        }, enginePath: enginePath);
+    }
+
     private static async Task VerifyRendering(string homePath, string baseUri, string uri,
         Func<Microsoft.AspNetCore.Components.Web.HtmlRendering.HtmlRootComponent, NavigationManager, RouterTestHttpHandler, Task> verify,
-        bool authenticated = false, BoardConnectionTestClient? live = null, ScheduleView? schedules = null)
+        bool authenticated = false, BoardConnectionTestClient? live = null, ScheduleView? schedules = null, string enginePath = "/flywheel")
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddFlywheelDashboardAsScoped(options => options.HomePath = homePath);
+        services.AddFlywheelDashboardAsScoped(options => { options.HomePath = homePath; options.EnginePath = enginePath; });
         var navigation = new RouterTestNavigationManager(baseUri, uri);
         using var handler = new RouterTestHttpHandler(authenticated);
         if (schedules is not null) handler.Schedules = schedules;

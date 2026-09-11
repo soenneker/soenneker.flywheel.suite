@@ -35,7 +35,7 @@
             <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th><Th>Progress</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
-                <Tr @key="job.Id"><Td><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
+                <Tr @key="job.Id"><Td><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
             }
             </Tbody></Table>
         }

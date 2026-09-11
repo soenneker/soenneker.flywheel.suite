@@ -104,11 +104,11 @@ from `Soenneker.Flywheel.Dashboard.Responses` to `Soenneker.Flywheel.Communicati
 | Route | Content |
 |---|---|
 | `/flywheel` | Activity and job search |
-| `/signin` | Sign in, then return to the configured home page |
+| `/flywheel/signin` | Sign in, then return to the configured home page |
 | `/flywheel/recurring` | Recurring schedules and Run now |
 | `/flywheel/recurring/{ScheduleId}` | Recurring schedule details and Run now |
 | `/flywheel/scheduled` | Pending jobs and retries |
-| `/jobs/{JobId}` | Job details and logs |
+| `/flywheel/jobs/{JobId}` | Job details and logs |
 | `/flywheel/servers` | Active servers |
 | `/flywheel/servers/{ServerId}` | Server details |
 
@@ -117,17 +117,46 @@ Page files are grouped by feature under `Pages`: `Schedules/Schedules.razor` and
 The overview and sign-in pages live in `Dashboard` and `Authentication`; shared page behavior lives in `Shared`.
 The singular schedule and job pages also supply the detail content for their list drawers.
 
-The default home path is `/flywheel`. To serve the dashboard at `/`, configure the WebAssembly host:
+Dashboard navigation and engine endpoints have independent prefixes. Both default to `/flywheel`:
+
+- `HomePath` controls every dashboard page and link, including sign-in and job details.
+- `EnginePath` controls API, CSRF, login/logout, and SignalR endpoints. Set the same value on the backend and client.
+
+Both accept `/` for no prefix or a custom prefix such as `/operations/dashboard` or `/api/engine`.
+For example, to serve the dashboard at `/` and the engine at `/api/engine`, configure the WebAssembly host:
 
 ```csharp
-builder.Services.AddFlywheelDashboardAsScoped(options => options.HomePath = "/");
+builder.Services.AddFlywheelDashboardAsScoped(options =>
+{
+    options.HomePath = "/";
+    options.EnginePath = "/api/engine";
+});
 ```
+
+And configure the backend:
+
+```csharp
+builder.Services.AddFlywheel().AddDashboard(options =>
+{
+    options.EnginePath = "/api/engine";
+    options.Username = username;
+    options.PasswordPhc = passwordPhc;
+});
+// Keep the normal controller and Flywheel endpoint mapping:
+app.MapControllers();
+app.MapFlywheelDashboard();
+```
+
+This serves the servers page at `/servers`, requests server data at `/api/engine/servers`, and connects SignalR at `/api/engine/hub`.
+To request `/servers` and `/hub` directly from the engine, set `EnginePath = "/"` on both sides.
+For separate origins, supply the backend URL to `AddFlywheelDashboardAsScoped`; prefixes are relative to that URL's application base.
+On the same origin, choose distinct dashboard and engine prefixes so page navigation and JSON endpoints do not occupy the same URLs.
 
 Signed-out visitors are redirected to `/signin`; successful sign-in returns to `/`. Signed-in visitors to `/signin` also return home. Sign-out goes directly to `/signin`.
 
 With `FlywheelRouter`, this serves the dashboard at `/` without a host-owned `Index.razor`. Remove an old root dashboard wrapper or redirect page when migrating. With the default `HomePath = "/flywheel"`, `/` is passed to your `NotFound` fragment so you can render your own homepage explicitly.
 
-Remove any server-side `app.MapGet("/", ... Results.Redirect("/flywheel"))` mapping so the existing `MapFallbackToFile("index.html")` serves the root page. Home links and sign-in redirects use the configured home path. The built-in `/flywheel` page, recurring and scheduled pages, job detail routes, and `/flywheel` API and hub endpoints keep their existing paths.
+Remove any server-side `app.MapGet("/", ... Results.Redirect("/flywheel"))` mapping so the existing `MapFallbackToFile("index.html")` serves the root page. All dashboard links and sign-in redirects use `HomePath`; API and hub requests use `EnginePath`. Changing `HomePath` alone does not change engine requests. Hosts using the default home prefix should serve sign-in and job detail navigation under `/flywheel` as well.
 
 Updates use SignalR. Job logs come from `ILogger<T>` and are visible to signed-in dashboard users.
 

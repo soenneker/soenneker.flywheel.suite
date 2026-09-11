@@ -9,7 +9,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed partial class FlywheelDashboardTests
 {
-    private sealed class SearchStore : IJobStore, IJobLogStore, IJobChangeFeed, INodeStore
+    private sealed class SearchStore : IJobStore, IJobLogStore, IJobChangeFeed, INodeStore, IServerStore
     {
         public readonly System.Threading.Channels.Channel<JobChange> Changes = System.Threading.Channels.Channel.CreateUnbounded<JobChange>();
         public readonly TaskCompletionSource Subscribed = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -39,6 +39,11 @@ public sealed partial class FlywheelDashboardTests
         public Task<bool> Cancel(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Maintain(int batchSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WorkerServerView>>([new("node one", 123, 12, [])]);
+        public Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default) =>
+            Task.FromResult<WorkerServerView?>(node == "node one" ? new(node, 123, 12, []) : null);
+        public Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default) => Task.FromResult(12);
         public Task<JobRecord?> Get(string id, CancellationToken cancellationToken = default) => Task.FromResult<JobRecord?>(id == "one" ? new() { Id = id, Name = "test", Payload = "{}", Policy = new() } : null);
         public Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<JobLogEntry>>([new("1-0", 1, 1, "Information", "test", "message")]);

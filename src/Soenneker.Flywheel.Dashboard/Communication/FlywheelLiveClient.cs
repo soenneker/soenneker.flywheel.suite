@@ -8,7 +8,7 @@ using Soenneker.SignalR.Web.Clients.Abstract;
 
 namespace Soenneker.Flywheel.Dashboard.Communication;
 
-public sealed class FlywheelLiveClient(IFlywheelApiClient api, ISignalRWebClients clients) : IFlywheelLiveClient
+public sealed class FlywheelLiveClient(IFlywheelApiClient api, ISignalRWebClients clients, DashboardNavigationOptions dashboard) : IFlywheelLiveClient
 {
     public ValueTask<IFlywheelLiveSubscription> Board(string id, Func<LiveBoard, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create(id, nameof(IFlywheelDashboardClient.BoardSnapshot), snapshot, restored, disconnected, cancellationToken);
     public ValueTask<IFlywheelLiveSubscription> Job(string id, Func<LiveJob, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create(id, nameof(IFlywheelDashboardClient.JobSnapshot), snapshot, restored, disconnected, cancellationToken);
@@ -18,7 +18,7 @@ public sealed class FlywheelLiveClient(IFlywheelApiClient api, ISignalRWebClient
     {
         SignalRWebClient client = await clients.Get(id, new SignalRWebClientOptions
         {
-            HubUrl = new Uri(api.BaseAddress, "flywheel/hub").AbsoluteUri,
+            HubUrl = new Uri(api.BaseAddress, dashboard.EngineEndpoint("hub")).AbsoluteUri,
             HttpMessageHandlerFactory = inner => new DashboardCredentialsHandler(inner),
             ConnectionRestored = _ => restored(),
             Log = false

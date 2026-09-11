@@ -8,7 +8,7 @@ using Soenneker.Flywheel.Communication.Responses;
 
 namespace Soenneker.Flywheel.Dashboard.Communication;
 
-public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigation) : IFlywheelApiClient
+public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigation, DashboardNavigationOptions dashboard) : IFlywheelApiClient
 {
     public Uri BaseAddress { get; private set; } = http.BaseAddress ?? new Uri(navigation.BaseUri);
 
@@ -61,7 +61,7 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
         if (method != HttpMethod.Get && method != HttpMethod.Head)
         {
-            using HttpResponseMessage response = await Get("flywheel/csrf", cancellationToken: cancellationToken);
+            using HttpResponseMessage response = await Get(dashboard.EngineEndpoint("csrf"), cancellationToken: cancellationToken);
             response.EnsureSuccessStatusCode();
             Csrf csrf = await JsonUtil.Deserialize<Csrf>(response, cancellationToken: cancellationToken)
                         ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");

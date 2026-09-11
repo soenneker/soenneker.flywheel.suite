@@ -65,11 +65,11 @@ else
                     }
                     @if (_job.ParentJobId is { } parentId)
                     {
-                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Previous step</Span><Anchor Href="@($"jobs/{Uri.EscapeDataString(parentId)}")">View previous job</Anchor></Div>
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Previous step</Span><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(parentId)}"))">View previous job</Anchor></Div>
                     }
                     @if (_job.NextJobId is { } nextId)
                     {
-                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next step</Span><Anchor Href="@($"jobs/{Uri.EscapeDataString(nextId)}")">View next job</Anchor></Div>
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next step</Span><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(nextId)}"))">View next job</Anchor></Div>
                     }
                 </Grid>
                 @if (_job.Progress is { } progress)

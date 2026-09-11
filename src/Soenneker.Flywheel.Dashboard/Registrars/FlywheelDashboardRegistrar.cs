@@ -36,13 +36,13 @@ public static class FlywheelDashboardRegistrar
     public static IServiceCollection AddFlywheelDashboardAsScoped(this IServiceCollection services) =>
         services.AddFlywheelDashboardAsScoped(_ => { });
 
-    /// <summary>Registers the dashboard home path. Use FlywheelRouter in the host to serve the configured home without a wrapper page.</summary>
+    /// <summary>Registers independent dashboard HomePath and EnginePath prefixes. EnginePath must match the backend. Use FlywheelRouter to serve the configured dashboard pages.</summary>
     public static IServiceCollection AddFlywheelDashboardAsScoped(this IServiceCollection services, Action<DashboardNavigationOptions> configure)
     {
         var options = new DashboardNavigationOptions();
         configure(options);
-        if (options.HomePath != "/" && options.HomePath != "/flywheel")
-            throw new ArgumentException("Dashboard HomePath must be /flywheel or /.", nameof(configure));
+        options.HomePath = Soenneker.Flywheel.Communication.DashboardPaths.Normalize(options.HomePath);
+        options.EnginePath = Soenneker.Flywheel.Communication.DashboardPaths.Normalize(options.EnginePath);
 
         return services.AddSingleton(options).AddScoped<ActivityTotalsState>().AddScoped<DashboardSessionState>().AddScoped<DashboardBoardConnection>()
             .AddScoped<IFlywheelApiClient, FlywheelApiClient>()

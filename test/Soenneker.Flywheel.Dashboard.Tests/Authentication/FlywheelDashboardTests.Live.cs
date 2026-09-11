@@ -19,12 +19,16 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed partial class FlywheelDashboardTests
 {
     [Test]
-    public async Task SignalRPushesSnapshotsOnlyOnChangesAndResubscribes()
+    [Arguments("/flywheel")]
+    [Arguments("/")]
+    [Arguments("/operations/engine")]
+    public async Task SignalRPushesSnapshotsOnlyOnChangesAndResubscribes(string enginePath)
     {
+        string prefix = enginePath.TrimEnd('/');
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Host.UseDefaultServiceProvider(options => { options.ValidateOnBuild = true; options.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
-        builder.Services.AddFlywheel().AddDashboard(o => o.PasswordPhc = Pbkdf2HashingUtil.Hash("live-password"));
+        builder.Services.AddFlywheel().AddDashboard(o => { o.EnginePath = enginePath; o.PasswordPhc = Pbkdf2HashingUtil.Hash("live-password"); });
         builder.Services.RemoveAll<IHostedService>();
         builder.Services.AddHostedService<DashboardNotifications>();
         var store = new SearchStore();
@@ -37,14 +41,14 @@ public sealed partial class FlywheelDashboardTests
         await app.StartAsync();
         using HttpClient http = app.GetTestClient();
         http.BaseAddress = new Uri("https://localhost");
-        HttpResponseMessage csrfResponse = await http.GetAsync("/flywheel/csrf");
+        HttpResponseMessage csrfResponse = await http.GetAsync($"{prefix}/csrf");
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<Csrf>();
         string csrfCookie = csrfResponse.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         http.DefaultRequestHeaders.Add("Cookie", csrfCookie);
         http.DefaultRequestHeaders.Add("X-Flywheel-CSRF", csrf!.Token);
-        HttpResponseMessage login = await http.PostAsJsonAsync("/flywheel/login", new { Username = "admin", Password = "live-password" });
+        HttpResponseMessage login = await http.PostAsJsonAsync($"{prefix}/login", new { Username = "admin", Password = "live-password" });
         string cookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
-        await using HubConnection connection = new HubConnectionBuilder().WithUrl("https://localhost/flywheel/hub", options =>
+        await using HubConnection connection = new HubConnectionBuilder().WithUrl($"https://localhost{prefix}/hub", options =>
         {
             options.Transports = HttpTransportType.WebSockets;
             options.HttpMessageHandlerFactory = _ => app.GetTestServer().CreateHandler();

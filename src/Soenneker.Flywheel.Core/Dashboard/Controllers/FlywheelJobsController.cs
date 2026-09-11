@@ -10,7 +10,7 @@ namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
 
 /// <summary>Reads dashboard job snapshots and requests job cancellation.</summary>
 [ApiController]
-[Route("flywheel/jobs")]
+[Route("[flywheel]/jobs")]
 [Authorize(Policy = "FlywheelDashboard")]
 [TypeFilter(typeof(DashboardAntiforgeryFilter))]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]

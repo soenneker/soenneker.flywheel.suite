@@ -1,3 +1,4 @@
+@inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/scheduled"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Jobs
 @using Soenneker.Quark
@@ -20,7 +21,7 @@
                 <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Scheduled for</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Attempt</Th></Tr></Thead><Tbody>
                 @foreach (JobView job in FilteredScheduled.Skip(ScheduledOffset).Take(_scheduledPageSize))
                 {
-                    <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)"><Td><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></span></Td><Td><JobTimestamp StartsAt="true" Value="@job.DueAt" /></Td><Td>@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td></Tr>
+                    <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)"><Td><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span></Td><Td><JobTimestamp StartsAt="true" Value="@job.DueAt" /></Td><Td>@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td></Tr>
                 }
                 </Tbody>
             </TableContent>

@@ -2,9 +2,9 @@ using System.Net;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
-internal sealed class DashboardBrowserTestHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+internal sealed class DashboardBrowserTestHandler(HttpMessageHandler inner, CookieContainer? cookies = null) : DelegatingHandler(inner)
 {
-    private readonly CookieContainer _cookies = new();
+    private readonly CookieContainer _cookies = cookies ?? new();
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

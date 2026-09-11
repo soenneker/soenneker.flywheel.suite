@@ -8,6 +8,7 @@ using Soenneker.Flywheel.Core.Dashboard.Abstract;
 using Soenneker.Flywheel.Core.Dashboard.Controllers;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Hashing.Pbkdf2;
+using Soenneker.Flywheel.Communication;
 
 namespace Soenneker.Flywheel.Core.Registrars;
 
@@ -22,6 +23,7 @@ public static class FlywheelDashboardRegistrar
     {
         var options = new DashboardOptions();
         configure(options);
+        options.EnginePath = DashboardPaths.Normalize(options.EnginePath);
         if (string.IsNullOrWhiteSpace(options.Username) || options.Username.Length > 128 ||
             string.IsNullOrWhiteSpace(options.PasswordPhc))
             throw new InvalidOperationException(
@@ -77,7 +79,8 @@ public static class FlywheelDashboardRegistrar
                 x.QueueLimit = 0;
             });
         });
-        builder.Services.AddControllers().AddApplicationPart(typeof(FlywheelAuthenticationController).Assembly);
+        builder.Services.AddControllers(mvc => mvc.Conventions.Add(new DashboardRouteConvention(options.EnginePath)))
+            .AddApplicationPart(typeof(FlywheelAuthenticationController).Assembly);
         builder.Services.AddSignalR();
         builder.Services.AddSingleton<DashboardSubscriptions>();
         builder.Services.AddSingleton<IDashboardSnapshotFactory, DashboardSnapshotFactory>();
@@ -89,9 +92,9 @@ public static class FlywheelDashboardRegistrar
     public static IEndpointConventionBuilder MapFlywheelDashboard(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        _ = endpoints.ServiceProvider.GetRequiredService<DashboardOptions>();
+        DashboardOptions dashboard = endpoints.ServiceProvider.GetRequiredService<DashboardOptions>();
 
-        return endpoints.MapHub<FlywheelHub>("/flywheel/hub", options => options.CloseOnAuthenticationExpiration = true)
+        return endpoints.MapHub<FlywheelHub>($"{dashboard.EnginePath.TrimEnd('/')}/hub", options => options.CloseOnAuthenticationExpiration = true)
             .RequireAuthorization(Policy);
     }
 
@@ -99,7 +102,10 @@ public static class FlywheelDashboardRegistrar
     public static IApplicationBuilder UseFlywheelDashboard(this IApplicationBuilder app)
     {
         var policy = app.ApplicationServices.GetRequiredService<DashboardOriginPolicy>();
-        return app.UseWhen(context => context.Request.Path.StartsWithSegments("/flywheel"), branch =>
+        var dashboard = app.ApplicationServices.GetRequiredService<DashboardOptions>();
+        string prefix = dashboard.EnginePath.TrimEnd('/');
+        string[] paths = ["csrf", "login", "logout", "jobs", "servers", "hub"];
+        return app.UseWhen(context => paths.Any(path => context.Request.Path.StartsWithSegments($"{prefix}/{path}")), branch =>
         {
             branch.Use(async (context, next) =>
             {

@@ -9,11 +9,11 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
         string path = baseRelativePath.Split('?', '#')[0].TrimEnd('/');
         if (path.Equals(homePath.Trim('/'), StringComparison.OrdinalIgnoreCase))
             return new(DashboardPage.Dashboard);
-        if (path.Equals("signin", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.SignIn);
-        if (TryReadId(path, "jobs/", out string? jobId))
-            return new(DashboardPage.Jobs, jobId);
         string prefix = homePath == "/" ? "" : homePath.Trim('/') + "/";
+        if (path.Equals(prefix + "signin", StringComparison.OrdinalIgnoreCase))
+            return new(DashboardPage.SignIn);
+        if (TryReadId(path, prefix + "jobs/", out string? jobId))
+            return new(DashboardPage.Jobs, jobId);
         if (path.Equals(prefix + "recurring", StringComparison.OrdinalIgnoreCase))
             return new(DashboardPage.Recurring);
         if (path.Equals(prefix + "scheduled", StringComparison.OrdinalIgnoreCase))

@@ -14,7 +14,7 @@ namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
 
 /// <summary>Authenticates dashboard users and issues antiforgery tokens.</summary>
 [ApiController]
-[Route("flywheel")]
+[Route("[flywheel]")]
 [Authorize(Policy = "FlywheelDashboard")]
 [TypeFilter(typeof(DashboardAntiforgeryFilter))]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]

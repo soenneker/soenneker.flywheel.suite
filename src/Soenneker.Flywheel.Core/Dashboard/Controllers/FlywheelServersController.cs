@@ -9,7 +9,7 @@ namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
 
 /// <summary>Reads live Flywheel worker servers and their active executions.</summary>
 [ApiController]
-[Route("flywheel/servers")]
+[Route("[flywheel]/servers")]
 [Authorize(Policy = "FlywheelDashboard")]
 [TypeFilter(typeof(DashboardAntiforgeryFilter))]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]

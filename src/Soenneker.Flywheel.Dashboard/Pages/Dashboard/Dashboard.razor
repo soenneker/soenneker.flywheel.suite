@@ -1,3 +1,4 @@
+@inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Dashboard
 @using Soenneker.Quark
@@ -95,7 +96,7 @@
                             {
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
                                         <Td>
-                                            <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@($"jobs/{Uri.EscapeDataString(job.Id)}")">@job.Name</Anchor></span>
+                                            <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
                                         </Td>
                                         <Td>
                                             <JobStatusBadge State="@job.State" CancelRequested="@job.CancelRequested" />

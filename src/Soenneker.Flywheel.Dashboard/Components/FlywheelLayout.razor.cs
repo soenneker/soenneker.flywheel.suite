@@ -11,7 +11,7 @@ public partial class FlywheelLayout
     private string? _error;
     private Task? _connecting;
     private bool IsSignInPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0]
-        .TrimEnd('/').Equals("signin", StringComparison.OrdinalIgnoreCase);
+        .TrimEnd('/').Equals(DashboardNavigation.Path("signin"), StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {
@@ -39,7 +39,7 @@ public partial class FlywheelLayout
     private void EnforceAuthentication()
     {
         if (!_checking && !_disposed && _error is null && !Session.IsAuthenticated && !IsSignInPage)
-            Navigation.NavigateTo("signin", replace: true);
+            Navigation.NavigateTo(DashboardNavigation.Path("signin"), replace: true);
     }
 
     private async Task StartConnection()
