@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><IsPackable>false</IsPackable></PropertyGroup>
-  <ItemGroup><PackageReference Include="TUnit" Version="1.66.27" /><PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" /></ItemGroup>
+  <ItemGroup><PackageReference Include="TUnit" Version="1.67.0" /><PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" /><PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.36" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Dashboard/Soenneker.Flywheel.Dashboard.csproj" /></ItemGroup></Project>
