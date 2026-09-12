@@ -47,7 +47,7 @@
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.3" />
         <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.82" />
-        <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.26" />
+        <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.27" />
         <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.48" />
         <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.36" />
     </ItemGroup>
