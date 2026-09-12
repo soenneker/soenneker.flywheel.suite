@@ -49,6 +49,6 @@
         <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.84" />
         <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.28" />
         <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.50" />
-        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.37" />
+        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.38" />
     </ItemGroup>
 </Project>
