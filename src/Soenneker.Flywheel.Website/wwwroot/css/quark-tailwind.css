@@ -830,6 +830,9 @@
   .h-\[30px\] {
     height: 30px;
   }
+  .h-\[104px\] {
+    height: 104px;
+  }
   .h-\[calc\(--spacing\(5\.25\)\)\] {
     height: calc(calc(var(--spacing) * 5.25));
   }
@@ -2937,9 +2940,6 @@
   }
   .fade-in {
     --tw-enter-opacity: 0;
-  }
-  .running {
-    animation-play-state: running;
   }
   :is(.\*\:w-full > *) {
     width: 100%;

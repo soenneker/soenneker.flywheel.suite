@@ -5,7 +5,7 @@
 <H1>Your jobs, in view.</H1>
 <Paragraph>The dashboard is an optional Blazor WebAssembly client. Your browser renders the interface; Flywheel handles API requests and SignalR updates. You can run jobs without the dashboard.</Paragraph>
 <H2>Try the demo</H2>
-<Paragraph>With .NET 10 and Redis running at <code>localhost:6379</code>:</Paragraph>
+<Paragraph>This demo uses Redis, one of several supported storage mechanisms. To run it, use .NET 10 with Redis at <code>localhost:6379</code>:</Paragraph>
 <CodeExample Text="@DemoExample" Label="Run the dashboard demo commands" Language="shell" />
 <Paragraph>Open <Anchor Href="https://localhost:7443/">https://localhost:7443</Anchor> and sign in with <code>admin</code> / <code>flywheel-demo</code>. These credentials are for the local Development demo. Press Ctrl+C to stop it.</Paragraph>
 <H2>Find and inspect work</H2>
@@ -20,7 +20,7 @@
 <Paragraph>On the ASP.NET Core host, add dashboard services to your Flywheel registration:</Paragraph>
 <CodeExample Text="@ServerExample" Label="Dashboard server registration example" Language="csharp" />
 <Paragraph>Import <code>Soenneker.Flywheel.Core.Registrars</code>. Configure a PBKDF2 password PHC string, then map the authenticated API and SignalR hub. The <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/blob/main/test/Soenneker.Flywheel.Demo/Program.cs">complete sample server</Anchor> includes password hashing, authentication, rate limiting, and endpoint setup.</Paragraph>
-<Paragraph>Serve the client and API over the same HTTPS origin. Static WebAssembly files can be delivered by a CDN or Cloudflare Worker, with API and WebSocket traffic routed to the ASP.NET Core backend. Static hosting alone does not run Flywheel or connect to Redis.</Paragraph>
+<Paragraph>Serve the client and API over the same HTTPS origin. Static WebAssembly files can be delivered by a CDN or Cloudflare Worker, with API and WebSocket traffic routed to the ASP.NET Core backend. Static hosting alone does not run Flywheel or connect to job storage.</Paragraph>
 <Paragraph>UI rendering stays in the browser. API queries and live updates still consume backend resources.</Paragraph>
 <H2>Built-in routes</H2>
 <table><thead><tr><th>Route</th><th>Page</th></tr></thead><tbody>
