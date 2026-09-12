@@ -11,6 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="../Soenneker.Flywheel.Performance/RedisOperationsBenchmark.cs" Link="Benchmarks/RedisOperationsBenchmark.cs" />
         <ProjectReference Include="..\..\src\Soenneker.Flywheel.Redis\Soenneker.Flywheel.Redis.csproj" />
     </ItemGroup>
 

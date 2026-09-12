@@ -19,6 +19,9 @@ jobs:
     with:
       version: 5.0.${{ github.run_number }}
   deploy:
+    permissions:
+      contents: read
+      id-token: write
     needs: validate
     runs-on: ubuntu-latest
     strategy:
@@ -33,9 +36,15 @@ jobs:
         with:
           name: flywheel-packages
           path: artifacts
+      - name: Log in to NuGet
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: soenneker
+
       - name: Deploy ${{ matrix.package }} to NuGet
         env:
-          NUGET_TOKEN: ${{ secrets.NUGET__TOKEN }}
+          NUGET_TOKEN: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           PACKAGE: Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg
         run: dotnet nuget push "artifacts/$PACKAGE" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_TOKEN" --skip-duplicate
       - name: Deploy ${{ matrix.package }} to GitHub Packages

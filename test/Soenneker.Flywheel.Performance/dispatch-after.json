@@ -1,0 +1,72 @@
+[
+  {
+    "Scenario": "idle",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 0.253624,
+    "BytesPerOperation": 784,
+    "RedisCommandsPerOperation": 1,
+    "ProcessCpuMillisecondsPerOperation": 0,
+    "RedisCpuMillisecondsPerOperation": 0.049309999999991305
+  },
+  {
+    "Scenario": "idle-maintenance",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 0.576922,
+    "BytesPerOperation": 2624,
+    "RedisCommandsPerOperation": 6,
+    "ProcessCpuMillisecondsPerOperation": 0.15625,
+    "RedisCpuMillisecondsPerOperation": 0.14266000000000112
+  },
+  {
+    "Scenario": "idle-recorder",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 0.268064,
+    "BytesPerOperation": 712,
+    "RedisCommandsPerOperation": 4,
+    "ProcessCpuMillisecondsPerOperation": 0.15625,
+    "RedisCpuMillisecondsPerOperation": 0.062259999999980664
+  },
+  {
+    "Scenario": "backlog-1000",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 6.294792999999999,
+    "BytesPerOperation": 293016,
+    "RedisCommandsPerOperation": 65,
+    "ProcessCpuMillisecondsPerOperation": 5.625,
+    "RedisCpuMillisecondsPerOperation": 1.2353599999999965
+  },
+  {
+    "Scenario": "renew",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 1.496783,
+    "BytesPerOperation": 40398,
+    "RedisCommandsPerOperation": 23,
+    "ProcessCpuMillisecondsPerOperation": 1.40625,
+    "RedisCpuMillisecondsPerOperation": 0.3189200000000092
+  },
+  {
+    "Scenario": "concurrency-100",
+    "WarmupIterations": 50,
+    "Iterations": 100,
+    "MillisecondsPerOperation": 17.463125,
+    "BytesPerOperation": 176722,
+    "RedisCommandsPerOperation": 134.85,
+    "ProcessCpuMillisecondsPerOperation": 11.25,
+    "RedisCpuMillisecondsPerOperation": 3.699969999999979
+  },
+  {
+    "Scenario": "logs-50",
+    "WarmupIterations": 50,
+    "Iterations": 50,
+    "MillisecondsPerOperation": 1.1540380000000001,
+    "BytesPerOperation": 128532,
+    "RedisCommandsPerOperation": 64,
+    "ProcessCpuMillisecondsPerOperation": 0,
+    "RedisCpuMillisecondsPerOperation": 0.3900199999999998
+  }
+]

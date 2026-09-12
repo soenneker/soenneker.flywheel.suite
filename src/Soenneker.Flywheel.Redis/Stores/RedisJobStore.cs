@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -43,8 +42,13 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
     private readonly RedisKey Policies;
     private readonly RedisKey Rates;
     private readonly RedisKey Revision;
+    private readonly RedisKey Dispatch;
     private readonly RedisKey Permits;
     private readonly RedisKey ChainDedupe;
+    private readonly RedisKey LiveSamples;
+    private readonly RedisKey[] _liveSampleKeys;
+    private readonly RedisKey[] _heartbeatKeys;
+    private readonly RedisKey[] _timeKeys;
     private RedisKey LeaseKey(string id) => _prefix + "lease:" + Key(id);
     private RedisKey LogKey(string id) => _prefix + "jobs:logs:" + Key(id);
 
@@ -84,8 +88,13 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
         Policies = _prefix + "function-policies";
         Rates = _prefix + "function-rates";
         Revision = _prefix + "revision";
+        Dispatch = _prefix + "dispatch";
         Permits = _prefix + "job-permits";
         ChainDedupe = _prefix + "chain-dedupe";
+        LiveSamples = _prefix + "activity:samples";
+        _liveSampleKeys = [Running, Due, LiveSamples, Revision];
+        _heartbeatKeys = [Nodes, NodeWorkers];
+        _timeKeys = [Jobs];
     }
 
     public TimeSpan HistoryRetention { get; }
@@ -109,19 +118,21 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
     private static T? Decode<T>(RedisValue value) where T : class =>
         value.IsNull ? null : JsonUtil.Deserialize<T>(((ReadOnlyMemory<byte>)value).Span);
 
-    private async Task<IDatabase> Database(CancellationToken ct)
+    private ValueTask<IDatabase> Database(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return await _database(ct).WaitAsync(ct);
+        return new ValueTask<IDatabase>(_database(ct).WaitAsync(ct));
     }
 
-    private async Task<long> Time(IDatabase db, CancellationToken ct)
-    {
-        EndPoint endpoint = await db.IdentifyEndpointAsync(Jobs, CommandFlags.DemandMaster).WaitAsync(ct) ??
-                            throw new InvalidOperationException("Redis primary is unavailable.");
-        DateTime time = await db.Multiplexer.GetServer(endpoint).TimeAsync().WaitAsync(ct);
-        return new DateTimeOffset(DateTime.SpecifyKind(time, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
-    }
+    // Supplying the jobs key routes TIME to its current primary in one round trip, including after a cluster
+    // failover. Both IdentifyEndpoint overloads perform network I/O; an endpoint cache would become stale.
+    private const string TimeScript = """
+        local clock = redis.call('TIME')
+        return tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+        """;
+
+    private async Task<long> Time(IDatabase db, CancellationToken ct) =>
+        (long)await db.ScriptEvaluateAsync(TimeScript, _timeKeys, flags: CommandFlags.DemandMaster).WaitAsync(ct);
 
     private async Task<Mutation> Begin(IDatabase db, CancellationToken ct)
     {
@@ -175,6 +186,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
         RedisAtomicTransaction tx = mutation.Transaction;
         tx.Queue(t => t.HashSetAsync(Jobs, job.Id,
             Serialize(job.UpdatedAt == mutation.Now ? job : job with { UpdatedAt = mutation.Now })));
+        SaveDispatchMetadata(tx, job, previous);
         Publish(mutation, new JobChange("Job", job.Id));
         if (previous is not null && previous.State == job.State)
             return;
@@ -259,6 +271,10 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
             throw new ArgumentException(nameof(owner));
         long milliseconds = Duration(duration);
         IDatabase db = await Database(cancellationToken);
+        // An empty queue needs neither server time nor a revision snapshot. A concurrent enqueue is picked up
+        // by the change feed (or the bounded recovery poll), just as it is after an empty candidate read.
+        if (await db.SortedSetLengthAsync(Due).WaitAsync(cancellationToken) == 0)
+            return null;
         for (var attempt = 0;; attempt++)
         {
             // Read-only snapshot first: empty polls must not allocate a transaction or inspect running jobs.
@@ -267,7 +283,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
             await Task.WhenAll(revisionTask, timeTask).WaitAsync(cancellationToken);
             RedisValue revision = revisionTask.Result;
             long now = timeTask.Result;
-            DispatchCandidate[] candidates = await ReadCandidates(db, now, applicationVersion, cancellationToken);
+            DispatchCandidate[] candidates = await ReadCandidates(db, now, applicationVersion, revision, cancellationToken);
             if (candidates.Length == 0)
                 return null;
             StoredPolicy[] policies = await ReadPolicies(db, candidates, cancellationToken);
@@ -285,7 +301,7 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
                 // Load names, not payloads, and only if an eligible function actually has a concurrency limit.
                 if (policy.MaxConcurrency > 0)
                 {
-                    active ??= await ReadActiveCounts(db, mutation.Now, cancellationToken);
+                    active ??= await ReadActiveCounts(db, mutation.Now, revision, cancellationToken);
                     if (active.GetValueOrDefault(candidate.Name) >= policy.MaxConcurrency)
                         continue;
                 }
@@ -315,7 +331,12 @@ public sealed partial class RedisJobStore : IJobRunningCountStore, IJobStore, IV
                     mutation = mutation with { Now = await Time(db, cancellationToken) };
                     if (rate is not null && rate.Until <= mutation.Now)
                         rate = new(mutation.Now + policy.RateWindow, 0);
-                    JobRecord job = Decode<JobRecord>(candidate.Data)!;
+                    JobRecord? job = Decode<JobRecord>(await db.HashGetAsync(Jobs, candidate.Id).WaitAsync(cancellationToken));
+                    if (job is null)
+                    {
+                        conflict = true;
+                        break;
+                    }
                     RedisKey leaseKey = LeaseKey(job.Id);
                     if (permit is not null)
                     {

@@ -565,6 +565,10 @@ public sealed partial class FlywheelRedisTests
         string prefix = $"flywheel:{{{tag}}}:v1:";
         await db.HashSetAsync(prefix + "jobs", id, System.Text.Json.JsonSerializer.Serialize(retry with { DueAt = 0 }));
         await db.SortedSetAddAsync(prefix + "due", id, 0);
+        byte[] dispatch = (byte[])(await db.HashGetAsync(prefix + "dispatch", id))!;
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(dispatch.AsSpan(9), 0);
+        await db.HashSetAsync(prefix + "dispatch", id, dispatch);
+        await db.StringIncrementAsync(prefix + "revision");
         JobLease second = (await store.Claim("a", TimeSpan.FromSeconds(10)))!;
         Check(second.Job.Id == id && second.Job.Attempt == 2, "Wrong job or attempt retried");
         await store.Finish(second, JobOutcome.Failed, "test", TimeSpan.Zero);

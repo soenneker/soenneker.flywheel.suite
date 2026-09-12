@@ -129,16 +129,26 @@ public sealed partial class RedisJobStore
             throw new ArgumentOutOfRangeException(nameof(batchSize));
         IDatabase db = await Database(cancellationToken);
         long now = await Time(db, cancellationToken);
-        RedisValue[] expired = await db.SortedSetRangeByScoreAsync(Running, stop: now, take: batchSize)
-                                       .WaitAsync(cancellationToken);
+        Task<RedisValue[]> expiredTask = db.SortedSetRangeByScoreAsync(Running, stop: now, take: batchSize);
+        Task<RedisValue[]> schedulesTask = db.SortedSetRangeByScoreAsync(ScheduleDue, stop: now, take: batchSize);
+        Task<RedisValue[]> historyTask = db.SortedSetRangeByScoreAsync(HistoryBuckets,
+            stop: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize);
+        Task<RedisValue[]> completedTask = db.SortedSetRangeByScoreAsync(Completed,
+            stop: _retainCompletedJobs ? now - HistoryRetention.TotalMilliseconds : double.PositiveInfinity, take: batchSize);
+        await Task.WhenAll(expiredTask, schedulesTask, historyTask, completedTask).WaitAsync(cancellationToken);
+        RedisValue[] expired = expiredTask.Result;
         foreach (RedisValue id in expired)
             await Recover(db, (string)id!, cancellationToken);
-        RedisValue[] schedules = await db.SortedSetRangeByScoreAsync(ScheduleDue, stop: now, take: batchSize)
-                                         .WaitAsync(cancellationToken);
+        RedisValue[] schedules = schedulesTask.Result;
         foreach (RedisValue id in schedules)
             await Materialize(db, (string)id!, cancellationToken);
-        await PruneHistory(db, batchSize, cancellationToken);
-        await PruneCompletedJobs(db, batchSize, cancellationToken);
+        if (historyTask.Result.Length > 0)
+            await PruneHistory(db, batchSize, cancellationToken);
+        // Recovery can create terminal jobs during this pass. Immediate cleanup still includes those jobs.
+        RedisValue[] completed = !_retainCompletedJobs && expired.Length > 0
+            ? await db.SortedSetRangeByScoreAsync(Completed, take: batchSize).WaitAsync(cancellationToken)
+            : completedTask.Result;
+        await PruneCompletedJobs(db, completed, cancellationToken);
     }
 
     private async Task Recover(IDatabase db, string id, CancellationToken ct)
@@ -210,22 +220,27 @@ public sealed partial class RedisJobStore
             throw new ArgumentOutOfRangeException(nameof(workers));
         long milliseconds = Duration(ttl);
         IDatabase db = await Database(cancellationToken);
-        for (var attempt = 0;; attempt++)
-        {
-            Mutation mutation = await Begin(db, cancellationToken);
-            RedisValue[] expired = await db.SortedSetRangeByScoreAsync(Nodes, stop: mutation.Now).WaitAsync(cancellationToken);
-            mutation.Transaction.Queue(t => t.SortedSetAddAsync(Nodes, node, mutation.Now + milliseconds));
-            mutation.Transaction.Queue(t =>
-                t.SortedSetRemoveRangeByScoreAsync(Nodes, double.NegativeInfinity, mutation.Now));
-            mutation.Transaction.Queue(t => t.HashSetAsync(NodeWorkers, node, workers));
-            if (expired.Length > 0)
-                mutation.Transaction.Queue(t => t.HashDeleteAsync(NodeWorkers, expired));
-            Publish(mutation, new JobChange("Servers", node));
-            if (await mutation.Transaction.Execute(cancellationToken))
-                return;
-            await Retry(attempt, cancellationToken);
-        }
+        await db.ScriptEvaluateAsync(HeartbeatScript, _heartbeatKeys,
+            [node, workers, milliseconds, ChangeChannel(db).ToString(), Serialize(new JobChange("Servers", node))])
+            .WaitAsync(cancellationToken);
     }
+
+    // Server liveness is independent of job selection. Renewals must not invalidate dispatch snapshots or
+    // rebuild dashboard boards unless membership/capacity changed. Prune before inserting a returning node.
+    private const string HeartbeatScript = """
+        local clock = redis.call('TIME')
+        local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+        local previous = redis.call('HGET', KEYS[2], ARGV[1])
+        local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now)
+        for i = 1, #expired, 256 do
+            redis.call('HDEL', KEYS[2], unpack(expired, i, math.min(i + 255, #expired)))
+        end
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
+        redis.call('ZADD', KEYS[1], now + tonumber(ARGV[3]), ARGV[1])
+        redis.call('HSET', KEYS[2], ARGV[1], ARGV[2])
+        if #expired > 0 or previous ~= ARGV[2] then redis.call('PUBLISH', ARGV[4], ARGV[5]) end
+        return 1
+        """;
 
     private async Task PruneHistory(IDatabase db, int batchSize, CancellationToken ct)
     {
@@ -246,11 +261,8 @@ public sealed partial class RedisJobStore
     }
 
 
-    private async Task PruneCompletedJobs(IDatabase db, int batchSize, CancellationToken ct)
+    private async Task PruneCompletedJobs(IDatabase db, RedisValue[] ids, CancellationToken ct)
     {
-        long now = await Time(db, ct);
-        double cutoff = _retainCompletedJobs ? now - HistoryRetention.TotalMilliseconds : double.PositiveInfinity;
-        RedisValue[] ids = await db.SortedSetRangeByScoreAsync(Completed, stop: cutoff, take: batchSize).WaitAsync(ct);
         foreach (RedisValue value in ids)
         {
             string id = (string)value!;
@@ -276,6 +288,7 @@ public sealed partial class RedisJobStore
                         mutation.Transaction.Queue(t => t.HashDeleteAsync(mapping[0] == 'c' ? ChainDedupe : Dedupe, mapping[2..]));
                 }
                 mutation.Transaction.Queue(t => t.HashDeleteAsync(Jobs, id));
+                mutation.Transaction.Queue(t => t.HashDeleteAsync(Dispatch, id));
                 mutation.Transaction.Queue(t => t.HashDeleteAsync(DedupeReverse, id));
                 mutation.Transaction.Queue(t => t.SortedSetRemoveAsync(All, id));
                 mutation.Transaction.Queue(t => t.SortedSetRemoveAsync(Completed, id));

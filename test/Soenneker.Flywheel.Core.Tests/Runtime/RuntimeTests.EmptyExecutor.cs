@@ -8,6 +8,8 @@ public sealed partial class RuntimeTests
 {
     private sealed class EmptyExecutor : IJobExecutor
     {
+        public Task<bool> RunOnce(System.Action onClaimed, CancellationToken cancellationToken) => RunOnce(cancellationToken);
+
         private int _claims;
         public int Claims => Volatile.Read(ref _claims);
 

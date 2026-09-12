@@ -64,6 +64,20 @@ dotnet test --project test/Soenneker.Flywheel.Dashboard.Tests
 
 Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:6379`. Manual [Redis benchmarks](test/Soenneker.Flywheel.Redis.Tests/Benchmarks/README.md) live in the Redis test project and are excluded from normal test runs. The product website is included under `src/Soenneker.Flywheel.Website`. Its separate [website workflow](.github/workflows/website.yml) exports and deploys the static site to Cloudflare; see [website development and deployment](src/Soenneker.Flywheel.Website/README.md).
 
+The [standalone idle harness](test/Soenneker.Flywheel.Performance/README.md) measures process allocations,
+CPU time, and Redis commands without a test runner. Idle worker recovery uses one storage probe per host,
+independent of worker count; a claim signals the next worker before executing its handler.
+The live recorder also sleeps while the queue is empty, waking on notifications with a bounded recovery check.
+
+The Redis provider uses short Lua scripts for key-routed server time, atomic node heartbeats, and shared
+live samples. Redis ACLs must allow `EVAL`/`EVALSHA` and the commands they execute. Script keys share the
+namespace's cluster hash slot. Job lifecycle writes retain their existing optimistic transactions and lease fencing.
+
+Backlog selection requires the binary dispatch index written by the current storage implementation.
+All workers sharing a namespace must use this storage format; pre-index data and mixed older writers
+are unsupported. See [Redis storage](docs/redis.md#dispatch-index) and
+[measured results](test/Soenneker.Flywheel.Performance/README.md).
+
 Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. `HomePath` controls dashboard navigation; `EnginePath` independently controls API, authentication, and SignalR routes and must match on the backend and client. Either prefix can be `/` or a custom path. See [prefix configuration](docs/dashboard.md#pages-and-navigation).
 
 ## Releases

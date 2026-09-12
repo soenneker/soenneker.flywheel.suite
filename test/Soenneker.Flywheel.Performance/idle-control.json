@@ -1,0 +1,12 @@
+{
+  "Runtime": ".NET 10.0.12",
+  "RedisVersion": "6.0.16",
+  "Workers": 12,
+  "Control": true,
+  "Seconds": 60.9998508,
+  "AllocatedBytes": 31880,
+  "BytesPerSecond": 522.6242291071309,
+  "CpuMilliseconds": 0,
+  "RedisCommands": 1,
+  "RedisCommandsPerSecond": 0.01639348271979708
+}

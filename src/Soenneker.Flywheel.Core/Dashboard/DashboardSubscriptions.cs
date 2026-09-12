@@ -44,11 +44,15 @@ public sealed partial class DashboardSubscriptions(
     /// <summary>Requests snapshots only for connections affected by the committed change.</summary>
     public void Changed(JobChange change)
     {
-        foreach (Subscription subscription in _subscriptions.Values)
+        if (_subscriptions.IsEmpty) return;
+        foreach (KeyValuePair<string, Subscription> entry in _subscriptions)
+        {
+            Subscription subscription = entry.Value;
             if (change.Kind == "Resync" || subscription.Kind == "Board" && change.Kind is "Job" or "Schedules" or "Servers" ||
                 subscription.Kind == "Job" && change.Kind == "Job" && subscription.JobId == change.JobId ||
                 subscription.Kind == "Logs" && change.Kind == "Logs" && subscription.JobId == change.JobId)
                 subscription.Signal();
+        }
     }
 
     /// <summary>Stops a disconnected connection's pending reads and deliveries.</summary>

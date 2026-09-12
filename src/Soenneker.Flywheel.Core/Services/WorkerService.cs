@@ -6,6 +6,7 @@ using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Atomics.ValueInts;
 using Soenneker.Flywheel.Communication.Dtos;
+using System.Threading.Channels;
 
 namespace Soenneker.Flywheel.Core.Services;
 
@@ -13,7 +14,9 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
 {
     private readonly AsyncLock _lock = new();
     private readonly List<WorkerState> _workers = [];
-    private TaskCompletionSource _pulse = NewPulse();
+    private readonly Channel<byte> _pending = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+        { FullMode = BoundedChannelFullMode.DropWrite });
+    private Action _signalWork = null!;
     private CancellationToken _stoppingToken;
     private ValueAtomicInt _workerCount = new(options.Workers);
     private ValueAtomicInt _started;
@@ -33,11 +36,13 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
+        _signalWork = Pulse;
         using (await _lock.Lock(stoppingToken))
         {
             _started.Write(1);
             ResizeLocked();
         }
+        Pulse();
 
         Task notifications = Watch(stoppingToken);
         Task recovery = Recover(stoppingToken);
@@ -54,10 +59,13 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         int desired = WorkerCount;
         WorkerState[] available = _workers.Where(x => x.Retiring.Read() == 0).ToArray();
         for (int i = desired; i < available.Length; i++)
+        {
             available[i].Retiring.Write(1);
+            available[i].Wake.Cancel();
+        }
         for (int i = available.Length; i < desired; i++)
         {
-            var worker = new WorkerState();
+            var worker = new WorkerState(_stoppingToken);
             _workers.Add(worker);
             worker.Task = Task.Run(() => Run(worker, _stoppingToken), CancellationToken.None);
         }
@@ -69,13 +77,14 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         {
             while (!token.IsCancellationRequested && worker.Retiring.Read() == 0)
             {
-                Task wake = Volatile.Read(ref _pulse).Task;
-                try { if (await executor.RunOnce(token)) continue; }
+                // One idle worker probes storage. A successful claim wakes the next worker before execution,
+                // filling the pool without having every idle worker race the same revision or empty queue.
+                try { await _pending.Reader.ReadAsync(worker.Wake.Token); }
+                catch (OperationCanceledException) when (worker.Wake.IsCancellationRequested) { break; }
+                if (worker.Retiring.Read() != 0) break;
+                try { if (await executor.RunOnce(_signalWork, token)) Pulse(); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
                 catch (Exception ex) { logger.LogError(ex, "Worker storage failure"); }
-                if (worker.Retiring.Read() != 0) break;
-                try { await wake.WaitAsync(token); }
-                catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             }
         }
         finally
@@ -84,8 +93,12 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
             {
                 _workers.Remove(worker);
                 if (!token.IsCancellationRequested)
+                {
                     ResizeLocked();
+                    Pulse(); // Preserve a hint consumed by a worker racing retirement.
+                }
             }
+            worker.Wake.Dispose();
         }
     }
 
@@ -116,7 +129,5 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
-    private void Pulse() => Interlocked.Exchange(ref _pulse, NewPulse()).TrySetResult();
-
-    private static TaskCompletionSource NewPulse() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private void Pulse() => _pending.Writer.TryWrite(0);
 }

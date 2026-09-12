@@ -16,12 +16,23 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
     private readonly Dictionary<string, IJobInvoker> _invokers = invokers.ToDictionary(x => x.Name, StringComparer.Ordinal);
     private readonly JobProgress _progress = progress ?? new JobProgress(store);
 
-    public async Task<bool> RunOnce(CancellationToken cancellationToken)
+    public Task<bool> RunOnce(CancellationToken cancellationToken) => RunOnceCore(null, cancellationToken);
+
+    public Task<bool> RunOnce(Action onClaimed, CancellationToken cancellationToken) => RunOnceCore(onClaimed, cancellationToken);
+
+    private async Task<bool> RunOnceCore(Action? onClaimed, CancellationToken cancellationToken)
     {
         JobLease? lease = store is IVersionedJobStore versioned
             ? await versioned.ClaimForVersion(options.NodeId, options.LeaseDuration, options.ApplicationVersion, cancellationToken)
             : await store.Claim(options.NodeId, options.LeaseDuration, cancellationToken);
         if (lease is null) return false;
+        onClaimed?.Invoke();
+        await ExecuteLease(lease, cancellationToken);
+        return true;
+    }
+
+    private async Task ExecuteLease(JobLease lease, CancellationToken cancellationToken)
+    {
         using var execution = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         execution.CancelAfter(lease.Job.Policy.Timeout);
         using var renewal = new CancellationTokenSource();
@@ -62,8 +73,6 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
             using var commit = new CancellationTokenSource(options.LeaseDuration / 3);
             await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.Attempt, Random.Shared.NextDouble()), commit.Token);
         }
-        return true;
-
         async Task Renew()
         {
             try

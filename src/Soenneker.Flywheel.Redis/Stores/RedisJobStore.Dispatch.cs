@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
@@ -7,75 +7,22 @@ public sealed partial class RedisJobStore
 {
     private const int ReadBatchSize = 128;
 
-    private static DispatchMetadata ReadDispatchMetadata(RedisValue value)
-    {
-        var reader = new Utf8JsonReader(((ReadOnlyMemory<byte>)value).Span);
-        string? name = null;
-        string? applicationVersion = null;
-        int state = 0, priority = 1;
-        long dueAt = 0;
-        while (reader.Read())
-        {
-            if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1) continue;
-            if (reader.ValueTextEquals("name"u8))
-            {
-                reader.Read();
-                name = reader.GetString();
-            }
-            else if (reader.ValueTextEquals("applicationVersion"u8))
-            {
-                reader.Read();
-                applicationVersion = reader.GetString();
-            }
-            else if (reader.ValueTextEquals("state"u8))
-            {
-                reader.Read();
-                state = reader.GetInt32();
-            }
-            else if (reader.ValueTextEquals("dueAt"u8))
-            {
-                reader.Read();
-                dueAt = reader.GetInt64();
-            }
-            else if (reader.ValueTextEquals("policy"u8))
-            {
-                reader.Read();
-                if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("Job policy must be an object.");
-                while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
-                {
-                    bool isPriority = reader.ValueTextEquals("priority"u8);
-                    reader.Read();
-                    if (isPriority) priority = reader.GetInt32();
-                    else reader.Skip();
-                }
-            }
-            else
-            {
-                reader.Read();
-                reader.Skip(); // Do not allocate payload, policy, token or error strings during dispatch selection.
-            }
-        }
-        return new(name ?? throw new JsonException("Job name is missing."), state, priority, dueAt, applicationVersion);
-    }
-
-    private async Task<DispatchCandidate[]> ReadCandidates(IDatabase db, long now, string? applicationVersion, CancellationToken ct)
+    private async Task<DispatchCandidate[]> ReadCandidates(IDatabase db, long now, string? applicationVersion,
+        RedisValue revision, CancellationToken ct)
     {
         RedisValue[] ids = await db.SortedSetRangeByScoreAsync(Due, stop: now).WaitAsync(ct);
         if (ids.Length == 0) return [];
         var best = new Dictionary<string, DispatchCandidate>(StringComparer.Ordinal);
-        RedisValue[]? batchBuffer = null;
-        for (int offset = 0; offset < ids.Length; offset += ReadBatchSize)
+        await foreach ((RedisValue[] batch, RedisValue[] values) in ReadDispatchBatches(db, ids, revision, ct))
         {
-            RedisValue[] batch = GetReadBatch(ids, offset, ref batchBuffer);
-            RedisValue[] values = await db.HashGetAsync(Jobs, batch).WaitAsync(ct);
             for (int i = 0; i < values.Length; i++)
             {
                 if (values[i].IsNull) continue;
-                DispatchMetadata metadata = ReadDispatchMetadata(values[i]);
+                DispatchMetadata metadata = ReadIndexedDispatchMetadata(values[i]);
                 if (metadata.State != 0) continue;
                 if (metadata.ApplicationVersion is not null &&
                     !string.Equals(metadata.ApplicationVersion, applicationVersion, StringComparison.Ordinal)) continue;
-                var candidate = new DispatchCandidate(batch[i], values[i], metadata.Name, metadata.Priority, metadata.DueAt);
+                var candidate = new DispatchCandidate(batch[i], metadata.Name, metadata.Priority, metadata.DueAt);
                 if (!best.TryGetValue(metadata.Name, out DispatchCandidate previous) || DispatchComparer.Instance.Compare(candidate, previous) < 0)
                     best[metadata.Name] = candidate;
             }
@@ -86,23 +33,53 @@ public sealed partial class RedisJobStore
         return result;
     }
 
-    private async Task<Dictionary<string, int>> ReadActiveCounts(IDatabase db, long now, CancellationToken ct)
+    private async Task<Dictionary<string, int>> ReadActiveCounts(IDatabase db, long now,
+        RedisValue revision, CancellationToken ct)
     {
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         RedisValue[] ids = await db.SortedSetRangeByScoreAsync(Running, start: now, exclude: Exclude.Start).WaitAsync(ct);
-        RedisValue[]? batchBuffer = null;
-        for (int offset = 0; offset < ids.Length; offset += ReadBatchSize)
+        await foreach ((RedisValue[] _, RedisValue[] values) in ReadDispatchBatches(db, ids, revision, ct))
         {
-            RedisValue[] batch = GetReadBatch(ids, offset, ref batchBuffer);
-            RedisValue[] values = await db.HashGetAsync(Jobs, batch).WaitAsync(ct);
             foreach (RedisValue value in values)
             {
                 if (value.IsNull) continue;
-                DispatchMetadata metadata = ReadDispatchMetadata(value);
+                DispatchMetadata metadata = ReadIndexedDispatchMetadata(value);
                 if (metadata.State == 1) counts[metadata.Name] = counts.GetValueOrDefault(metadata.Name) + 1;
             }
         }
         return counts;
+    }
+
+    private async IAsyncEnumerable<(RedisValue[] Ids, RedisValue[] Values)> ReadDispatchBatches(IDatabase db,
+        RedisValue[] ids, RedisValue revision, [EnumeratorCancellation] CancellationToken ct)
+    {
+        // Bound both response size and outstanding metadata reads.
+        const int depth = 4;
+        for (int offset = 0; offset < ids.Length;)
+        {
+            int count = Math.Min(depth, (ids.Length - offset + ReadBatchSize - 1) / ReadBatchSize);
+            var batches = new RedisValue[count][];
+            var reads = new Task<RedisValue[]>[count];
+            for (int i = 0; i < count; i++)
+            {
+                int length = Math.Min(ReadBatchSize, ids.Length - offset);
+                RedisValue[] batch = ids.Length <= ReadBatchSize ? ids : ids.AsSpan(offset, length).ToArray();
+                batches[i] = batch;
+                reads[i] = db.HashGetAsync(Dispatch, batch).WaitAsync(ct);
+                offset += length;
+            }
+            await Task.WhenAll(reads);
+            for (int i = 0; i < count; i++)
+            {
+                RedisValue[] values = reads[i].Result;
+                // A concurrent terminal transition can remove metadata after the ID snapshot. A stable
+                // missing entry is invalid storage; never silently skip work or reconstruct old formats.
+                if (Array.Exists(values, static value => value.IsNull) &&
+                    await db.StringGetAsync(Revision).WaitAsync(ct) == revision)
+                    throw new InvalidOperationException("Required dispatch metadata is missing. All jobs must be written by the current Flywheel storage implementation.");
+                yield return (batches[i], values);
+            }
+        }
     }
 
     private async Task<StoredPolicy[]> ReadPolicies(IDatabase db, DispatchCandidate[] candidates, CancellationToken ct)

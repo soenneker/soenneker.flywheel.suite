@@ -79,10 +79,19 @@ Dashboard pages use `LeptonCancellable` and call `IFlywheelDashboardConsumer`, w
 implementation owns cookie credentials, antiforgery tokens, request creation, and backend-origin checks.
 It is registered as `IFlywheelApiClient`, so it does not replace a host application's bearer-token API client.
 
-With the Redis provider, a hosted recorder saves running, scheduled, and queued counts every second,
-independently of dashboard connections. Opening or reopening the dashboard loads the last minute of
-these samples alongside success and failure events. Each sample expires as soon as its second falls outside the live window (at most 61 seconds); a newly
-started recorder needs one minute to accumulate a full window. Missing server samples remain unknown.
+With the Redis provider, a hosted recorder saves running, scheduled, and queued counts every second while
+jobs are pending or running, independently of dashboard connections. An empty recorder waits for a job
+notification or a 15-second recovery check. Unchanged lifecycle revisions prove which idle seconds stayed
+empty, allowing those seconds to be filled with zero without per-second polling. A changed revision invalidates
+that proof; gaps that cannot be proven empty remain unknown. Opening or reopening the dashboard loads the
+last minute of these samples alongside success and failure events. A newly started recorder needs one minute
+to accumulate a full window.
+
+Gauge samples use a fixed 61-slot Redis hash plus four metadata fields, with timestamps checked on read so a wrapped slot cannot
+appear in the wrong second. The hash expires 61 seconds after its last recorded second. Multiple hosts
+share each second's sample; lifecycle event counters remain separate, so fast start/finish transitions are
+retained. Readers also understand samples written by older recorders. Heartbeats refresh board subscriptions
+when server membership or worker capacity changes, without refreshing the entire board for a routine lease extension.
 
 `IFlywheelLiveClient` owns SignalR setup. The layout owns the shared board connection and authentication
 lifetime. The overview page changes its execution query; recurring and scheduled pages consume schedule

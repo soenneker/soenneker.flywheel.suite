@@ -1,0 +1,44 @@
+[
+  {
+    "Scenario": "idle",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 0.818473,
+    "BytesPerOperation": 1976,
+    "RedisCommandsPerOperation": 4
+  },
+  {
+    "Scenario": "idle-maintenance",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 2.9437,
+    "BytesPerOperation": 5664,
+    "RedisCommandsPerOperation": 11
+  },
+  {
+    "Scenario": "idle-recorder",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 1.7698840000000002,
+    "BytesPerOperation": 9038,
+    "RedisCommandsPerOperation": 13
+  },
+  {
+    "Scenario": "backlog-1000",
+    "Iterations": 30,
+    "MillisecondsPerOperation": 17.61276666666667,
+    "BytesPerOperation": 4942883,
+    "RedisCommandsPerOperation": 59
+  },
+  {
+    "Scenario": "renew",
+    "Iterations": 100,
+    "MillisecondsPerOperation": 1.7910499999999998,
+    "BytesPerOperation": 39566,
+    "RedisCommandsPerOperation": 22
+  },
+  {
+    "Scenario": "logs-50",
+    "Iterations": 50,
+    "MillisecondsPerOperation": 1.4813079999999998,
+    "BytesPerOperation": 128604,
+    "RedisCommandsPerOperation": 64
+  }
+]

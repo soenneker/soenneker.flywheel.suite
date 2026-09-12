@@ -12,6 +12,7 @@
     <Project Path="test/Soenneker.Flywheel.Dashboard.Tests/Soenneker.Flywheel.Dashboard.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Generators.Tests/Soenneker.Flywheel.Generators.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Redis.Tests/Soenneker.Flywheel.Redis.Tests.csproj" />
+    <Project Path="test/Soenneker.Flywheel.Performance/Soenneker.Flywheel.Performance.csproj" />
     <Project Path="test/Soenneker.Flywheel.Dashboard.Demo/Soenneker.Flywheel.Dashboard.Demo.csproj" />
     <Project Path="test/Soenneker.Flywheel.Demo/Soenneker.Flywheel.Demo.csproj" />
   </Folder>
