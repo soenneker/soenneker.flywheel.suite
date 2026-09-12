@@ -45,10 +45,10 @@
     </ItemGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.3" />
-        <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.83" />
-        <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.27" />
-        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.48" />
-        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.36" />
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.4" />
+        <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.84" />
+        <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.28" />
+        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.50" />
+        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.37" />
     </ItemGroup>
 </Project>

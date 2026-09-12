@@ -21,8 +21,8 @@
         <None Include="../../icon.png" Pack="true" PackagePath="/" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2691" />
-        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.48" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2696" />
+        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.50" PrivateAssets="all" />
         <InternalsVisibleTo Include="Soenneker.Flywheel.Core" />
     </ItemGroup>
 </Project>
