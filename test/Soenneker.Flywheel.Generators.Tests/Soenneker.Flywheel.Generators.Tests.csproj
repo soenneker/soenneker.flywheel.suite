@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.4" />
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.5" />
         <PackageReference Include="Soenneker.Tests.Unit" Version="4.0.1325" />
         <PackageReference Include="TUnit" Version="1.67.0" />
     </ItemGroup>
