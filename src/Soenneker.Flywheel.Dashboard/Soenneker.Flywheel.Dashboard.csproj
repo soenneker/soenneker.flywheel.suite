@@ -51,7 +51,7 @@
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.232" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1491" />
         <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.821" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.245" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.246" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.76" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
