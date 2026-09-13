@@ -45,7 +45,7 @@
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1369" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.708" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2511" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2513" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.80" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.232" PrivateAssets="all" />
