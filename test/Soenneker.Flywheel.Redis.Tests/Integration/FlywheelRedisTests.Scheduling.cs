@@ -148,9 +148,13 @@ public sealed partial class FlywheelRedisTests
         Check(schedule.Cron == "0 9 * * *" && schedule.TimeZoneId == "America/Chicago", "Cron metadata lost");
         Check((await store.List()).Count == 0 && schedule.DueAt > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "Cron ran at registration");
         // Move only this test namespace's due index into the past to simulate scheduler downtime.
-        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        await db.SortedSetAddAsync($"flywheel:{{{tag}}}:v1:schedule-due", schedule.Id, DateTimeOffset.UtcNow.AddDays(-4).ToUnixTimeMilliseconds());
-        var restarted = new RedisJobStore(_ => Task.FromResult(db), ns);
+        await using var database = OpenLibrarian(db, ns);
+        var schedules = await database.GetContainer("flywheel.schedules");
+        string raw = (await schedules.GetItem(DocumentId(schedule.Id)))!;
+        var document = System.Text.Json.Nodes.JsonNode.Parse(raw)!;
+        document["value"]!["dueAt"] = DateTimeOffset.UtcNow.AddDays(-4).ToUnixTimeMilliseconds();
+        await schedules.UpdateItemStrict(DocumentId(schedule.Id), document.ToJsonString());
+        await using var restarted = new RedisJobStore(_ => Task.FromResult(db), ns);
         await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => restarted.Maintain(100)));
         Check((await store.List()).Count == 1, "Missed cron ticks were duplicated or replayed as a backlog");
         Check((await store.ListRecurring()).Single().DueAt > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "Next cron time not advanced");

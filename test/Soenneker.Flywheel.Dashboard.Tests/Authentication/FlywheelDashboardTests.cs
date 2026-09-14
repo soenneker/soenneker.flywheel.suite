@@ -2,6 +2,7 @@ using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Soenneker.Hashing.Pbkdf2;
 using Microsoft.AspNetCore.TestHost;
@@ -60,7 +61,7 @@ public sealed partial class FlywheelDashboardTests
         Check(search.IsSuccessStatusCode && store.Query == "invoice&monthly" && store.Offset == 50 && store.Count == 25, "Search arguments were not forwarded");
         Check(json.Contains("totalCount") && !json.Contains("private-payload") && !json.Contains("private-token"), "Search leaked private data");
         using HttpResponseMessage filteredSearch = await client.GetAsync($"{prefix}/jobs/search?q=invoice&excludedStates=Queued");
-        using var filteredJson = System.Text.Json.JsonDocument.Parse(await filteredSearch.Content.ReadAsStringAsync());
+        using JsonDocument filteredJson = System.Text.Json.JsonDocument.Parse(await filteredSearch.Content.ReadAsStringAsync());
         Check(filteredSearch.IsSuccessStatusCode && filteredJson.RootElement.GetProperty("totalCount").GetInt32() == 0 &&
             filteredJson.RootElement.GetProperty("items").GetArrayLength() == 0, "HTTP filtering left hidden statuses in the table");
         Check((await client.GetAsync($"{prefix}/jobs/search?excludedStates=invalid")).StatusCode == HttpStatusCode.BadRequest,

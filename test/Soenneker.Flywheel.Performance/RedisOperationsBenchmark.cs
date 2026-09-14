@@ -1,11 +1,11 @@
+using Microsoft.Extensions.DependencyInjection;
+using Soenneker.Utils.File.Abstract;
+using Soenneker.Utils.File.Registrars;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Communication.Dtos;
@@ -31,9 +31,7 @@ public static class RedisOperationsBenchmark
         await Scenario("idle-maintenance", async (store, measure) => await measure(() => store.Maintain(100), 100));
         await Scenario("idle-recorder", async (store, measure) =>
         {
-            var record = (Func<System.Threading.CancellationToken, Task<bool>>)typeof(RedisJobStore)
-                .GetMethod("SampleLiveActivity", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .CreateDelegate(typeof(Func<System.Threading.CancellationToken, Task<bool>>), store);
+            Func<System.Threading.CancellationToken, Task<bool>> record = store.SampleLiveActivity;
             await measure(() => record(default), 100);
         });
         await Scenario("backlog-1000", async (store, measure) =>
@@ -80,12 +78,16 @@ public static class RedisOperationsBenchmark
         string json = JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
         Console.WriteLine(json);
         string? outputPath = Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_OUTPUT");
-        if (!string.IsNullOrWhiteSpace(outputPath)) await File.WriteAllTextAsync(outputPath, json);
+        if (!string.IsNullOrWhiteSpace(outputPath))
+        {
+            await using ServiceProvider services = new ServiceCollection().AddLogging().AddFileUtilAsSingleton().BuildServiceProvider();
+            await services.GetRequiredService<IFileUtil>().Write(outputPath, json);
+        }
 
         async Task Scenario(string name, Func<RedisJobStore, Func<Func<Task>, int, Task>, Task> run)
         {
             string ns = "performance-" + Guid.NewGuid().ToString("N");
-            string prefix = "flywheel:{" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ns))) + "}:v1:";
+            string prefix = "librarian:{" + new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(string.Concat(ns.Select(c => ((int)c).ToString("X4", System.Globalization.CultureInfo.InvariantCulture)))).ToUpperInvariant() + "}:batches:";
             var store = new RedisJobStore(_ => Task.FromResult(db), ns);
             try
             {

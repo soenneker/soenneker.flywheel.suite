@@ -4,7 +4,8 @@ using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 
-/// <summary>Authoritative persistence and atomic lifecycle operations. Implementations must be safe across processes.</summary>
+/// <summary>Authoritative storage and atomic lifecycle operations. Operations must be safe for all workers sharing
+/// the provider. Distributed providers coordinate across processes; memory providers coordinate within one store instance.</summary>
 public interface IJobStore
 {
     /// <summary>Atomically persists a job and its eligibility index; a retained idempotency key returns the original id.</summary>

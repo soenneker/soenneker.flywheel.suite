@@ -27,10 +27,10 @@ public sealed partial class FlywheelDashboardTests
             Calls++; Query = query; Offset = offset; Count = count;
             if (SearchItems is { } source)
             {
-                var matches = source.Where(job => string.IsNullOrEmpty(query) || job.Name.Contains(query)).ToArray();
+                JobRecord[] matches = source.Where(job => string.IsNullOrEmpty(query) || job.Name.Contains(query)).ToArray();
                 return Task.FromResult(new JobSearchResult(matches.Skip(offset).Take(count).ToArray(), matches.Length));
             }
-            return Task.FromResult(new JobSearchResult([new JobRecord { Id = "one", Name = "invoice", Payload = "private-payload", Token = "private-token", Policy = new() }], 51));
+            return Task.FromResult(new JobSearchResult([new JobRecord { Id = "one", Name = "invoice", Payload = "private-payload", Token = "private-token", Policy = new JobPolicy() }], 51));
         }
         public Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -40,13 +40,13 @@ public sealed partial class FlywheelDashboardTests
         public Task Maintain(int batchSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<WorkerServerView>>([new("node one", 123, 12, [])]);
+            Task.FromResult<IReadOnlyList<WorkerServerView>>([new WorkerServerView("node one", 123, 12, [])]);
         public Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default) =>
-            Task.FromResult<WorkerServerView?>(node == "node one" ? new(node, 123, 12, []) : null);
+            Task.FromResult<WorkerServerView?>(node == "node one" ? new WorkerServerView(node, 123, 12, []) : null);
         public Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default) => Task.FromResult(12);
-        public Task<JobRecord?> Get(string id, CancellationToken cancellationToken = default) => Task.FromResult<JobRecord?>(id == "one" ? new() { Id = id, Name = "test", Payload = "{}", Policy = new() } : null);
+        public Task<JobRecord?> Get(string id, CancellationToken cancellationToken = default) => Task.FromResult<JobRecord?>(id == "one" ? new JobRecord { Id = id, Name = "test", Payload = "{}", Policy = new JobPolicy() } : null);
         public Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<JobLogEntry>>([new("1-0", 1, 1, "Information", "test", "message")]);
+        public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<JobLogEntry>>([new JobLogEntry("1-0", 1, 1, "Information", "test", "message")]);
         public Task<IReadOnlyList<JobRecord>> List(int offset = 0, int count = 50, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }

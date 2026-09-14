@@ -53,7 +53,7 @@ public partial class Dashboard
         _legendVersion++;
         _offset = 0;
         _queryRevision = BoardConnection.NextVersion();
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         if (_jobsTable is not null) await _jobsTable.GoToPage(1);
         await Task.WhenAll(firstLoad ? LoadOverviewHistory() : Task.CompletedTask, Reload());
     }
@@ -72,7 +72,7 @@ public partial class Dashboard
     private async Task Reload()
     {
         if (_query.Length > 200) return;
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         using var read = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         _activeRead = read;
         int revision = _queryRevision;
@@ -144,7 +144,7 @@ public partial class Dashboard
         _offset = 0;
         if (_jobsTable is not null) await _jobsTable.GoToPage(1);
         _queryRevision = BoardConnection.NextVersion();
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         await Reload();
     }
 
@@ -266,7 +266,7 @@ public partial class Dashboard
                 _activityLabels = [];
                 _activityXValues = [];
                 _activityVersion++;
-                var response = await Consumer.GetSearchHistory(_query, _jobStartAt, _jobEndAt, cancellationToken);
+                OperationResult<List<JobHistoryPoint>> response = await Consumer.GetSearchHistory(_query, _jobStartAt, _jobEndAt, cancellationToken);
                 response.EnsureSucceeded();
                 if (revision == _historyRevision) ApplySearchHistory(response.Value ?? []);
             }
@@ -335,7 +335,7 @@ public partial class Dashboard
         _jobEndAt = DateTimeOffset.FromUnixTimeMilliseconds((long)end).Add(UseLiveChart ? TimeSpan.FromSeconds(1) : TimeSpan.FromMinutes(5));
         _offset = 0;
         _queryRevision = BoardConnection.NextVersion();
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         await Task.WhenAll(Reload(), !string.IsNullOrWhiteSpace(_query) ? ReloadHistory(CancellationToken) : Task.CompletedTask);
     }
 
@@ -348,7 +348,7 @@ public partial class Dashboard
         if (_liveMode) ApplyLiveActivity();
         _offset = 0;
         _queryRevision = BoardConnection.NextVersion();
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         await Task.WhenAll(ReloadHistory(CancellationToken), Reload());
     }
 
@@ -390,7 +390,7 @@ public partial class Dashboard
         _offset = request.Start;
         _pageSize = request.Length;
         _queryRevision = BoardConnection.NextVersion();
-        _activeRead?.Cancel();
+        if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         if (_query.Length > 200)
         {
             _jobs.Clear();

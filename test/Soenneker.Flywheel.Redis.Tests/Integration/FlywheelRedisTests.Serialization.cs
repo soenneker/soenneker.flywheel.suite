@@ -1,13 +1,9 @@
 using System;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
-using Soenneker.Utils.Json;
-using StackExchange.Redis;
 using Microsoft.Extensions.DependencyInjection;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Services.Abstract;
@@ -29,7 +25,7 @@ public sealed partial class FlywheelRedisTests
         var client = provider.GetRequiredService<IJobClient>();
         string id = await client.Enqueue(FlywheelJobs.IntegrationJobs_Run, (TestPayload)null!);
         Check((await store.Get(id))!.Payload == "null", "Null enqueue payload did not produce valid JSON");
-        var chain = await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(null!)]);
+        IReadOnlyList<string> chain = await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(null!)]);
         Check((await store.Get(chain[0]))!.Payload == "null", "Null chain payload did not produce valid JSON");
         string valueId = await client.Enqueue(FlywheelJobs.IntegrationJobs_Run, new TestPayload("camelCase"));
         JsonNode payload = JsonNode.Parse((await store.Get(valueId))!.Payload)!;
@@ -43,16 +39,12 @@ public sealed partial class FlywheelRedisTests
         string id = await store.EnqueueForCurrentVersion(Request(), "release-2");
         await store.AddRecurring("schedule", Request() with { Name = "recurring.v1" }, TimeSpan.FromHours(1));
         JobLease lease = (await store.ClaimForVersion("worker", TimeSpan.FromSeconds(30), "release-2"))!;
-        string prefix = $"flywheel:{{{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ns)))}}}:v1:";
-        foreach (string hash in new[] { "jobs", "schedules", "function-policies", "function-rates", "job-permits" })
+        await using var database = OpenLibrarian(db, ns);
+        foreach (string table in new[] { "jobs", "schedules", "policies", "rates" })
         {
-            HashEntry[] entries = await db.HashGetAllAsync(prefix + hash);
-            Check(entries.Length > 0, "Missing persisted fixture: " + hash);
-            foreach (HashEntry entry in entries)
-            {
-                JsonNode json = JsonNode.Parse((string)entry.Value!)!;
-                VerifyCamelCase(json);
-            }
+            var entries = await (await database.GetContainer("flywheel." + table)).GetAllItems();
+            Check(entries.Count > 0, "Missing persisted fixture: " + table);
+            foreach (string entry in entries) VerifyCamelCase(JsonNode.Parse(entry));
         }
 
         JobRecord restored = (await store.Get(id))!;
@@ -73,7 +65,7 @@ public sealed partial class FlywheelRedisTests
     private static void VerifyCamelCase(JsonNode? node)
     {
         if (node is JsonObject obj)
-            foreach (var property in obj)
+            foreach (KeyValuePair<string, JsonNode?> property in obj)
             {
                 Check(char.IsLower(property.Key[0]), "Non-camelCase persisted property: " + property.Key);
                 VerifyCamelCase(property.Value);

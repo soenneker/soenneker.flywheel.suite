@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Soenneker.Flywheel.Communication.Responses;
 using System.Threading;
 using Soenneker.Flywheel.Communication.Dtos;
-using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis.Tests;
 
@@ -31,14 +30,12 @@ public sealed partial class FlywheelRedisTests
         Check(await feed.MoveNextAsync() && feed.Current.Kind == "Resync", "Initial resync missing");
         await store.Heartbeat("node", 12, TimeSpan.FromSeconds(30));
         Check(await feed.MoveNextAsync() && feed.Current.Kind == "Servers", "New server notification missing");
-        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        RedisKey revisionKey = $"flywheel:{{{tag}}}:v1:revision";
-        RedisValue revision = await db.StringGetAsync(revisionKey);
+        string? revision = await ControlValue(db, ns, "revision");
         Task<bool> next = feed.MoveNextAsync().AsTask();
         await store.Heartbeat("node", 12, TimeSpan.FromSeconds(30));
         await Task.Delay(100);
         Check(!next.IsCompleted, "Unchanged heartbeat triggered a dashboard refresh");
-        Check(await db.StringGetAsync(revisionKey) == revision, "Heartbeat invalidated job selection");
+        Check(await ControlValue(db, ns, "revision") == revision, "Heartbeat invalidated job selection");
         await store.Heartbeat("node", 8, TimeSpan.FromSeconds(30));
         Check(await next && feed.Current.Kind == "Servers", "Capacity change notification missing");
     });
@@ -48,12 +45,12 @@ public sealed partial class FlywheelRedisTests
     {
         await store.Heartbeat("returning", 8, TimeSpan.FromSeconds(30));
         await store.Heartbeat("expired", 3, TimeSpan.FromSeconds(30));
-        string tag = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        string prefix = $"flywheel:{{{tag}}}:v1:";
-        await db.SortedSetAddAsync(prefix + "nodes", [new SortedSetEntry("returning", 0), new SortedSetEntry("expired", 0)]);
+        await SeedRecord(db, ns, "nodes", "returning", new { expiresAt = 0L, workers = 8 });
+        await SeedRecord(db, ns, "nodes", "expired", new { expiresAt = 0L, workers = 3 });
         await store.Heartbeat("returning", 12, TimeSpan.FromSeconds(30));
         Check(await store.GetTotalWorkerCount() == 12, "Returning server lost its worker count");
-        Check(!await db.HashExistsAsync(prefix + "node-workers", "expired"), "Expired peer capacity was retained");
+        await using var database = OpenLibrarian(db, ns);
+        Check(await (await database.GetContainer("flywheel.nodes")).GetItem(DocumentId("expired")) is null, "Expired peer capacity was retained");
         Check((await store.ListServers()).Count == 1, "Expired peer remained live");
     });
 }

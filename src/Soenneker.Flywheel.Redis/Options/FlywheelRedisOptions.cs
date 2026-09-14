@@ -7,6 +7,8 @@ public sealed class FlywheelRedisOptions
     public string ConnectionString { get; set; } = "localhost:6379";
     /// <summary>Prefix isolating this host's Redis data from other Flywheel deployments.</summary>
     public string Namespace { get; set; } = "default";
+    /// <summary>Top-level Redis key prefix used for Flywheel storage.</summary>
+    public string KeyPrefix { get; set; } = "flywheel";
     /// <summary>Zero-based Redis database index.</summary>
     public int Database { get; set; }
     /// <summary>Amount of aggregate job activity to retain for dashboard graphs.</summary>

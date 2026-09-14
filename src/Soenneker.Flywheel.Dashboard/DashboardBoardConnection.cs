@@ -109,7 +109,7 @@ internal sealed class DashboardBoardConnection(IFlywheelLiveClient live, Activit
         if (_connection is not null) await _connection.DisposeAsync();
         _connection = null;
         Latest = null;
-        LiveActivity = new();
+        LiveActivity = new DashboardLiveActivityState();
         _query = "";
         _excludedStates = null;
         _offset = 0;

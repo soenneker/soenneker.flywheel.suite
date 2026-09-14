@@ -4,7 +4,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 
 internal sealed class DashboardBrowserTestHandler(HttpMessageHandler inner, CookieContainer? cookies = null) : DelegatingHandler(inner)
 {
-    private readonly CookieContainer _cookies = cookies ?? new();
+    private readonly CookieContainer _cookies = cookies ?? new CookieContainer();
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

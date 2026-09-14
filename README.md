@@ -6,7 +6,7 @@
 
 # Soenneker.Flywheel.Suite
 
-Background jobs, Redis storage, source generators, and a live Blazor dashboard in one solution.
+Background jobs, Redis, in-process memory or Filesystem storage, source generators, and a live Blazor dashboard in one solution.
 
 **Background work. Everything in view.**
 
@@ -26,7 +26,9 @@ Each project produces its own NuGet package. The suite is the repository and sol
 | --- | --- | --- |
 | Soenneker.Flywheel.Communication | Shared job DTOs, policies, enums, requests, responses, and typed hub contracts | No Flywheel dependencies |
 | Soenneker.Flywheel.Core | Job runtime, dashboard API, and hub | Communication |
-| Soenneker.Flywheel.Redis | Redis job storage | Core |
+| Soenneker.Flywheel.Redis | Redis job storage | Core, Librarian.Redis |
+| Soenneker.Flywheel.Memory | In-process memory job storage | Core, Librarian.Memory |
+| Soenneker.Flywheel.Filesystem | Filesystem job storage using Librarian | Core, Librarian.FileSystem |
 | Soenneker.Flywheel.Generators | Compile-time job registration | None; analyzer only |
 | Soenneker.Flywheel.Dashboard | Blazor components, typed consumer, and live client | Communication |
 
@@ -69,14 +71,11 @@ CPU time, and Redis commands without a test runner. Idle worker recovery uses on
 independent of worker count; a claim signals the next worker before executing its handler.
 The live recorder also sleeps while the queue is empty, waking on notifications with a bounded recovery check.
 
-The Redis provider uses short Lua scripts for key-routed server time, atomic node heartbeats, and shared
-live samples. Redis ACLs must allow `EVAL`/`EVALSHA` and the commands they execute. Script keys share the
-namespace's cluster hash slot. Job lifecycle writes retain their existing optimistic transactions and lease fencing.
+The existing Memory, Filesystem, and Redis providers use their matching `Soenneker.Librarian.*` libraries. Shared lifecycle rules live in Flywheel.Core and commit through Librarian conditional batches. Redis stores and queries documents directly, uses native transactions and server time, and requires no Lua or periodic save. Cross-node notifications use a committed revision document with gap detection.
 
-Backlog selection requires the binary dispatch index written by the current storage implementation.
-All workers sharing a namespace must use this storage format; pre-index data and mixed older writers
-are unsupported. See [Redis storage](docs/redis.md#dispatch-index) and
-[measured results](test/Soenneker.Flywheel.Performance/README.md).
+See [Redis storage](docs/redis.md) and [filesystem storage](docs/filesystem.md) for guarantees and operational differences.
+
+Flywheel providers use the corresponding Librarian NuGet packages, with shared contracts supplied by `Soenneker.Librarian.Abstractions`.
 
 Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. `HomePath` controls dashboard navigation; `EnginePath` independently controls API, authentication, and SignalR routes and must match on the backend and client. Either prefix can be `/` or a custom path. See [prefix configuration](docs/dashboard.md#pages-and-navigation).
 
@@ -84,7 +83,7 @@ Dashboard pages use Lepton lifecycle management. A typed consumer handles API ca
 
 JSON contracts use explicit camelCase property names and `Soenneker.Utils.Json`. See [JSON storage contracts](docs/redis.md#json-storage-contracts).
 
-`build-and-test.yml` builds the entire solution, runs the four test projects with Redis, publishes the hosted demo, and packs five separate packages. `publish-package.yml` calls that validation workflow and then runs a deployment matrix with one job per package, publishing to NuGet and GitHub Packages. A GitHub release is created only after every deployment succeeds.
+`build-and-test.yml` builds the entire solution, runs the six test projects (Redis tests require Redis), publishes the hosted demo, and packs seven separate packages. `publish-package.yml` calls that validation workflow and then runs a deployment matrix with one job per package, publishing to NuGet and GitHub Packages. A GitHub release is created only after every deployment succeeds.
 
 All packages share `5.0.<publish workflow run number>`. Local builds default to `5.0.0`; `BUILD_VERSION` overrides it. The 5.0 series avoids collisions with independently versioned 4.0 releases and reflects the move of shared job and dashboard contracts into `Soenneker.Flywheel.Communication`. Update imports for DTOs, enums, requests, responses, and log DTOs from `Soenneker.Flywheel.Core` to `Soenneker.Flywheel.Communication`. The storage server snapshot is now `Communication.Responses.WorkerServerView`; the dashboard response remains `Communication.Responses.ServerView`.
 
@@ -92,5 +91,7 @@ All packages share `5.0.<publish workflow run number>`. Local builds default to 
 
 - [Core](docs/core.md)
 - [Redis](docs/redis.md)
+- [Memory](docs/memory.md)
+- [Filesystem storage](docs/filesystem.md)
 - [Generators](docs/generators.md)
 - [Dashboard and authentication](docs/dashboard.md)

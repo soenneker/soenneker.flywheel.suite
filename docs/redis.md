@@ -1,68 +1,46 @@
-[![NuGet](https://img.shields.io/nuget/v/Soenneker.Flywheel.Redis.svg?style=for-the-badge)](https://www.nuget.org/packages/Soenneker.Flywheel.Redis/)
-[![Publish](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/publish-package.yml)
-[![Downloads](https://img.shields.io/nuget/dt/Soenneker.Flywheel.Redis.svg?style=for-the-badge)](https://www.nuget.org/packages/Soenneker.Flywheel.Redis/)
-[![Build and test](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/build-and-test.yml?label=build%20and%20test&style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/build-and-test.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.flywheel.suite/codeql.yml?label=CodeQL&style=for-the-badge)](https://github.com/soenneker/soenneker.flywheel.suite/actions/workflows/codeql.yml)
+# Redis storage
 
-# Soenneker.Flywheel.Redis
-
-Redis storage for Flywheel jobs, schedules, and logs. Coordinates workers across app instances.
-
-## Setup
-
-Requires Redis 6.0.9 or newer. Follow [Core setup](https://github.com/soenneker/soenneker.flywheel.suite#setup) to install the packages.
-
-## Usage
+`Soenneker.Flywheel.Redis` uses `Soenneker.Librarian.Redis`, backed by `Soenneker.Redis.Client`. Documents are stored and queried directly in Redis. Flywheel holds only an operation's staged writes and query results; there is no local database mirror or periodic save.
 
 ```csharp
 using Soenneker.Flywheel.Core.Registrars;
-using Soenneker.Flywheel.Generated;
 using Soenneker.Flywheel.Redis;
 
-builder.Services.AddFlywheel()
-    .AddRedis(options =>
-    {
-        options.ConnectionString = "localhost:6379";
-        options.Namespace = "my-app";
-        options.HistoryRetention = TimeSpan.FromDays(30);
-        options.RetainCompletedJobs = true;
-    })
-    .AddGeneratedJobs();
+builder.Services.AddFlywheel().AddRedis(options =>
+{
+    options.ConnectionString = "localhost:6379";
+    options.Namespace = "my-app";
+    options.KeyPrefix = "flywheel"; // Default top-level Redis prefix; configurable.
+    options.Database = 0;
+    options.HistoryRetention = TimeSpan.FromDays(30);
+    options.RetainCompletedJobs = true;
+});
 ```
 
-Workers sharing jobs must use the same namespace and job registrations. Use separate namespaces for separate apps or environments.
+Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses native hashes, sets, sorted sets, sorting, and conditional transactions. No Lua, `EVAL`, or script permission is required. The provider reads Redis server time from the primary owning its namespace slot.
 
-Enable Redis persistence and use `maxmemory-policy noeviction` to prevent job data eviction. The Redis account also needs `PUBLISH`, `SUBSCRIBE`, and `UNSUBSCRIBE` for dashboard updates.
-
-`HistoryRetention` defaults to one day. `RetainCompletedJobs` defaults to `true`; disable it to keep aggregate activity without completed job records after maintenance.
-
-See [Core usage](core.md#usage) to define and enqueue jobs.
+Redis Cluster deployments require Redis 8 or later for Librarian's sorting with external key patterns.
 
 ## JSON storage contracts
 
-Flywheel's structured Redis records use explicit camelCase `JsonPropertyName` attributes and `Soenneker.Utils.Json` for serialization and deserialization. This includes jobs, schedules, method policies, rate windows, stored semaphore permits, and change notifications. Redis counters, indexes, and log stream fields retain their native representations. Job state and priority retain their numeric JSON values.
+Workers sharing data must also use the same `KeyPrefix`. Redis keys appear as `flywheel:{my-app}:containers:flywheel.jobs:document:ID`, with the readable `options.Namespace` inside braces, readable container names, and readable index paths. Set `options.KeyPrefix` to change the top-level folder. Document IDs remain Flywheel's key hashes. Reserved characters in key segments are escaped. This layout does not migrate or read the previous hex-encoded keys.
+
+Each record is a Librarian document in a `flywheel.*` container, serialized through `Soenneker.Utils.Json`. Envelopes contain a typed key and value; job state and priority retain numeric JSON values. Hashed IDs preserve case-sensitive Flywheel keys. Namespace-wide Redis hash tags let a single transaction update multiple containers in Redis Cluster. Consequently, a namespace resides on one Cluster slot.
+
+Conditional batches commit jobs, lease metadata, rate usage, chains, history, and notifications together. Per-table revisions protect reads and query selection from concurrent mutations, including phantom inserts. Rejected attempts are retried with bounded jitter. Caller cancellation or a lost connection after dispatch can leave the outcome uncertain; reconcile stored state before retrying non-idempotent submissions. Use idempotency keys where appropriate. Only Librarian may manage these keys; Redis command execution errors do not provide transaction rollback.
 
 ## Dispatch index
 
-Dispatch uses a private binary metadata hash containing each scheduled or running job's name, state,
-priority, due time, and application version. Selection reads up to four batches of 128 compact entries
-at once; it fetches the full JSON record only for the selected job. Concurrency counts use the same
-metadata, so large payloads are not downloaded to count running jobs. Terminal transitions and retention
-remove metadata. The job JSON format and lease-fencing protocol are unchanged.
+The `flywheel.dispatch` container contains compact candidate documents without job payloads. Librarian's due-time index selects eligible candidates in Redis; Flywheel compares their priority and version restrictions and fetches the selected job. The `flywheel.running` container supports method concurrency checks without downloading job payloads. Both are updated atomically with jobs. Missing or inconsistent dispatch metadata in a validated snapshot raises an error.
 
-The binary index is required and is maintained atomically with the job record. Dispatch uses the
-lifecycle revision to fence selection and ownership; there is no separate compatibility checkpoint,
-JSON metadata fallback, or automatic index reconstruction. A missing entry in an unchanged snapshot
-raises an error. Concurrent terminal transitions can remove entries, and the revision fence prevents
-a claim from committing against that outdated snapshot.
+Job list pagination uses an indexed composite timestamp/ID key. State, owner, name, and time-range queries use Librarian indexes. Free-text substring matching and aggregate shaping remain application-side over the selected documents. Dispatch still examines due candidates to preserve global priority and version matching, so its cost grows with eligible backlog size. Previous benchmark results describe the old storage engine and must be rerun.
 
-All workers sharing a namespace must run the current storage implementation. Pre-index data and
-mixed older writers are unsupported; start with a fresh namespace when adopting this storage format.
-Live gauges are read only from the current sample ring, and absent or invalid samples remain unknown.
-Custom `IJobExecutor` implementations must implement the callback overload and signal immediately after
-claiming, before handler execution.
+## Notifications and retention
 
-The index adds Redis memory proportional to scheduled and running jobs. Selection still scans all due
-metadata to preserve global priority and exact application-version matching; it is not constant-time in
-the number of eligible jobs. See the [performance harness](../test/Soenneker.Flywheel.Performance/README.md)
-for measured workloads and remaining limits.
+A notification document is written in the same transaction as its changes. `Watch` polls that document every 100 milliseconds, works across instances, and emits `Resync` on initial subscription or a detected revision gap. It is an invalidation feed, not a durable event stream; consumers refresh authoritative state after `Resync`. Redis Pub/Sub permission is no longer needed. Unchanged-capacity heartbeats and live samples do not publish dashboard invalidations.
+
+The hosted recorder samples active work every second and sleeps while idle. Empty seconds can be reconstructed only while the lifecycle revision still matches the recorded empty state. Expired samples are excluded from reads and pruned by sampling or maintenance. Retention is implemented through Librarian document deletion rather than Redis key TTLs: stopped workers do not perform cleanup. Completed-job retention defaults to one day; disabling it removes terminal documents on the next maintenance pass. Version markers survive job cleanup.
+
+## Upgrading existing data
+
+Flywheel uses Librarian document format 4.

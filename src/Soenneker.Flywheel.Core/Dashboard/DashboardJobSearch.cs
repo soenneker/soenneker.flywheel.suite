@@ -20,7 +20,7 @@ public static class DashboardJobSearch
             ? ((IJobTimeRangeSearchStore)store).Search(query, start, end, skip, take, cancellationToken)
             : store.Search(query, skip, take, cancellationToken);
         if (string.IsNullOrEmpty(excludedStates)) return await Read(offset, count);
-        var excluded = excludedStates.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> excluded = excludedStates.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
         var items = new List<JobRecord>(count);
         int matches = 0;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -35,6 +35,6 @@ public static class DashboardJobSearch
             skip += page.Items.Count;
             if (page.Items.Count == 0 || skip >= page.TotalCount) break;
         }
-        return new(items, matches);
+        return new JobSearchResult(items, matches);
     }
 }

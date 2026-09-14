@@ -10,7 +10,7 @@ public sealed class ScheduleFilterTests
     public void RecurringSearchReusesResultsAndInvalidatesOnQueryOrSnapshotChanges()
     {
         var board = new SchedulesPage();
-        var schedules = new ScheduleView([new("daily", "Report", 60000, 0), new("weekly", "Cleanup", 60000, 0)], []);
+        var schedules = new ScheduleView([new RecurringScheduleView("daily", "Report", 60000, 0), new RecurringScheduleView("weekly", "Cleanup", 60000, 0)], []);
         Set("_schedules", schedules);
         if (!ReferenceEquals(Read(), schedules.Recurring)) throw new Exception("Empty search should reuse the source list");
         Set("_recurringSearch", "report daily");

@@ -1,20 +1,14 @@
 using System;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
-using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis.Tests;
 
 public sealed partial class FlywheelRedisTests
 {
-    private static string DispatchPrefix(string ns) =>
-        "flywheel:{" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ns))) + "}:v1:";
-
     [Test]
     public Task DispatchPreservesPriorityAndVersionAcrossBatches() => WithStore(async store =>
     {
@@ -35,12 +29,13 @@ public sealed partial class FlywheelRedisTests
     public Task MissingDispatchMetadataFailsInsteadOfSilentlySkippingWork() => WithStore(async (store, db, ns) =>
     {
         await store.Enqueue(Request());
-        await db.KeyDeleteAsync(DispatchPrefix(ns) + "dispatch");
+        await using var database = OpenLibrarian(db, ns);
+        await (await database.GetContainer("flywheel.dispatch")).DeleteAllItems();
         try
         {
             await store.Claim("worker", TimeSpan.FromMinutes(1));
         }
-        catch (InvalidOperationException ex) when (ex.Message.StartsWith("Required dispatch metadata is missing", StringComparison.Ordinal))
+        catch (System.IO.InvalidDataException ex) when (ex.Message.StartsWith("Required dispatch metadata is missing", StringComparison.Ordinal))
         {
             return;
         }
@@ -70,16 +65,17 @@ public sealed partial class FlywheelRedisTests
     [Test]
     public Task DispatchMetadataExcludesPayloadAndIsRemovedOnCompletion() => WithStore(async (store, db, ns) =>
     {
-        string prefix = DispatchPrefix(ns);
         string payload = JsonSerializer.Serialize(new { Secret = new string('x', 16000) });
         string id = await store.EnqueueForCurrentVersion(Request() with { Name = "work-\"\\日本語-🚀", Payload = payload }, "build-β-🚀");
-        RedisValue metadata = await db.HashGetAsync(prefix + "dispatch", id);
-        Check(!metadata.IsNull && ((ReadOnlyMemory<byte>)metadata).Length < 300,
+        await using var database = OpenLibrarian(db, ns);
+        var dispatch = await database.GetContainer("flywheel.dispatch");
+        string? metadata = await dispatch.GetItem(DocumentId(id));
+        Check(metadata is not null && metadata.Length < 1000 && !metadata.Contains(new string('x', 100)),
             "Dispatch index contains a job payload");
         Check(await store.Claim("unversioned", TimeSpan.FromMinutes(1)) is null, "Binary metadata lost a version restriction");
         JobLease lease = (await store.ClaimForVersion("worker", TimeSpan.FromMinutes(1), "build-β-🚀"))!;
         Check(lease.Job.Payload == payload && lease.Job.Name == "work-\"\\日本語-🚀", "Claim did not preserve UTF-8 metadata and payload");
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");
-        Check(!await db.HashExistsAsync(prefix + "dispatch", id), "Completed job leaked dispatch metadata");
+        Check(await dispatch.GetItem(DocumentId(id)) is null, "Completed job leaked dispatch metadata");
     });
 }

@@ -35,7 +35,6 @@ justify-center
 justify-end
 m-0
 max-w-[1600px]
-max-w-md
 mb-3
 mb-4
 mb-5
@@ -50,11 +49,11 @@ md:p-8
 md:w-auto
 min-w-0
 ml-auto
+mt-2
 mt-3
 mt-4
 mt-5
 mx-auto
-my-4
 opacity-100
 p-0
 p-3
@@ -64,7 +63,6 @@ pb-3
 pb-6
 pointer-events-auto
 py-1
-py-12
 py-3
 rounded-full
 size-10

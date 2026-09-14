@@ -1,3 +1,5 @@
+> The measurements below predate the Librarian migration and do not describe the current storage implementation. Rerun the harness before using them for capacity planning.
+
 # Standalone performance measurements
 
 This console harness starts the worker pool, maintenance, and live recorder against an isolated Redis server.

@@ -93,10 +93,10 @@ public sealed class DashboardBoardConnectionTests
         await connection.Configure(first, "", 0, 50, null, null, CancellationToken.None);
         var snapshot = new LiveBoard(first, [], 0, [], new ScheduleView([], []), 3, 1, 4)
         {
-            LiveActivity = [new(60000, 0, 0, 2, 0)]
+            LiveActivity = [new JobHistoryPoint(60000, 0, 0, 2, 0)]
         };
         await client.Snapshot(snapshot);
-        var activity = connection.LiveActivity;
+        DashboardLiveActivityState activity = connection.LiveActivity;
         activity.Advance(totals);
         await connection.ReleaseQuery(first);
         await client.Snapshot(snapshot with { Version = client.Transport.Version });
@@ -119,11 +119,11 @@ public sealed class DashboardBoardConnectionTests
         await connection.EnsureStarted();
         await client.Snapshot(new LiveBoard(0, [], 0, [], new ScheduleView([], []), 3, 1, 4)
         {
-            LiveActivity = [new(60000, 0, 0, 2, 0)]
+            LiveActivity = [new JobHistoryPoint(60000, 0, 0, 2, 0)]
         });
         // No page calls Advance, and unchanged server state sends no new snapshots.
         await Task.Delay(3200);
-        var state = connection.LiveActivity;
+        DashboardLiveActivityState state = connection.LiveActivity;
         var samples = (Dictionary<long, double?>)typeof(DashboardLiveActivityState)
             .GetField("_runningSamples", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .GetValue(state)!;

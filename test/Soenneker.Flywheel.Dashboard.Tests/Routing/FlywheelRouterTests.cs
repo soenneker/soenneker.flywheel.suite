@@ -181,8 +181,8 @@ public sealed class FlywheelRouterTests
     {
         var live = new BoardConnectionTestClient();
         var schedules = new ScheduleView([
-            new("daily one", "Daily report", 60000, 0),
-            new("weekly%2Ftwo", "Weekly cleanup", 3600000, 0)
+            new RecurringScheduleView("daily one", "Daily report", 60000, 0),
+            new RecurringScheduleView("weekly%2Ftwo", "Weekly cleanup", 3600000, 0)
         ], []);
         await VerifyRendering("/", "https://example.test/", "https://example.test/recurring/daily%20one", async (component, navigation, handler) =>
         {

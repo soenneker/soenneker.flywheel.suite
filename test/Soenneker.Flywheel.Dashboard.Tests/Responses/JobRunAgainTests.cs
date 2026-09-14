@@ -57,7 +57,7 @@ public sealed class JobRunAgainTests
 
     private static JobRecord CreateJob(string state) => new()
     {
-        Id = "original", Name = "Report.Run", Payload = "{\"account\":42}", Policy = new() { MaxAttempts = 3 },
+        Id = "original", Name = "Report.Run", Payload = "{\"account\":42}", Policy = new JobPolicy { MaxAttempts = 3 },
         Description = "Report", State = state switch
         {
             "Succeeded" => JobState.Succeeded, "DeadLettered" => JobState.DeadLettered,

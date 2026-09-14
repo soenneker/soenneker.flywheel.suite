@@ -1,6 +1,6 @@
+using Soenneker.Utils.File.Abstract;
+using Soenneker.Utils.File.Registrars;
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,10 +29,10 @@ using ConnectionMultiplexer connection = await ConnectionMultiplexer.ConnectAsyn
 IDatabase db = connection.GetDatabase();
 IServer server = connection.GetServer((await db.IdentifyEndpointAsync("performance"))!);
 string ns = "performance-host-" + Guid.NewGuid().ToString("N");
-string prefix = "flywheel:{" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ns))) + "}:v1:";
+string prefix = "librarian:{" + new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(string.Concat(ns.Select(c => ((int)c).ToString("X4", System.Globalization.CultureInfo.InvariantCulture)))).ToUpperInvariant() + "}:batches:";
 var store = new RedisJobStore(_ => Task.FromResult(db), ns);
 var options = new FlywheelOptions { Workers = workerCount };
-await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+await using ServiceProvider services = new ServiceCollection().AddLogging().AddFileUtilAsSingleton().BuildServiceProvider();
 var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [], options, NullLogger<JobExecutor>.Instance);
 using var worker = new WorkerService(executor, store, options, NullLogger<WorkerService>.Instance);
 using var maintenance = new MaintenanceService(new MaintenanceRunner(store, store, worker, options), options, NullLogger<MaintenanceService>.Instance);
@@ -62,7 +62,7 @@ try
     }, new JsonSerializerOptions { WriteIndented = true });
     Console.WriteLine(json);
     string? output = Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_OUTPUT");
-    if (!string.IsNullOrWhiteSpace(output)) await File.WriteAllTextAsync(output, json, stop.Token);
+    if (!string.IsNullOrWhiteSpace(output)) await services.GetRequiredService<IFileUtil>().Write(output, json, cancellationToken: stop.Token);
 }
 finally
 {

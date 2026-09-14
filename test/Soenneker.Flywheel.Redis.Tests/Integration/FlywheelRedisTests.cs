@@ -39,7 +39,7 @@ public sealed partial class FlywheelRedisTests
         Check((await observer.Get(id)) is not null, "Event was visible before the job was committed");
         JobLease lease = (await store.Claim("worker", TimeSpan.FromSeconds(30)))!;
         Check(await feed.MoveNextAsync() && feed.Current.JobId == id, "Claim event missing");
-        await store.AppendLogs(lease, [new("Information", "test", "pushed")]);
+        await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "pushed")]);
         Check(await feed.MoveNextAsync() && feed.Current.Kind == "Logs", "Log event missing");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check(await feed.MoveNextAsync() && feed.Current.JobId == id, "Completion event missing");
@@ -114,14 +114,11 @@ public sealed partial class FlywheelRedisTests
     {
         await store.Enqueue(Request());
         JobLease lease = (await store.Claim("logging", TimeSpan.FromSeconds(30)))!;
-        string tag =
-            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        RedisKey revisionKey = $"flywheel:{{{tag}}}:v1:revision";
-        RedisValue before = await db.StringGetAsync(revisionKey);
-        Check(await store.AppendLogs(lease, [new("Information", "test", "diagnostic")]), "Valid log append failed");
-        Check(await db.StringGetAsync(revisionKey) == before, "Diagnostic write changed dispatch revision");
+        string? before = await ControlValue(db, ns, "revision");
+        Check(await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "diagnostic")]), "Valid log append failed");
+        Check(await ControlValue(db, ns, "revision") == before, "Diagnostic write changed dispatch revision");
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");
-        Check(!await store.AppendLogs(lease, [new("Information", "test", "late")]), "Completed owner wrote logs");
+        Check(!await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "late")]), "Completed owner wrote logs");
     });
 
     [Test]
@@ -183,23 +180,16 @@ public sealed partial class FlywheelRedisTests
     });
 
     [Test]
-    public Task LostSemaphoreRejectsWritesWithoutDeletingSuccessor() => WithStore(async (store, db, ns) =>
+    public Task LostLeaseRejectsWritesWithoutDeletingSuccessor() => WithStore(async (store, db, ns) =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1 });
         await store.Enqueue(Request());
         JobLease lease = (await store.Claim("first", TimeSpan.FromSeconds(30)))!;
-        string tag =
-            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        RedisValue json = await db.HashGetAsync($"flywheel:{{{tag}}}:v1:job-permits", lease.Job.Id);
-        var permit =
-            Soenneker.Utils.Json.JsonUtil
-                  .Deserialize<Soenneker.Redis.Semaphores.RedisSemaphorePermit>((string)json!)!;
-        await db.StringSetAsync(permit.Key, "successor", TimeSpan.FromSeconds(30), false);
-        Check(await store.Renew(lease, TimeSpan.FromSeconds(30)) == LeaseStatus.Lost, "Lost semaphore renewed job");
-        Check(!await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero),
-            "Lost semaphore committed outcome");
-        Check(!await store.AppendLogs(lease, [new("Information", "test", "stale")]), "Lost semaphore appended logs");
-        Check(await db.StringGetAsync(permit.Key) == "successor", "Old owner removed successor permit");
+        await SeedJob(db, ns, lease.Job with { Token = "successor", Version = lease.Version + 1 });
+        Check(await store.Renew(lease, TimeSpan.FromSeconds(30)) == LeaseStatus.Lost, "Lost owner renewed job");
+        Check(!await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Lost owner committed outcome");
+        Check(!await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "stale")]), "Lost owner appended logs");
+        Check((await store.Get(lease.Job.Id))!.Token == "successor", "Old owner removed successor lease");
     });
 
     [Test]
@@ -382,21 +372,21 @@ public sealed partial class FlywheelRedisTests
             "Tail ordering incorrect");
         Check(entries.All(x => x.Attempt == 1 && x.Timestamp > 0), "Missing storage timestamp or attempt");
         JobLease forged = lease with { Token = "wrong" };
-        Check(!await store.AppendLogs(forged, [new("Error", "test", "forged")]), "Stale owner appended logs");
+        Check(!await store.AppendLogs(forged, [new JobLogMessage("Error", "test", "forged")]), "Stale owner appended logs");
         await store.Finish(lease, JobOutcome.Failed, "retry", TimeSpan.Zero);
         JobLease retry = (await store.Claim("retry", TimeSpan.FromSeconds(30)))!;
-        Check(!await store.AppendLogs(lease, [new("Error", "test", "late")]), "Completed owner appended logs");
-        Check(await store.AppendLogs(retry, [new("Information", "test", "second attempt")]), "Retry log rejected");
+        Check(!await store.AppendLogs(lease, [new JobLogMessage("Error", "test", "late")]), "Completed owner appended logs");
+        Check(await store.AppendLogs(retry, [new JobLogMessage("Information", "test", "second attempt")]), "Retry log rejected");
         IReadOnlyList<JobLogEntry> attempts = await store.GetLogs(id);
         Check(attempts.Any(x => x.Attempt == 1) && attempts[^1].Attempt == 2,
             "Retry erased history or attempt attribution");
         await store.Finish(retry, JobOutcome.Succeeded, null, TimeSpan.Zero);
-        Check(!await store.AppendLogs(retry, [new("Error", "test", "after completion")]), "Terminal job accepted logs");
+        Check(!await store.AppendLogs(retry, [new JobLogMessage("Error", "test", "after completion")]), "Terminal job accepted logs");
         Check((await store.GetLogs(id, 1)).Single().Message == "second attempt", "Logs lost after completion");
         await store.Enqueue(Request());
         JobLease expired = (await store.Claim("old", TimeSpan.FromMilliseconds(40)))!;
         await Task.Delay(80);
-        Check(!await store.AppendLogs(expired, [new("Information", "test", "expired")]), "Expired lease wrote logs");
+        Check(!await store.AppendLogs(expired, [new JobLogMessage("Information", "test", "expired")]), "Expired lease wrote logs");
     });
 
     [Test]
@@ -447,7 +437,7 @@ public sealed partial class FlywheelRedisTests
         }
 
         using var cancelled = new CancellationTokenSource();
-        cancelled.Cancel();
+        await cancelled.CancelAsync();
         try
         {
             await store.Search("invoices", cancellationToken: cancelled.Token);
@@ -507,12 +497,10 @@ public sealed partial class FlywheelRedisTests
         }
         finally
         {
-            string tag =
-                Convert.ToHexString(
-                    System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-            IServer server = connection.GetServer((await db.IdentifyEndpointAsync($"flywheel:{{{tag}}}:v1:jobs"))!);
-            await foreach (RedisKey key in server.KeysAsync(pattern: $"flywheel:{{{tag}}}:v1:*"))
-                await db.KeyDeleteAsync(key);
+            await store.DisposeAsync();
+            string prefix = LibrarianPrefix(ns);
+            IServer server = connection.GetServer((await db.IdentifyEndpointAsync(prefix + "clock"))!);
+            await foreach (RedisKey key in server.KeysAsync(pattern: prefix + "*")) await db.KeyDeleteAsync(key);
         }
     }
 
@@ -560,15 +548,7 @@ public sealed partial class FlywheelRedisTests
             "Retry delay was not persisted");
         Check(await store.Claim("a", TimeSpan.FromSeconds(10)) is null, "Retry executed early");
         // Advance this isolated job to eligibility without depending on CI completing calls within 150 ms.
-        string tag =
-            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ns)));
-        string prefix = $"flywheel:{{{tag}}}:v1:";
-        await db.HashSetAsync(prefix + "jobs", id, System.Text.Json.JsonSerializer.Serialize(retry with { DueAt = 0 }));
-        await db.SortedSetAddAsync(prefix + "due", id, 0);
-        byte[] dispatch = (byte[])(await db.HashGetAsync(prefix + "dispatch", id))!;
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(dispatch.AsSpan(9), 0);
-        await db.HashSetAsync(prefix + "dispatch", id, dispatch);
-        await db.StringIncrementAsync(prefix + "revision");
+        await SeedJob(db, ns, retry with { DueAt = 0 });
         JobLease second = (await store.Claim("a", TimeSpan.FromSeconds(10)))!;
         Check(second.Job.Id == id && second.Job.Attempt == 2, "Wrong job or attempt retried");
         await store.Finish(second, JobOutcome.Failed, "test", TimeSpan.Zero);

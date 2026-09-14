@@ -1,4 +1,5 @@
 using System.Reflection;
+using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Quark;
 using DashboardPage = Soenneker.Flywheel.Dashboard.Pages.Dashboard.Dashboard;
@@ -15,11 +16,11 @@ public sealed class DashboardSearchChartTests
         var hidden = (HashSet<string>)typeof(DashboardPage).GetField("_hiddenActivitySeries", flags)!.GetValue(page)!;
         hidden.Add("DeadLettered");
         hidden.Add("Scheduled");
-        var groupedHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
+        MethodInfo groupedHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
         if ((bool)groupedHidden.Invoke(page, ["Queued / scheduled"])!)
             throw new Exception("Queued activity must remain visible when only scheduled jobs are hidden");
         hidden.Add("Queued");
-        var isHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
+        MethodInfo isHidden = typeof(DashboardPage).GetMethod("IsActivitySeriesHidden", flags)!;
         if (!(bool)isHidden.Invoke(page, ["Failed"])! || !(bool)isHidden.Invoke(page, ["Queued / scheduled"])! ||
             (bool)isHidden.Invoke(page, ["Running"])!)
             throw new Exception("Legend names and table status filters disagree");
@@ -32,7 +33,7 @@ public sealed class DashboardSearchChartTests
         var totals = new ActivityTotalsState();
         totals.UpdateLive(true);
         totals.UpdateRunning(99);
-        var points = Enumerable.Range(0, 61).Select(i => new JobHistoryPoint(i * 1000, 0, 0, i % 2, 0)
+        List<JobHistoryPoint> points = Enumerable.Range(0, 61).Select(i => new JobHistoryPoint(i * 1000, 0, 0, i % 2, 0)
         {
             ScheduledCount = 8, RunningCount = i % 3, QueuedCount = 5
         }).ToList();
@@ -48,7 +49,7 @@ public sealed class DashboardSearchChartTests
     {
         var job = new Soenneker.Flywheel.Communication.Dtos.JobRecord
         {
-            Id = "job", Name = "job", Payload = "{}", Policy = new(),
+            Id = "job", Name = "job", Payload = "{}", Policy = new JobPolicy(),
             State = Soenneker.Flywheel.Communication.Enums.JobState.Scheduled, DueAt = 1000
         };
         if (job.DisplayState(999) != "Scheduled" || job.DisplayState(1000) != "Queued" || job.DisplayState(2000) != "Queued")
@@ -64,12 +65,12 @@ public sealed class DashboardSearchChartTests
         var totals = new ActivityTotalsState();
         totals.UpdateLive(true);
         totals.UpdateRunning(3);
-        var type = typeof(DashboardLiveActivityState);
+        Type type = typeof(DashboardLiveActivityState);
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         type.GetField("_latestLiveActivity", flags)!.SetValue(page, new List<JobHistoryPoint> { new(60000, 0, 1, 1, 0) });
         type.GetField("_liveClockAnchor", flags)!.SetValue(page, 60000L);
         type.GetField("_liveReceivedAt", flags)!.SetValue(page, System.Diagnostics.Stopwatch.GetTimestamp());
-        var apply = type.GetMethod("Advance")!;
+        MethodInfo apply = type.GetMethod("Advance")!;
         apply.Invoke(page, [totals]);
         var data = (RealtimeChartData)type.GetField("_liveActivity", flags)!.GetValue(page)!;
         if (data.Series[1].Name != "Running" || data.Series[1].Values[^1] != 3 || data.Series.Count != 5 || data.Series.Any(series => series.Name == "Started"))
@@ -84,7 +85,7 @@ public sealed class DashboardSearchChartTests
     [Test]
     public void LiveChartKeepsColorsAndAdvancesIdleTimeWithoutGapsOrRewinding()
     {
-        var type = typeof(DashboardLiveActivityState);
+        Type type = typeof(DashboardLiveActivityState);
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var options = (ChartOptions)typeof(DashboardPage).GetField("LiveActivityOptions", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         string[] colors = ["#8b5cf6", "#0ea5e9", "#10b981", "#f97316", "#6366f1"];
@@ -96,7 +97,7 @@ public sealed class DashboardSearchChartTests
         type.GetField("_latestLiveActivity", flags)!.SetValue(page, new List<JobHistoryPoint> { new(60000, 0, 1, 1, 0) });
         type.GetField("_liveClockAnchor", flags)!.SetValue(page, 60000L);
         type.GetField("_liveReceivedAt", flags)!.SetValue(page, System.Diagnostics.Stopwatch.GetTimestamp() - 2 * System.Diagnostics.Stopwatch.Frequency);
-        var apply = type.GetMethod("Advance")!;
+        MethodInfo apply = type.GetMethod("Advance")!;
         apply.Invoke(page, [totals]);
         var data = (RealtimeChartData)type.GetField("_liveActivity", flags)!.GetValue(page)!;
         double end = data.XValues[^1];
@@ -124,13 +125,13 @@ public sealed class DashboardSearchChartTests
         typeof(FlywheelHeader).GetProperty("ActivityTotals", flags)!.SetValue(header, totals);
         var navigation = new DashboardNavigationOptions();
         typeof(FlywheelHeader).GetProperty("DashboardNavigation", flags)!.SetValue(header, navigation);
-        var value = typeof(FlywheelHeader).GetMethod("HeaderValue", flags)!;
+        MethodInfo value = typeof(FlywheelHeader).GetMethod("HeaderValue", flags)!;
         if ((string)value.Invoke(header, [5])! != "1/8") throw new Exception("Header does not show busy / capacity");
         totals.UpdateRunning(0);
         if ((string)value.Invoke(header, [5])! != "0/8") throw new Exception("Idle workers are shown as busy");
-        var href = typeof(FlywheelHeader).GetMethod("HeaderHref", flags)!;
+        MethodInfo href = typeof(FlywheelHeader).GetMethod("HeaderHref", flags)!;
         if ((string)href.Invoke(header, [1])! != "flywheel?state=Running") throw new Exception("Running does not link home with its status selected");
-        foreach (var (index, state) in new[] { (6, "Queued"), (2, "Succeeded"), (3, "DeadLettered") })
+        foreach ((int index, string state) in new[] { (6, "Queued"), (2, "Succeeded"), (3, "DeadLettered") })
             if ((string)href.Invoke(header, [index])! != $"flywheel?state={state}")
                 throw new Exception($"{state} does not link to its dashboard filter");
         navigation.HomePath = "/jobs";
@@ -144,7 +145,7 @@ public sealed class DashboardSearchChartTests
     {
         var page = new DashboardPage();
         const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
-        var type = typeof(DashboardPage);
+        Type type = typeof(DashboardPage);
         bool Live() => (bool)type.GetProperty("UseLiveChart", flags)!.GetValue(page)!;
         if (!Live()) throw new Exception("Default chart should be live");
         type.GetField("_query", flags)!.SetValue(page, "report");

@@ -1,6 +1,7 @@
 @using Soenneker.Flywheel.Communication.Enums
 @namespace Soenneker.Flywheel.Dashboard
 @using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.Primitives
 @inject DashboardNavigationOptions DashboardNavigation
 @inject NavigationManager Navigation
 @inject INavigationInterception NavigationInterception
@@ -65,8 +66,8 @@ else
         var parameters = new Dictionary<string, object?>();
         if (_route.Page == DashboardPage.Dashboard)
         {
-            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
-            parameters[nameof(Pages.Dashboard.Dashboard.SelectedState)] = query.TryGetValue("state", out var state) ? state.ToString() : null;
+            Dictionary<string, StringValues> query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+            parameters[nameof(Pages.Dashboard.Dashboard.SelectedState)] = query.TryGetValue("state", out StringValues state) ? state.ToString() : null;
         }
         if (_route.Page == DashboardPage.Jobs)
         {

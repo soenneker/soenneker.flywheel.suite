@@ -8,23 +8,23 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
     {
         string path = baseRelativePath.Split('?', '#')[0].TrimEnd('/');
         if (path.Equals(homePath.Trim('/'), StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Dashboard);
+            return new DashboardRoute(DashboardPage.Dashboard);
         string prefix = homePath == "/" ? "" : homePath.Trim('/') + "/";
         if (path.Equals(prefix + "signin", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.SignIn);
+            return new DashboardRoute(DashboardPage.SignIn);
         if (TryReadId(path, prefix + "jobs/", out string? jobId))
-            return new(DashboardPage.Jobs, jobId);
+            return new DashboardRoute(DashboardPage.Jobs, jobId);
         if (path.Equals(prefix + "recurring", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Recurring);
+            return new DashboardRoute(DashboardPage.Recurring);
         if (path.Equals(prefix + "scheduled", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Scheduled);
+            return new DashboardRoute(DashboardPage.Scheduled);
         if (path.Equals(prefix + "servers", StringComparison.OrdinalIgnoreCase))
-            return new(DashboardPage.Servers);
+            return new DashboardRoute(DashboardPage.Servers);
         if (TryReadId(path, prefix + "servers/", out string? serverId))
-            return new(DashboardPage.ServerDetails, serverId);
+            return new DashboardRoute(DashboardPage.ServerDetails, serverId);
         if (TryReadId(path, prefix + "recurring/", out string? scheduleId))
-            return new(DashboardPage.Schedule, scheduleId);
-        return new(DashboardPage.NotFound);
+            return new DashboardRoute(DashboardPage.Schedule, scheduleId);
+        return new DashboardRoute(DashboardPage.NotFound);
     }
 
     private static bool TryReadId(string path, string prefix, out string? id)

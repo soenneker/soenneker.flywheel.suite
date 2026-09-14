@@ -10,30 +10,35 @@
 @inject DashboardNavigationOptions DashboardNavigation
 @inject NavigationManager Navigation
 
-@if (_error is not null)
-{
-    <Alert role="alert" >
-        <AlertDescription>@_error</AlertDescription>
-    </Alert>
-}
-<Section MaxWidth="MaxWidth.IsMd" Margin="Margin.Auto.OnX" Padding="Padding.Is12.OnY" >
-    <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4" >
-        <Div>
-            <H1 TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.Words" Display="Display.Flex" Justify="Justify.Center" >
-                <Anchor Href="@DashboardNavigation.Path()" Display="Display.InlineFlex" ItemsAlign="Items.Center" Gap="Gap.Is2" >
-                    <Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Circle" Size="Size.Is5" aria-hidden="true" />
-                    <Span>Flywheel</Span>
-                </Anchor>
-            </H1>
-            <form @onsubmit="Login" @onsubmit:preventDefault >
-                <Field Margin="Margin.Is4.OnY" >
-                    <FieldLabel For="flywheel-user" >Username</FieldLabel><TextInput Id="flywheel-user" autocomplete="username" @bind-Value="_username" Required="true" MaxLength="128" />
-                </Field>
-                <Field Margin="Margin.Is4.OnY" >
-                    <FieldLabel For="flywheel-password" >Password</FieldLabel><PasswordInput Id="flywheel-password" autocomplete="current-password" @bind-Value="_password" Required="true" MaxLength="1024" />
-                </Field>
-                <Button Width="Width.IsFull" Margin="Margin.FromTop.Is3" Type="ButtonType.Submit" Disabled="@_busy" Loading="@_busy" >@(_busy ? "Signing in…" : "Sign in →")</Button>
-            </form>
-        </Div>
-    </Div>
+<style>
+    .flywheel-signin { box-sizing: border-box; width: 100%; max-width: 28rem; margin-inline: auto; padding: clamp(2rem, 8vh, 4rem) 1.25rem 2rem; }
+    .flywheel-signin input { min-width: 0; min-height: 2.75rem; font-size: 1rem; }
+    .flywheel-signin button { min-height: 2.75rem; }
+    .flywheel-signin button[type="button"] { min-width: 2.75rem; }
+</style>
+<Section Class="flywheel-signin" aria-labelledby="flywheel-signin-title">
+    <H1 Id="flywheel-signin-title" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" Display="Display.Flex" Justify="Justify.Center" Margin="Margin.Is0" >
+        <Anchor Href="@DashboardNavigation.Path()" Display="Display.InlineFlex" ItemsAlign="Items.Center" Gap="Gap.Is2">
+            <Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Circle" Size="Size.Is5" aria-hidden="true" />
+            <Span>Flywheel</Span>
+        </Anchor>
+    </H1>
+    <Paragraph TextAlign="TextAlign.Center" TextColor="TextColor.MutedForeground" TextSize="TextSize.Sm" Margin="Margin.FromTop.Is2.FromBottom.Is6">Sign in to your dashboard</Paragraph>
+    <form @onsubmit="Login" @onsubmit:preventDefault aria-busy="@_busy">
+        @if (_error is not null)
+        {
+            <Alert role="alert" Margin="Margin.FromBottom.Is4">
+                <AlertDescription>@_error</AlertDescription>
+            </Alert>
+        }
+        <Field Margin="Margin.FromBottom.Is5">
+            <FieldLabel For="flywheel-user">Username</FieldLabel>
+            <TextInput Id="flywheel-user" Name="username" autocomplete="username" autocapitalize="none" spellcheck="false" @bind-Value="_username" Required="true" MaxLength="128" />
+        </Field>
+        <Field Margin="Margin.FromBottom.Is6">
+            <FieldLabel For="flywheel-password">Password</FieldLabel>
+            <PasswordInput Id="flywheel-password" Name="password" autocomplete="current-password" @bind-Value="_password" Required="true" MaxLength="1024" />
+        </Field>
+        <Button Width="Width.IsFull" Type="ButtonType.Submit" Disabled="@_busy" Loading="@_busy">@(_busy ? "Signing in…" : "Sign in")</Button>
+    </form>
 </Section>
