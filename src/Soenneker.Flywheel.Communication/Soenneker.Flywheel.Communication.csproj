@@ -23,6 +23,5 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2704" />
         <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.50" PrivateAssets="all" />
-        <InternalsVisibleTo Include="Soenneker.Flywheel.Core" />
     </ItemGroup>
 </Project>

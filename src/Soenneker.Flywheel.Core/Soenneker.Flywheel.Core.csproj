@@ -45,7 +45,7 @@
     </ItemGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.1" />
+        <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.2" />
         <PackageReference Include="Soenneker.Hashing.Sha256" Version="4.0.4" />
         <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.31" />
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.5" />
