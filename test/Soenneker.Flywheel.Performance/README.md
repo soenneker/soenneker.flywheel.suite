@@ -2,8 +2,7 @@
 
 This console harness starts the worker pool, maintenance, and live recorder against an isolated Redis server.
 It warms up for five seconds, then measures the whole process for 61 seconds without a test framework,
-web server, dashboard connection, job handlers, or recurring schedules. The default is 12 workers, matching
-the checked-in production worker count in Leadping's engine. It removes only its own random namespace and
+web server, dashboard connection, job handlers, or recurring schedules. The default is 12 workers. It removes only its own random namespace and
 stops all services before exiting. The caller owns the Redis server.
 
 | Measurement, 12 workers / 61 seconds | Baseline | Updated | Reduction |
@@ -44,7 +43,7 @@ dotnet artifacts/perf-before/bin/Soenneker.Flywheel.Performance/release/Soenneke
 ```
 
 The committed JSON files compare baseline commit `10ed02c` with the working changes on .NET 10 / Redis 6.0.16,
-on Windows with Redis in WSL2. These are local idle measurements, not end-to-end Leadping measurements or
+on Windows with Redis in WSL2. These are local idle measurements, not end-to-end application measurements or
 a claim about maximum job throughput. Payload-heavy dispatch, dashboard clients, Redis network latency,
 and distributed failover need separate workloads.
 
