@@ -56,6 +56,9 @@ public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILog
         RunRecurring(string id, CancellationToken cancellationToken = default) =>
         Write<StartedJob>($"jobs/schedules/{Uri.EscapeDataString(id)}/run", null, cancellationToken);
 
+    public ValueTask<OperationResult<StartedJob>> RunAgain(string id, CancellationToken cancellationToken = default) =>
+        Write<StartedJob>($"jobs/{Uri.EscapeDataString(id)}/run", null, cancellationToken);
+
     private async ValueTask<OperationResult<T>> Read<T>(string path, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await ApiClient.Get(navigation.EngineEndpoint(path), cancellationToken: cancellationToken);

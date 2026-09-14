@@ -159,23 +159,29 @@ public partial class Dashboard
     private string[] _activityLabels = [];
     private double[] _activityXValues = [];
     private ChartSeries[] _activitySeries = [];
-    private static readonly ChartOptions LiveActivityOptions = new()
+    [CascadingParameter(Name = "SidebarContextState")]
+    public Soenneker.Quark.Dtos.SidebarContextState? SidebarState { get; set; }
+
+    private static readonly ChartOptions LiveActivityOptions = CreateActivityOptions(live: true);
+    private static readonly ChartOptions SearchActivityOptions = CreateActivityOptions(search: true);
+    private static readonly ChartOptions HistoryActivityOptions = CreateActivityOptions();
+    private static readonly ChartOptions MobileLiveActivityOptions = CreateActivityOptions(mobile: true, live: true);
+    private static readonly ChartOptions MobileSearchActivityOptions = CreateActivityOptions(mobile: true, search: true);
+    private static readonly ChartOptions MobileHistoryActivityOptions = CreateActivityOptions(mobile: true);
+    private ChartOptions ActivityOptions => SidebarState?.IsMobile == true
+        ? UseLiveChart ? MobileLiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? MobileSearchActivityOptions : MobileHistoryActivityOptions
+        : UseLiveChart ? LiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions;
+
+    private static ChartOptions CreateActivityOptions(bool mobile = false, bool live = false, bool search = false) => new()
     {
-        Legend = ChartLegendPosition.None, Width = 1200, Height = 140, ShowYAxis = false, ShowGrid = false, PaddingLeft = 24,
-        ShowPoints = false, Animate = false, EnableRangeSelection = true, PauseOnRangeSelection = true,
-        EnableRealtimeScrolling = true, RealtimeScrollDuration = TimeSpan.FromSeconds(1),
-        Curve = ChartCurve.Monotone, Minimum = 0,
-        MaximumXAxisLabels = 7, LabelFormatter = label => label.Length > 8 ? label[..8] : label,
+        Legend = ChartLegendPosition.None, Width = mobile ? 360 : 1200, Height = mobile ? 220 : 140,
+        ShowYAxis = mobile, ShowGrid = mobile, PaddingLeft = mobile ? 40 : 24, ClipPlot = true,
+        ShowPoints = search, Animate = false, EnableRangeSelection = true, PauseOnRangeSelection = !search,
+        EnableRealtimeScrolling = live, RealtimeScrollDuration = TimeSpan.FromSeconds(1),
+        Curve = ChartCurve.Monotone, Minimum = 0, MaximumXAxisLabels = mobile ? 3 : live ? 7 : 12,
+        LabelFormatter = label => live && label.Length > 8 ? label[..8] : label,
         Palette = [JobStatusColors.Accent("Scheduled"), JobStatusColors.Accent("Running"),
             JobStatusColors.Accent("Succeeded"), JobStatusColors.Accent("DeadLettered"), JobStatusColors.Accent("Queued")]
-    };
-    private static readonly ChartOptions SearchActivityOptions = new() { Legend = ChartLegendPosition.None, Width = 1200, Height = 140, ShowYAxis = false, ShowGrid = false, ShowPoints = true, Animate = false, EnableRangeSelection = true, Curve = ChartCurve.Monotone, Minimum = 0 };
-    private static readonly ChartOptions HistoryActivityOptions = CreateActivityOptions();
-    private static ChartOptions CreateActivityOptions() => new()
-    {
-        Legend = ChartLegendPosition.None, Width = 1200, Height = 140, ShowYAxis = false, ShowGrid = false, PaddingLeft = 24,
-        ShowPoints = false, Animate = false, EnableRangeSelection = true,
-        PauseOnRangeSelection = true, Curve = ChartCurve.Monotone, Minimum = 0
     };
     private DateTimeOffset? _jobStartAt;
     private DateTimeOffset? _jobEndAt;

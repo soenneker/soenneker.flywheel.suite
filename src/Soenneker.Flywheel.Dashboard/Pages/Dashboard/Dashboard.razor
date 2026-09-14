@@ -14,6 +14,10 @@
     .flywheel-activity-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px; color: var(--muted-foreground); font: inherit; font-size: 14px; cursor: pointer; }
     .flywheel-activity-legend button[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
     .flywheel-activity-legend button span { width: 10px; height: 10px; border-radius: 50%; }
+    @@media (max-width: 767px) {
+        .flywheel-activity-chart .quark-chart-stage { height: 220px; }
+        .flywheel-activity-legend { gap: 8px; margin-top: 8px; }
+    }
 </style>
 <PageTitle>Job operations · Flywheel</PageTitle>
 @inject IFlywheelDashboardConsumer Consumer
@@ -53,7 +57,7 @@
                             {
                                 <Spinner Size="Size.Is5" Position="Position.Absolute" Style="top: 0.5rem; right: 0.5rem; z-index: 1;" aria-label="Loading activity" />
                             }
-                            <Chart @ref="_activityChart" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@(UseLiveChart ? LiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions)"
+                            <Chart @ref="_activityChart" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
                                    OnRangeSelect="SelectActivityRange"
                                    AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second UTC buckets. Drag a range to filter executions." : (_query.Length > 0 ? "Matching executions by current status and last update time. Static search results." : "Job activity in five-minute UTC buckets. Drag a range to filter executions."))" />
                             <div class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">
@@ -77,12 +81,7 @@
                 <DataTable @ref="_jobsTable" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
                     <TopContent>
                         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Justify="Justify.Between" Margin="Margin.FromBottom.Is4">
-                                    <DataTableSearch Placeholder="Search" AriaLabel="Search jobs" />
-                            @if (!string.IsNullOrWhiteSpace(_query))
-                            {
-                                <Span aria-live="polite">@_totalCount matching jobs</Span>
-                            }
-                            <SidebarTrigger Display="Display.Flex.OnMd.None" aria-label="Open navigation menu"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Menu" Size="Size.Is5" /></SidebarTrigger>
+                            <DataTableSearch Placeholder="Search" AriaLabel="Search jobs" />
                         </Div>
                     </TopContent>
                     <TableContent>

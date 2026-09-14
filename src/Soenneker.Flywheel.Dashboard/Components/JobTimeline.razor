@@ -2,10 +2,18 @@
 @using Soenneker.Quark
 @using Soenneker.Flywheel.Communication.Responses
 
+<style>
+    @@media (max-width: 767px) {
+        .flywheel-job-timeline { flex-direction: column !important; gap: 0 !important; }
+        .flywheel-job-timeline > * { flex: none !important; width: 100% !important; margin-top: 0 !important; padding: 0 0 1.25rem 1.5rem !important; }
+        .flywheel-job-timeline [data-slot="timeline-indicator"] { top: .375rem !important; }
+        .flywheel-job-timeline [data-slot="timeline-separator"] { top: 1.125rem !important; left: 3px !important; width: 2px !important; height: calc(100% - 1rem) !important; }
+    }
+</style>
 <Div TextSize="TextSize.Sm" Style="max-width: 40rem; min-width: 0;">
     <H3 TextSize="TextSize.Xs" FontWeight="FontWeight.Semibold" TextColor="TextColor.MutedForeground" Margin="Margin.Is0">Activity</H3>
     <Div Style="overflow-x: auto; padding-top: .5rem;" tabindex="0" role="region" aria-label="Job timeline">
-        <Timeline Orientation="horizontal" Value="@CompletedSteps" AriaLabel="Job timeline" Style="width: 100%;">
+        <Timeline Class="flywheel-job-timeline" Orientation="horizontal" Value="@CompletedSteps" AriaLabel="Job timeline" Style="width: 100%;">
             @foreach (var (title, timestamp, pending, step) in Milestones)
             {
                 <TimelineItem Step="@step" Style="@ItemStyle">
@@ -50,7 +58,7 @@
         }
     }
 
-    private const string ItemStyle = "flex: 1 0 9rem; width: auto; margin-top: 1.25rem; padding-right: 1rem; gap: .25rem;";
+    private const string ItemStyle = "flex: 1 1 0; min-width: 0; width: auto; margin-top: 1.25rem; padding-right: 1rem; gap: .25rem;";
     private const string IndicatorStyle = "top: -1rem; left: 0; width: .5rem; height: .5rem; transform: none; translate: none; border: 0; background: var(--primary);";
     private const string PendingIndicatorStyle = IndicatorStyle + "border: 1px solid var(--muted-foreground); background: transparent;";
     private const string SeparatorStyle = "top: calc(-1rem + 3px); left: .875rem; width: calc(100% - 1.25rem); height: 2px; transform: none; translate: none; background: var(--border);";

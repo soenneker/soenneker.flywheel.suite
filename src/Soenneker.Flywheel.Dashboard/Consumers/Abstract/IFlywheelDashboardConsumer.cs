@@ -30,6 +30,8 @@ public interface IFlywheelDashboardConsumer
     ValueTask<OperationResult<object>> Logout(CancellationToken cancellationToken = default);
     /// <summary>Requests cancellation of an execution.</summary>
     ValueTask<OperationResult<object>> CancelJob(string id, CancellationToken cancellationToken = default);
+    /// <summary>Queues a fresh standalone execution using a finished job's payload and policy.</summary>
+    ValueTask<OperationResult<StartedJob>> RunAgain(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     /// <summary>Starts an execution from a recurring schedule.</summary>
     ValueTask<OperationResult<StartedJob>> RunRecurring(string id, CancellationToken cancellationToken = default);
 }

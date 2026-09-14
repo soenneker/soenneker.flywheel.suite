@@ -12,6 +12,31 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 public sealed partial class RuntimeTests
 {
     [Test]
+    public async Task WorkerShutdownIsNotReportedAsJobTimeout()
+    {
+        var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
+        await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [new WaitingInvoker()],
+            new FlywheelOptions(), NullLogger<JobExecutor>.Instance);
+        using var stopping = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+        await executor.RunOnce(stopping.Token);
+        if (store.Error != "Execution interrupted by worker shutdown")
+            throw new Exception("Worker shutdown was misreported as a job timeout");
+    }
+
+    [Test]
+    public async Task DependencyCancellationIsNotReportedAsJobTimeout()
+    {
+        var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
+        await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [new CancelledDependencyInvoker()],
+            new FlywheelOptions(), NullLogger<JobExecutor>.Instance);
+        await executor.RunOnce(CancellationToken.None);
+        if (store.Error != "A handler or dependency cancelled an operation before the job timeout")
+            throw new Exception("A dependency cancellation was misreported as an execution timeout");
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public async Task LeaseLossCancelsHandlerAndPreventsCommit(bool stalledRenewal)
@@ -38,6 +63,9 @@ public sealed partial class RuntimeTests
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await executor.RunOnce(deadline.Token);
             JobOutcome expected = status == Communication.Enums.LeaseStatus.Renewed ? Communication.Enums.JobOutcome.Failed : Communication.Enums.JobOutcome.Cancelled;
+            string expectedError = status == Communication.Enums.LeaseStatus.Renewed
+                ? "Execution exceeded its configured timeout" : "Cancellation requested";
+            if (store.Error?.StartsWith(expectedError, StringComparison.Ordinal) != true) throw new Exception("Cancellation reason was misreported");
             if (store.Commits != 1 || store.Outcome != expected) throw new Exception("Incorrect cancellation outcome");
         }
     }

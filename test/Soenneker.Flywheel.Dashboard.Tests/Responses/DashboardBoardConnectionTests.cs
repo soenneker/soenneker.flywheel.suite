@@ -5,6 +5,26 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardBoardConnectionTests
 {
     [Test]
+    public void HeaderConnectionIncludesActiveJobAndLogSubscriptions()
+    {
+        var totals = new ActivityTotalsState();
+        totals.UpdateLive(true);
+        Check(totals.Connected, "The shell should be connected without detail subscriptions.");
+        totals.UpdateConnection("job", true);
+        totals.UpdateConnection("logs", false);
+        Check(!totals.Connected, "A disconnected log subscription was hidden.");
+        totals.UpdateLive(true);
+        Check(!totals.Connected, "A board update hid the log disconnection.");
+        totals.UpdateConnection("logs", true);
+        Check(totals.Connected, "Recovery did not restore the header status.");
+        totals.UpdateConnection("job", false);
+        totals.RemoveConnection("job");
+        Check(totals.Connected, "Leaving job details left a stale disconnection.");
+        totals.UpdateLive(false);
+        Check(!totals.Connected, "A shell disconnection was hidden by connected logs.");
+    }
+
+    [Test]
     public async Task NavigationReusesTransportWithoutResettingStatusOrCancellingItsLifetime()
     {
         var client = new BoardConnectionTestClient();

@@ -8,7 +8,7 @@ using Soenneker.Flywheel.Core.Stores.Abstract;
 
 namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
 
-/// <summary>Reads dashboard job snapshots and requests job cancellation.</summary>
+/// <summary>Reads dashboard job snapshots and manages manual execution actions.</summary>
 [ApiController]
 [Route("[flywheel]/jobs")]
 [Authorize(Policy = "FlywheelDashboard")]
@@ -103,6 +103,23 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
         JobRecord? job = await store.Get(id, cancellationToken);
         return job is null ? NotFound() : Ok(snapshots.Job(job));
+    }
+
+    /// <summary>Queues a fresh standalone execution from a finished job without changing the original execution or schedule.</summary>
+    [HttpPost("{id}/run")]
+    public async Task<IActionResult> RunAgain(string id, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
+        JobRecord? job = await store.Get(id, cancellationToken);
+        if (job is null) return NotFound();
+        if (job.State != Communication.Enums.JobState.Succeeded && job.State != Communication.Enums.JobState.DeadLettered &&
+            job.State != Communication.Enums.JobState.Cancelled) return Conflict();
+        // Ordinary enqueue cannot preserve an exact-build restriction, and versioned enqueue
+        // returns the original job. Never silently run version-bound work on another build.
+        if (job.ApplicationVersion is not null) return StatusCode(501);
+        string jobId = await store.Enqueue(new Communication.Requests.EnqueueRequest(job.Name, job.Payload, job.Policy,
+            TimeSpan.Zero, Description: job.Description), cancellationToken);
+        return Ok(new StartedJob(jobId));
     }
 
     /// <summary>Requests cancellation of pending or running work.</summary>

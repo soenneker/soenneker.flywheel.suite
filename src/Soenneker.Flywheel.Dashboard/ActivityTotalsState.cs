@@ -11,6 +11,18 @@ internal sealed class ActivityTotalsState
     public long? RunningCount { get; private set; }
     public int? ServerCount { get; private set; }
     public int? TotalWorkers { get; private set; }
+    private readonly Dictionary<string, bool> _connections = [];
+    public bool Connected => Live && _connections.Values.All(connected => connected);
+    public void UpdateConnection(string id, bool connected)
+    {
+        if (_connections.TryGetValue(id, out bool previous) && previous == connected) return;
+        _connections[id] = connected;
+        Changed?.Invoke();
+    }
+    public void RemoveConnection(string id)
+    {
+        if (_connections.Remove(id)) Changed?.Invoke();
+    }
     public bool Live { get; private set; }
     public void UpdateScheduled(long? count) { ScheduledCount = count; Changed?.Invoke(); }
     public void UpdateRunning(long? count) { RunningCount = count; Changed?.Invoke(); }

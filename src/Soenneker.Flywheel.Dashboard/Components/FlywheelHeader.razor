@@ -10,6 +10,7 @@
 
 <Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4" Style="width: 100%; max-width: none; margin: 0; padding-bottom: 0;">
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.Is0" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+        <SidebarTrigger Display="Display.Flex.OnMd.None" Size="Size.Is10" PointerEvents="PointerEvents.Auto.OnDisabled.None" Opacity="Opacity.Is100.OnDisabled.Is50" aria-label="Open navigation menu" />
         <Div Display="Display.None.OnMd.Flex" Width="Width.IsFull.OnMd.Auto" Flex="Flex.None.OnMd.Is1" FlexDirection="FlexDirection.Row" ItemsAlign="Items.Center" Gap="Gap.Is4" Justify="Justify.Between">
             <Div Display="Display.Flex" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
                 @foreach (int index in HeaderOrder)
@@ -28,14 +29,14 @@
                 }
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
-                <Div role="status" title="@(ActivityTotals.Live ? "Real-time connection established" : "Real-time connection unavailable; reload if it does not reconnect")" Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
-                    <Span aria-hidden="true" Display="Display.InlineBlock" Size="Size.Is2" Rounded="Rounded.Full" BackgroundColor="@(ActivityTotals.Live ? BackgroundColor.Token("green-600") : BackgroundColor.Token("amber-600"))"></Span>
-                    <Span>@(ActivityTotals.Live ? "Connected" : "Disconnected")</Span>
-                </Div>
                 <Button OnClick="Logout" Variant="ButtonVariant.Secondary">Sign out</Button>
             </Div>
         </Div>
-        <Div Margin="Margin.FromLeft.Auto"><FlywheelThemeToggle /></Div>
+        <Div Margin="Margin.FromLeft.Auto" role="status" title="@(ActivityTotals.Connected ? "Real-time connection established" : "Real-time connection unavailable")" Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
+            <Span aria-hidden="true" Display="Display.InlineBlock" Size="Size.Is2" Rounded="Rounded.Full" BackgroundColor="@(ActivityTotals.Connected ? BackgroundColor.Token("green-600") : BackgroundColor.Token("amber-600"))"></Span>
+            <Span>@(ActivityTotals.Connected ? "Connected" : "Disconnected")</Span>
+        </Div>
+        <Div><FlywheelThemeToggle /></Div>
     </Div>
 </Div>
 

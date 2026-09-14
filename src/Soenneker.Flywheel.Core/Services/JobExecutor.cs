@@ -33,8 +33,8 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
 
     private async Task ExecuteLease(JobLease lease, CancellationToken cancellationToken)
     {
-        using var execution = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        execution.CancelAfter(lease.Job.Policy.Timeout);
+        using var timeout = new CancellationTokenSource(lease.Job.Policy.Timeout);
+        using var execution = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         using var renewal = new CancellationTokenSource();
         var lost = 0;
         var cancelled = 0;
@@ -42,6 +42,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         JobOutcome outcome = Communication.Enums.JobOutcome.Succeeded;
         string? error = null;
         JobLogCapture.Session? logSession = logCapture is not null && logStore is not null ? logCapture.Begin(lease, logStore) : null;
+        logSession?.Write("Information", "Flywheel", $"Starting attempt {lease.Job.Attempt} on {options.NodeId}; timeout {lease.Job.Policy.Timeout}." );
         if (lease.Job.Attempt > 1)
             logSession?.Write("Information", "Flywheel", $"Retrying with attempt {lease.Job.Attempt} on {options.NodeId}.");
         try
@@ -57,7 +58,15 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         {
             outcome = Communication.Enums.JobOutcome.Failed;
             // Do not persist exception messages/stacks, which may contain credentials or payload data.
-            error = ex is OperationCanceledException ? "Execution interrupted or timed out" : ex.GetType().Name;
+            error = ex is not OperationCanceledException ? ex.GetType().Name
+                : Volatile.Read(ref cancelled) != 0 ? "Cancellation requested"
+                : Volatile.Read(ref lost) != 0 ? "Execution stopped because its lease was lost"
+                : cancellationToken.IsCancellationRequested ? "Execution interrupted by worker shutdown"
+                : timeout.IsCancellationRequested ? $"Execution exceeded its configured timeout ({lease.Job.Policy.Timeout})"
+                : "A handler or dependency cancelled an operation before the job timeout";
+            // Preserve diagnostic types and call sites without persisting exception messages or payload data.
+            for (Exception? cause = ex; cause is not null; cause = cause.InnerException)
+                logSession?.Write("Warning", "Flywheel", $"{cause.GetType().FullName}\n{cause.StackTrace}");
             logger.LogWarning(ex, "Job {JobId} attempt {Attempt} failed: {Error}", lease.Job.Id, lease.Job.Attempt, error);
         }
         finally

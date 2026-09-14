@@ -37,6 +37,9 @@ public partial class Job
     [Parameter]
     public string? BackHref { get; set; }
 
+    [Inject]
+    private ActivityTotalsState ConnectionState { get; set; } = null!;
+
     private readonly SemaphoreSlim _readGate = new(1);
     private readonly string _signalId = $"flywheel-job-{Guid.NewGuid():N}";
     private JobView? _job;
@@ -101,29 +104,54 @@ public partial class Job
 
     private async Task Connect()
     {
+        ConnectionState.UpdateConnection(_signalId, false);
         try
         {
             _connection = await Live.Job(_signalId, snapshot => InvokeAsync(() =>
             {
                 if (IsDisposed || IsCancellationRequested || snapshot.Version != _version || snapshot.JobId != JobId) return;
+                ConnectionState.UpdateConnection(_signalId, true);
                 _job = snapshot.Job; _missing = _job is null; _loading = false; _login = false; _error = null;
                 StateHasChanged();
             }), () => InvokeAsync(SubscribeLive),
-                () => InvokeAsync(() => { _error = "Live updates disconnected. Reconnecting…"; StateHasChanged(); }), CancellationToken);
+                () => InvokeAsync(() => { ConnectionState.UpdateConnection(_signalId, false); StateHasChanged(); }), CancellationToken);
             await _connection.Start(CancellationToken);
             if (!IsDisposed && !IsCancellationRequested && !_connection.IsConnected)
             {
                 _loading = false;
-                _error = "Live updates are unavailable. Reload the page to reconnect.";
+                ConnectionState.UpdateConnection(_signalId, false);
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
         catch (Exception)
         {
-            _error = "Live updates are unavailable. Reload the page to reconnect.";
+            ConnectionState.UpdateConnection(_signalId, false);
             if (!IsDisposed && !IsCancellationRequested) await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private bool _runningAgain;
+
+    private async Task RunAgain()
+    {
+        if (_runningAgain || _job?.State is not ("Succeeded" or "DeadLettered" or "Cancelled")) return;
+        _runningAgain = true;
+        _error = null;
+        try
+        {
+            OperationResult<StartedJob> response = await Consumer.RunAgain(JobId, CancellationToken);
+            if (response.StatusCode == 401) { Session.SetAuthenticated(false); return; }
+            if (response.StatusCode == 404) { _error = "This execution no longer exists."; return; }
+            if (response.StatusCode == 409) { _error = "This job must finish before it can run again."; return; }
+            if (response.StatusCode == 501) { _error = "Jobs restricted to a specific application version cannot be run again here."; return; }
+            response.EnsureSucceeded();
+            if (response.Value is not { Id.Length: > 0 } job) throw new InvalidOperationException("Missing execution ID.");
+            Navigation.NavigateTo(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"));
+        }
+        catch (OperationCanceledException) when (IsCancellationRequested) { }
+        catch (Exception) { _error = "The run could not be confirmed. Check recent job activity before trying again."; }
+        finally { _runningAgain = false; }
     }
 
     private async Task Cancel()
@@ -153,6 +181,7 @@ public partial class Job
         await base.DisposeAsync();
         if (_connecting is not null) await _connecting;
         if (_connection is not null) await _connection.DisposeAsync();
+        ConnectionState.RemoveConnection(_signalId);
         await _readGate.WaitAsync();
         _readGate.Release();
     }

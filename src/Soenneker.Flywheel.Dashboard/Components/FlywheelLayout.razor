@@ -21,7 +21,7 @@ else if (_error is not null)
 }
 else if (Session.IsAuthenticated)
 {
-    <SidebarProvider SidebarWidth="14rem" CloseMobileOnNavigation="true" >
+    <SidebarProvider SidebarWidth="14rem" CloseMobileOnNavigation="true" Style="width: 100%; min-width: 0; overflow-x: clip;" >
         <Sidebar Collapsible="SidebarCollapsible.Icon" >
             <SidebarHeader>
                 <SidebarMenu>
@@ -55,7 +55,7 @@ else if (Session.IsAuthenticated)
                 </SidebarGroup>
             </SidebarContent>
             <SidebarFooter>
-                <SidebarTrigger aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar" />
+                <SidebarTrigger PointerEvents="PointerEvents.Auto.OnDisabled.None" Opacity="Opacity.Is100.OnDisabled.Is50" aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar" />
             </SidebarFooter>
         </Sidebar>
         <SidebarInset MinWidth="MinWidth.Is0" Style="flex: 1; min-width: 0; margin: 0;" >

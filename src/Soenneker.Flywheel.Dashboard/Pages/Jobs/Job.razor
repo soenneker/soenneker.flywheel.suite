@@ -19,23 +19,37 @@ else
 {
     <Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull" MinWidth="MinWidth.Is0" Style="@(Embedded ? "width: 100%; max-width: none; margin: 0; padding: 0;" : "width: 100%; padding-top: 1rem;")">
         <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is4" Margin="Margin.FromBottom.Is4">
-            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap">
+            <Div Display="Display.Flex" MinWidth="MinWidth.Is0" Style="max-width: 100%;" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap">
                 @if (!Embedded)
                 {
                     <Button Href="@(BackHref ?? DashboardNavigation.Path())" Variant="ButtonVariant.Secondary" aria-label="Back to previous page" title="Back">←</Button>
                 }
-                <H2 Margin="Margin.Is0" style="border: 0; padding: 0;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
+                <H2 Margin="Margin.Is0" style="border: 0; padding: 0; min-width: 0; overflow-wrap: anywhere;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
                 @if (_job is not null)
                 {
                     <JobStatusBadge State="@_job.State" CancelRequested="@_job.CancelRequested" />
                 }
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
-                @if (_job?.State is "Queued" or "Scheduled" or "Running" or "Waiting")
+                @if (_job is not null)
                 {
-                    <Button OnClick="Cancel" Disabled="@(_cancelling || _job.CancelRequested)" Variant="ButtonVariant.Destructive">
-                        @(_job.CancelRequested ? "Cancellation requested" : "Cancel job")
-                    </Button>
+                    <Dropdown>
+                        <DropdownToggle AsChild="true">
+                            <Button Variant="ButtonVariant.Ghost" Size="Size.Is10" Disabled="@(_runningAgain || _cancelling)" aria-label="Job actions" title="Job actions">
+                                <Span aria-hidden="true">⋯</Span>
+                            </Button>
+                        </DropdownToggle>
+                        <DropdownMenu RightAligned="true">
+                            @if (_job.State is "Succeeded" or "DeadLettered" or "Cancelled")
+                            {
+                                <DropdownItem Clicked="RunAgain" Disabled="@_runningAgain">Run again</DropdownItem>
+                            }
+                            @if (_job.State is "Queued" or "Scheduled" or "Running" or "Waiting")
+                            {
+                                <DropdownItem Clicked="Cancel" Disabled="@(_cancelling || _job.CancelRequested)" Variant="destructive">@(_job.CancelRequested ? "Cancellation requested" : "Cancel job")</DropdownItem>
+                            }
+                        </DropdownMenu>
+                    </Dropdown>
                 }
                 @if (Embedded)
                 {

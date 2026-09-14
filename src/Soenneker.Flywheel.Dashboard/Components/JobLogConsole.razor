@@ -3,9 +3,10 @@
 @using Soenneker.Flywheel.Communication.Responses
 @inherits LeptonCancellable
 @inject NavigationManager Navigation
+@inject ActivityTotalsState ConnectionState
 @inject IFlywheelLiveClient Live
 
-<Section aria-label="Job execution logs"  Margin="Margin.FromTop.Is3">
+<Section aria-label="Job execution logs" MinWidth="MinWidth.Is0" Style="max-width: 100%;" Margin="Margin.FromTop.Is3">
     <Field Padding="Padding.Is3.OnY" Style="width: 24rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" Placeholder="Search" aria-label="Search logs" /></Field>
     @if (_error is not null)
     {
@@ -16,7 +17,7 @@
         {
             <Spinner Size="Size.Is5" aria-label="Loading logs…" />
         }
-        else if (!_loading && _entries.Count == 0 && _error is null)
+        else if (!_loading && _entries.Count == 0 && _error is null && _receivedSnapshot)
         {
             <Paragraph Margin="Margin.Is0">No logs recorded for this execution.</Paragraph>
         }
@@ -44,6 +45,7 @@
     private string? _jobId;
     private int _version;
     private bool _loading;
+    private bool _receivedSnapshot;
     private string? _error;
     private string _filter = "";
     private IEnumerable<LogEntry> FilteredEntries => _entries.Where(entry =>
@@ -61,6 +63,8 @@
         _jobId = JobId;
         _version++;
         _entries = [];
+        _receivedSnapshot = false;
+        _error = null;
         _filter = "";
         _loading = true;
         if (_connection?.IsConnected == true) await SubscribeLive();
@@ -72,29 +76,32 @@
 
     private async Task Connect()
     {
+        ConnectionState.UpdateConnection(_signalId, false);
         try
         {
             _connection = await Live.Logs(_signalId, snapshot => InvokeAsync(() =>
             {
                 if (IsDisposed || IsCancellationRequested || snapshot.Version != _version || snapshot.JobId != JobId) return;
+                ConnectionState.UpdateConnection(_signalId, true);
+                _receivedSnapshot = true;
                 _entries = snapshot.Entries ?? [];
                 _error = snapshot.Entries is null ? "Logs are unavailable from this job store." : null;
                 _loading = false;
                 StateHasChanged();
             }), () => InvokeAsync(SubscribeLive),
-                () => InvokeAsync(() => { _error = "Live logs disconnected. Reconnecting…"; StateHasChanged(); }), CancellationToken);
+                () => InvokeAsync(() => { ConnectionState.UpdateConnection(_signalId, false); _loading = false; StateHasChanged(); }), CancellationToken);
             await _connection.Start(CancellationToken);
             if (!IsDisposed && !IsCancellationRequested && !_connection.IsConnected)
             {
                 _loading = false;
-                _error = "Live updates are unavailable. Reload the page to reconnect.";
+                ConnectionState.UpdateConnection(_signalId, false);
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
         catch (Exception)
         {
-            _error = "Live logs are unavailable. Reload the page to reconnect.";
+            ConnectionState.UpdateConnection(_signalId, false);
             _loading = false;
             if (!IsDisposed && !IsCancellationRequested) await InvokeAsync(StateHasChanged);
         }
@@ -105,5 +112,6 @@
         await base.DisposeAsync();
         if (_connecting is not null) await _connecting;
         if (_connection is not null) await _connection.DisposeAsync();
+        ConnectionState.RemoveConnection(_signalId);
     }
 }
