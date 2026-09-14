@@ -1,42 +1,32 @@
 @namespace Soenneker.Flywheel.Dashboard
-@using Soenneker.Dtos.Results.Operation
 @using Soenneker.Quark
 @inherits LeptonCancellable
 @inject ActivityTotalsState ActivityTotals
-@inject DashboardSessionState Session
 @inject DashboardNavigationOptions DashboardNavigation
-@inject IFlywheelDashboardConsumer Consumer
-@inject NavigationManager Navigation
 
 <Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4" Style="width: 100%; max-width: none; margin: 0; padding-bottom: 0;">
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.Is0" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
         <SidebarTrigger Display="Display.Flex.OnMd.None" Size="Size.Is10" PointerEvents="PointerEvents.Auto.OnDisabled.None" Opacity="Opacity.Is100.OnDisabled.Is50" aria-label="Open navigation menu" />
-        <Div Display="Display.None.OnMd.Flex" Width="Width.IsFull.OnMd.Auto" Flex="Flex.None.OnMd.Is1" FlexDirection="FlexDirection.Row" ItemsAlign="Items.Center" Gap="Gap.Is4" Justify="Justify.Between">
-            <Div Display="Display.Flex" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
-                @foreach (int index in HeaderOrder)
-                {
-                    <Div>
-                        <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@HeaderTitle(index)">@HeaderLabels[index]</Span>
-                        @if (HeaderHref(index) is { } href)
-                        {
-                            <Anchor Href="@href" Display="Display.Block" aria-label="@($"View {HeaderLabels[index].ToLowerInvariant()}")"><Strong>@HeaderValue(index)</Strong></Anchor>
-                        }
-                        else
-                        {
-                            <Strong Display="Display.Block">@HeaderValue(index)</Strong>
-                        }
-                    </Div>
-                }
-            </Div>
-            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
-                <Button OnClick="Logout" Variant="ButtonVariant.Secondary">Sign out</Button>
-            </Div>
+        <Div Display="Display.Flex" MinWidth="MinWidth.Is0" Flex="Flex.Is1" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
+            @foreach (int index in HeaderOrder)
+            {
+                <Div Display="@(index is 6 or 1 or 3 ? Display.Block : Display.None.OnMd.Block)">
+                    <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@HeaderTitle(index)">@HeaderLabels[index]</Span>
+                    @if (HeaderHref(index) is { } href)
+                    {
+                        <Anchor Href="@href" Display="Display.Block" aria-label="@($"View {HeaderLabels[index].ToLowerInvariant()}")"><Strong>@HeaderValue(index)</Strong></Anchor>
+                    }
+                    else
+                    {
+                        <Strong Display="Display.Block">@HeaderValue(index)</Strong>
+                    }
+                </Div>
+            }
         </Div>
         <Div Margin="Margin.FromLeft.Auto" role="status" title="@(ActivityTotals.Connected ? "Real-time connection established" : "Real-time connection unavailable")" Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
             <Span aria-hidden="true" Display="Display.InlineBlock" Size="Size.Is2" Rounded="Rounded.Full" BackgroundColor="@(ActivityTotals.Connected ? BackgroundColor.Token("green-600") : BackgroundColor.Token("amber-600"))"></Span>
             <Span>@(ActivityTotals.Connected ? "Connected" : "Disconnected")</Span>
         </Div>
-        <Div><FlywheelThemeToggle /></Div>
     </Div>
 </Div>
 
@@ -81,21 +71,6 @@
         5 => "Busy workers / total worker capacity across live servers; idle workers await work",
         _ => null
     };
-
-    private async Task Logout()
-    {
-        try
-        {
-            OperationResult<object> response = await Consumer.Logout(CancellationToken);
-            response.EnsureSucceeded();
-            Session.SetAuthenticated(false);
-            Navigation.NavigateTo(DashboardNavigation.Path("signin"), replace: true);
-        }
-        catch
-        {
-            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
-        }
-    }
 
     public override async ValueTask DisposeAsync()
     {

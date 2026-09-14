@@ -14,7 +14,6 @@ disabled:opacity-50
 disabled:pointer-events-none
 flex
 flex-none
-flex-row
 flex-wrap
 font-medium
 font-mono
@@ -39,7 +38,7 @@ mb-3
 mb-4
 mb-5
 mb-6
-md:flex
+md:block
 md:flex-1
 md:grid-cols-3
 md:grid-cols-4

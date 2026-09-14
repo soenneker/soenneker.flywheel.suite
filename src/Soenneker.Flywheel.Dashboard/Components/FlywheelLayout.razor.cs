@@ -59,6 +59,21 @@ public partial class FlywheelLayout
         StateHasChanged();
     });
 
+    private async Task Logout()
+    {
+        try
+        {
+            OperationResult<object> response = await Consumer.Logout(_stop.Token);
+            response.EnsureSucceeded();
+            Session.SetAuthenticated(false);
+            Navigation.NavigateTo(DashboardNavigation.Path("signin"), replace: true);
+        }
+        catch
+        {
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
