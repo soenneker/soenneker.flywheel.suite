@@ -6,92 +6,50 @@
 
 # Soenneker.Flywheel.Suite
 
-Background jobs, Redis, in-process memory or Filesystem storage, source generators, and a live Blazor dashboard in one solution.
-
-**Background work. Everything in view.**
-
-Queue a typed job, coordinate workers across instances, and follow each execution in the live Blazor dashboard.
+Background jobs for .NET with Redis, in-process memory, or filesystem storage, source-generated job registration, and an optional live Blazor dashboard.
 
 [![Flywheel dashboard with live activity, job states, and searchable executions](docs/images/dashboard.png)](https://flywheel.soenneker.com)
 
-*The optional Flywheel Dashboard, shown with illustrative demo data.*
+*Dashboard shown with illustrative demo data.*
 
-[Explore Flywheel](https://flywheel.soenneker.com) · [Dashboard](docs/dashboard.md) · [Run the demo](test/Soenneker.Flywheel.Demo/README.md)
+[Explore Flywheel](https://flywheel.soenneker.com) · [Run the demo](test/Soenneker.Flywheel.Demo/README.md)
 
 ## Packages
 
-Each project produces its own NuGet package. The suite is the repository and solution, not a combined runtime package.
+Install the packages you need; the suite is not a combined runtime package.
 
-| Package | Responsibility | Flywheel dependencies |
-| --- | --- | --- |
-| Soenneker.Flywheel.Communication | Shared job DTOs, policies, enums, requests, responses, and typed hub contracts | No Flywheel dependencies |
-| Soenneker.Flywheel.Core | Job runtime, dashboard API, and hub | Communication |
-| Soenneker.Flywheel.Redis | Redis job storage | Core, Librarian.Redis |
-| Soenneker.Flywheel.Memory | In-process memory job storage | Core, Librarian.Memory |
-| Soenneker.Flywheel.Filesystem | Filesystem job storage using Librarian | Core, Librarian.FileSystem |
-| Soenneker.Flywheel.Generators | Compile-time job registration | None; analyzer only |
-| Soenneker.Flywheel.Dashboard | Blazor components, typed consumer, and live client | Communication |
+| Package | Purpose |
+| --- | --- |
+| Soenneker.Flywheel.Core | Job runtime, dashboard API, and hub |
+| Soenneker.Flywheel.Redis | Redis job storage |
+| Soenneker.Flywheel.Memory | In-process job storage |
+| Soenneker.Flywheel.Filesystem | Filesystem job storage |
+| Soenneker.Flywheel.Generators | Compile-time job registration |
+| Soenneker.Flywheel.Dashboard | Blazor dashboard and live client |
+| Soenneker.Flywheel.Communication | Shared job and dashboard contracts |
 
-Dashboard does not bring Redis or the server runtime into WebAssembly. Projects reference each other directly in this solution; NuGet packing converts those references into separate package dependencies.
+## Run the demo
 
-## Run once for the current application version
-
-From the hosting application, submit a registered job through `IJobClient`:
-
-```csharp
-await jobs.EnqueueForCurrentVersion(job, payload);
-```
-
-Flywheel automatically identifies the hosting application build and creates one shared job per job name and build within the Redis namespace. Only engines running that exact build can claim it, so older application instances in warmup slots skip the job. The submission marker survives completed-job cleanup; normal retries and lease recovery still apply, so handlers must be idempotent.
-
-See [version-specific jobs](docs/core.md#once-per-hosting-application-version) for build identity overrides and execution semantics.
-
-## One demo
-
-Install .NET 10 and run Redis 6.0.9 or newer on localhost:6379, then:
+Install .NET 10 and run Redis 6.0.9 or newer on `localhost:6379`, then:
 
 ```sh
 dotnet dev-certs https --trust
 dotnet run --project test/Soenneker.Flywheel.Demo
 ```
 
-In a second terminal, run `dotnet run --project test/Soenneker.Flywheel.Dashboard.Demo`. Open https://localhost:7039/ and sign in with `admin` / `flywheel-demo` in Development. The engine/API runs at https://localhost:7443/ and the dashboard runs separately. The solution's `Demo` startup configuration starts both and opens only the dashboard browser. Stop both with Ctrl+C. See [demo configuration](test/Soenneker.Flywheel.Demo/README.md).
-
-## Development
+In a second terminal:
 
 ```sh
-dotnet build Soenneker.Flywheel.Suite.slnx
-dotnet test --project test/Soenneker.Flywheel.Dashboard.Tests
+dotnet run --project test/Soenneker.Flywheel.Dashboard.Demo
 ```
 
-Redis integration tests use `FLYWHEEL_TEST_REDIS`, defaulting to `localhost:6379`. Manual [Redis benchmarks](test/Soenneker.Flywheel.Redis.Tests/Benchmarks/README.md) live in the Redis test project and are excluded from normal test runs. The product website is included under `src/Soenneker.Flywheel.Website`. Its separate [website workflow](.github/workflows/website.yml) exports and deploys the static site to Cloudflare; see [website development and deployment](src/Soenneker.Flywheel.Website/README.md).
-
-The [standalone idle harness](test/Soenneker.Flywheel.Performance/README.md) measures process allocations,
-CPU time, and Redis commands without a test runner. Idle worker recovery uses one storage probe per host,
-independent of worker count; a claim signals the next worker before executing its handler.
-The live recorder also sleeps while the queue is empty, waking on notifications with a bounded recovery check.
-
-The existing Memory, Filesystem, and Redis providers use their matching `Soenneker.Librarian.*` libraries. Shared lifecycle rules live in Flywheel.Core and commit through Librarian conditional batches. Redis stores and queries documents directly, uses native transactions and server time, and requires no Lua or periodic save. Cross-node notifications use a committed revision document with gap detection.
-
-See [Redis storage](docs/redis.md) and [filesystem storage](docs/filesystem.md) for guarantees and operational differences.
-
-Flywheel providers use the corresponding Librarian NuGet packages, with shared contracts supplied by `Soenneker.Librarian.Abstractions`.
-
-Dashboard pages use Lepton lifecycle management. A typed consumer handles API calls through the Flywheel API client, while a shared live client owns SignalR connections and subscriptions. Shared communication contracts keep the server and dashboard aligned. `HomePath` controls dashboard navigation; `EnginePath` independently controls API, authentication, and SignalR routes and must match on the backend and client. Either prefix can be `/` or a custom path. See [prefix configuration](docs/dashboard.md#pages-and-navigation).
-
-## Releases
-
-JSON contracts use explicit camelCase property names and `Soenneker.Utils.Json`. See [JSON storage contracts](docs/redis.md#json-storage-contracts).
-
-`build-and-test.yml` builds the entire solution, runs the six test projects (Redis tests require Redis), publishes the hosted demo, and packs seven separate packages. `publish-package.yml` calls that validation workflow and then runs a deployment matrix with one job per package, publishing to NuGet and GitHub Packages. A GitHub release is created only after every deployment succeeds.
-
-All packages share `5.0.<publish workflow run number>`. Local builds default to `5.0.0`; `BUILD_VERSION` overrides it. The 5.0 series avoids collisions with independently versioned 4.0 releases and reflects the move of shared job and dashboard contracts into `Soenneker.Flywheel.Communication`. Update imports for DTOs, enums, requests, responses, and log DTOs from `Soenneker.Flywheel.Core` to `Soenneker.Flywheel.Communication`. The storage server snapshot is now `Communication.Responses.WorkerServerView`; the dashboard response remains `Communication.Responses.ServerView`.
+Open https://localhost:7039/ and sign in with `admin` / `flywheel-demo` in Development. Stop both processes with Ctrl+C. See [demo configuration](test/Soenneker.Flywheel.Demo/README.md) for details.
 
 ## Documentation
 
-- [Core](docs/core.md)
-- [Redis](docs/redis.md)
-- [Memory](docs/memory.md)
+- [Core and job execution](docs/core.md)
+- [Redis storage](docs/redis.md)
+- [Memory storage](docs/memory.md)
 - [Filesystem storage](docs/filesystem.md)
-- [Generators](docs/generators.md)
+- [Job registration generators](docs/generators.md)
 - [Dashboard and authentication](docs/dashboard.md)
