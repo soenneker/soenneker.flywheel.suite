@@ -49,7 +49,7 @@
         <PackageReference Include="Soenneker.Hashing.Sha256" Version="4.0.4" />
         <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.31" />
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.5" />
-        <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.86" />
+        <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.87" />
         <PackageReference Include="Soenneker.Atomics.ValueInts" Version="4.0.28" />
         <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.50" />
         <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.39" />
