@@ -6,6 +6,9 @@ namespace Soenneker.Flywheel.Dashboard.Consumers.Abstract;
 /// <summary>Typed dashboard operations. Results preserve status codes for sign-in, missing resources, and unsupported store capabilities.</summary>
 public interface IFlywheelDashboardConsumer
 {
+    /// <summary>Reads the authenticated dashboard identity.</summary>
+    ValueTask<OperationResult<DashboardUser>> GetUser(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
     /// <summary>Searches executions, optionally within an activity range.</summary>
     ValueTask<OperationResult<SearchResult>> Search(string query = "", int offset = 0, int count = 50, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null, CancellationToken cancellationToken = default, string? excludedStates = null);
     /// <summary>Returns a static distribution of all retained jobs matching the search and optional UTC range.</summary>

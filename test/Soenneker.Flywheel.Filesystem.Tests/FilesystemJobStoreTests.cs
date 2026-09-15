@@ -45,6 +45,26 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
+    public async Task ServerWorkerHistorySurvivesReopening()
+    {
+        using var files = new Files();
+        var clock = new Clock();
+        await using (ServiceProvider services = Open(files.Path, clock))
+        {
+            var store = services.GetRequiredService<FilesystemJobStore>();
+            await store.Enqueue(Request());
+            await store.Claim("node", TimeSpan.FromMinutes(1));
+            await store.Heartbeat("node", 4, TimeSpan.FromMinutes(1));
+        }
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await using (ServiceProvider services = Open(files.Path, clock))
+        {
+            var server = await services.GetRequiredService<FilesystemJobStore>().GetServer("node");
+            Check(server is not null && server.WorkerHistory.Single().BusyWorkers == 1,
+                "Stored worker history must survive reopening without a dashboard session.");
+        }
+    }
+    [Test]
     public async Task JobsLeasesLogsProgressAndLimitsSurviveReopening()
     {
         using var files = new Files();

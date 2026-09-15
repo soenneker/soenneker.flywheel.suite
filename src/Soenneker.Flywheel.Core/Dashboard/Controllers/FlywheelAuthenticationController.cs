@@ -20,6 +20,10 @@ namespace Soenneker.Flywheel.Core.Dashboard.Controllers;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class FlywheelAuthenticationController(DashboardOptions options, IAntiforgery antiforgery) : ControllerBase
 {
+    /// <summary>Returns the authenticated dashboard user.</summary>
+    [HttpGet("user")]
+    public ActionResult<DashboardUser> GetUser() => Ok(new DashboardUser(User.Identity!.Name!));
+
     /// <summary>Issues an antiforgery token for the current dashboard identity.</summary>
     [HttpGet("csrf")]
     [AllowAnonymous]

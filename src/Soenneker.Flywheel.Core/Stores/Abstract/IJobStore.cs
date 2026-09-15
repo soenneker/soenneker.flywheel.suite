@@ -35,7 +35,7 @@ public interface IJobStore
     Task<IReadOnlyList<JobRecord>> List(int offset = 0, int count = 50, CancellationToken cancellationToken = default);
 
     /// <summary>Searches all retained jobs by literal, ordinal case-insensitive substring of name, id, state or owner.
-    /// Trims the query (maximum 200 characters); empty queries match all jobs. Pages are newest first and are live views.
+    /// Trims the query (maximum 200 characters); empty queries match all jobs. Pages place running jobs first, then order newest first within each group, and are live views.
     /// Payloads and errors are not searched. Offset applies to matches, not the underlying job list.</summary>
     Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50,
         CancellationToken cancellationToken = default);
@@ -44,3 +44,4 @@ public interface IJobStore
     Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval,
         CancellationToken cancellationToken = default);
 }
+

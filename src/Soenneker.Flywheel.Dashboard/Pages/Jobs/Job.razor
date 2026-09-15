@@ -28,6 +28,13 @@ else
                 @if (_job is not null)
                 {
                     <JobStatusBadge State="@_job.State" CancelRequested="@_job.CancelRequested" />
+                    @if (_job.State == "Running" && _job.Progress is { } progress && progress < 100)
+                    {
+                        <Score Value="@((int)Math.Round(progress))" ScoreSize="28" Thickness="3" Colored="false"
+                               Style="flex-shrink: 0; --score-neutral-color: var(--muted-foreground); --score-value-color: var(--muted-foreground);"
+                               AriaLabel="@($"Job progress: {progress:0.#}% complete")"
+                               title="@(_job.ProgressMessage is { Length: > 0 } message ? $"{progress:0.#}% complete · {message}" : $"{progress:0.#}% complete")" />
+                    }
                 }
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End">
@@ -61,7 +68,7 @@ else
         {
             <Paragraph TextColor="TextColor.MutedForeground" TextBreak="TextBreak.Words" Margin="Margin.FromBottom.Is5">@_job.Description</Paragraph>
         }
-        <Grid aria-label="Job overview" Columns="GridCols.Is1" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+        <Grid aria-label="Job overview" Columns="GridCols.Is1" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6" Style="padding: .5rem 0;">
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
                 <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is2" Style="width: 24rem; max-width: 100%;">
                     <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" id="job-id-label" >Job ID</Span>
@@ -70,7 +77,7 @@ else
             </Div>
             @if (_job is not null)
             {
-                <Grid aria-label="Job properties" Columns="GridCols.Is2.OnMd.Is4" Style="display: flex; flex-wrap: wrap; gap: 1.25rem 3rem;" Gap="Gap.Is5" TextSize="TextSize.Sm">
+                <Grid aria-label="Job properties" Columns="GridCols.Is2.OnMd.Is4" Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem 2rem;" Gap="Gap.Is5" TextSize="TextSize.Sm">
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Priority</Span><Span Display="Display.Block">@(_job.Priority ?? "Unavailable")</Span></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
                     @if (_job.State == "Running")
@@ -86,16 +93,6 @@ else
                         <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next step</Span><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(nextId)}"))">View next job</Anchor></Div>
                     }
                 </Grid>
-                @if (_job.Progress is { } progress)
-                {
-                    <Div Space="Space.Y.Is2" Margin="Margin.FromTop.Is5" role="status" aria-live="polite">
-                        <Div Display="Display.Flex" Justify="Justify.Between" Gap="Gap.Is4" TextSize="TextSize.Sm">
-                            <Span TextBreak="TextBreak.All">@(_job.ProgressMessage ?? "In progress")</Span>
-                            <Span>@($"{progress:0.#}%")</Span>
-                        </Div>
-                        <Progress ProgressValue="@((int)Math.Round(progress))" Max="100" AriaValueText="@($"{progress:0.#}%")" />
-                    </Div>
-                }
                 <JobTimeline Job="@_job" />
             }
         </Grid>

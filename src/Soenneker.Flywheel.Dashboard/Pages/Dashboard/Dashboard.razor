@@ -40,8 +40,12 @@
         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End" Margin="Margin.FromBottom.Is4">
             <ExecutionDatePicker Label="@DateRangeLabel" Min="@HistoryMinDate" Max="@HistoryMaxDate"
                                  Presets="@HistoryRangePresets" Range="@(_liveMode ? null : new CalendarDateRange(_historyStartDate, _historyEndDate))"
-                                 RangeChanged="SetHistoryRange" LiveSelected="ShowLive" ClearSelected="ClearActivitySelection"
+                                 RangeChanged="SetHistoryRange" ClearSelected="ClearActivitySelection"
                                  CanClear="@(_activityPaused || _jobStartAt is not null)" />
+            @if (_jobStartAt is not null && _jobEndAt is not null)
+            {
+                <Button OnClick="ShowLive" Variant="ButtonVariant.Outline" aria-label="Return to live activity">Live</Button>
+            }
         </Div>
         <Grid aria-label="Job summaries" Columns="GridCols.Is1" Margin="Margin.FromBottom.Is4" Padding="Padding.FromBottom.Is3" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
@@ -52,6 +56,7 @@
                     }
                     else
                     {
+                        <DashboardActivityRegion @ref="_activityRegion">
                         <div class="flywheel-activity-chart" style="position: relative;" aria-label="Activity chart" aria-busy="@_historyLoading">
                             @if (_historyLoading)
                             {
@@ -70,6 +75,7 @@
                                 }
                             </div>
                         </div>
+                        </DashboardActivityRegion>
                     }
                 </Div>
             </Div>
@@ -93,9 +99,17 @@
                         <Tbody>
                             @foreach (JobView job in _jobs)
                             {
+                                <DashboardJobRow @key="job.Id" Job="job" Cancelling="@_cancellingJobs.Contains(job.Id)">
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
                                         <Td>
-                                            <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
+                                            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2">
+                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
+                                                @if (job.Progress is { } progress && progress < 100)
+                                                {
+                                                    <Score Value="@((int)Math.Round(progress))" ScoreSize="28" Thickness="3" Colored="false"
+                                                           Style="flex-shrink: 0; --score-neutral-color: var(--muted-foreground); --score-value-color: var(--muted-foreground);" AriaLabel="@($"{job.Name}: {progress:0.#}% complete")" title="@(job.ProgressMessage ?? $"{progress:0.#}% complete")" />
+                                                }
+                                            </Div>
                                         </Td>
                                         <Td>
                                             <JobStatusBadge State="@job.State" CancelRequested="@job.CancelRequested" />
@@ -108,6 +122,7 @@
                                             }
                                         </Td>
                                 </Tr>
+                                </DashboardJobRow>
                             }
                         </Tbody>
                     </TableContent>

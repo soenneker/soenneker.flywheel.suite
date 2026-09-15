@@ -17,9 +17,11 @@ public abstract partial class LibrarianJobStore
         return Mutate(cancellationToken, async _ => (await _jobs.Get(id)));
     }
 
-    private static readonly IComparer<JobRecord> NewestFirst = Comparer<JobRecord>.Create((a, b) =>
+    private static readonly IComparer<JobRecord> RunningFirst = Comparer<JobRecord>.Create((a, b) =>
     {
-        int compared = b.CreatedAt.CompareTo(a.CreatedAt);
+        int compared = (b.State == JobState.Running).CompareTo(a.State == JobState.Running);
+        if (compared != 0) return compared;
+        compared = b.CreatedAt.CompareTo(a.CreatedAt);
         return compared != 0 ? compared : StringComparer.Ordinal.Compare(b.Id, a.Id);
     });
 
@@ -82,7 +84,7 @@ public abstract partial class LibrarianJobStore
         {
             IEnumerable<JobRecord> candidates = start.HasValue ?
                 (await _jobs.Range("value.updatedAt", start, end!.Value - 1)).Select(e => e.Value) : await _jobs.GetValues();
-            JobRecord[] page = Page(candidates.Where(j => Matches(j, text, now, start, end)), NewestFirst, offset, count, out int total);
+            JobRecord[] page = Page(candidates.Where(j => Matches(j, text, now, start, end)), RunningFirst, offset, count, out int total);
             return new JobSearchResult(page, total);
         });
     }
@@ -108,3 +110,4 @@ public abstract partial class LibrarianJobStore
         });
     }
 }
+

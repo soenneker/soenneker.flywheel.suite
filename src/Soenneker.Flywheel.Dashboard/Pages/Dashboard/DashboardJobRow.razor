@@ -1,0 +1,23 @@
+@namespace Soenneker.Flywheel.Dashboard.Pages.Dashboard
+@using Soenneker.Flywheel.Communication.Responses
+
+@ChildContent
+
+@code {
+    [Parameter] public JobView? Job { get; set; }
+    [Parameter] public bool Cancelling { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private JobView? _previous;
+    private bool _previousCancelling;
+    private bool _changed;
+
+    protected override void OnParametersSet()
+    {
+        _changed = Job != _previous || Cancelling != _previousCancelling;
+        _previous = Job;
+        _previousCancelling = Cancelling;
+    }
+
+    protected override bool ShouldRender() => _changed;
+}

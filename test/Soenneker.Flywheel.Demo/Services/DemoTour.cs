@@ -20,7 +20,7 @@ public sealed class DemoTour(IJobClient client, IJobStore store, ILogger<DemoTou
         string welcome = await Add("Welcome + deduplication", FlywheelJobs.NotificationJobs_Welcome, new WelcomeEmail("Taylor", "taylor@example.test"), "welcome");
         string duplicate = await client.Enqueue(FlywheelJobs.NotificationJobs_Welcome, new WelcomeEmail("Taylor", "taylor@example.test"),
             idempotencyKey: $"demo:{batchId}:welcome", cancellationToken: cancellationToken);
-        await Add("Report with progress logs (ValueTask)", FlywheelJobs.ReportJobs_Generate, new ReportRequest("Monthly sales", 5), "report");
+        await Add("One-minute report with live progress", FlywheelJobs.ReportJobs_Generate, new ReportRequest("Monthly sales", 60), "report");
         await Add("Delayed report (15 seconds)", FlywheelJobs.ReportJobs_Delayed, new ReportRequest("Deferred export", 3), "delayed", delay: TimeSpan.FromSeconds(15));
         foreach (int minutes in new[] { 5, 15, 30, 60, 120 })
         {

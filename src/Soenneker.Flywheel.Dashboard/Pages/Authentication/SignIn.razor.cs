@@ -27,7 +27,7 @@ public partial class SignIn
                 _error = response.StatusCode == (int)HttpStatusCode.TooManyRequests ? "Too many attempts. Try again in a minute." : "Sign-in failed. Check your credentials.";
                 return;
             }
-            Session.SetAuthenticated(true);
+            Session.SetAuthenticated(true, _username);
             Navigation.NavigateTo(DashboardNavigation.HomePath.TrimStart('/'), replace: true);
         }
         catch (OperationCanceledException) when (IsCancellationRequested) { }

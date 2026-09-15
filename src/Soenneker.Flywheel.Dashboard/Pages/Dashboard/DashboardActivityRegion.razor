@@ -1,0 +1,10 @@
+@namespace Soenneker.Flywheel.Dashboard.Pages.Dashboard
+
+@ChildContent
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // The live clock refreshes this region without rebuilding the executions table.
+    public void Refresh() => StateHasChanged();
+}

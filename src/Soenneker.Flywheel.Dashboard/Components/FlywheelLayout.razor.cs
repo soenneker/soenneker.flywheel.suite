@@ -18,10 +18,10 @@ public partial class FlywheelLayout
         Session.Changed += OnSessionChanged;
         try
         {
-            OperationResult<SearchResult> response = await Consumer.Search(count: 1, cancellationToken: _stop.Token);
+            OperationResult<DashboardUser> response = await Consumer.GetUser(_stop.Token);
             if (response.StatusCode != 401) response.EnsureSucceeded();
             if (_disposed) return;
-            Session.SetAuthenticated(response.Succeeded);
+            Session.SetAuthenticated(response.Succeeded, response.Value?.Username);
             _checking = false;
             if (Session.IsAuthenticated) _connecting = StartConnection();
             EnforceAuthentication();

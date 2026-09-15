@@ -12,6 +12,9 @@ namespace Soenneker.Flywheel.Dashboard.Consumers;
 public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILogger<FlywheelDashboardConsumer> logger, DashboardNavigationOptions navigation)
     : CoreConsumer(apiClient, logger, navigation.EnginePath == "/" ? "./" : navigation.EnginePath.Trim('/')), IFlywheelDashboardConsumer
 {
+    public ValueTask<OperationResult<DashboardUser>> GetUser(CancellationToken cancellationToken = default) =>
+        Read<DashboardUser>("user", cancellationToken);
+
     public ValueTask<OperationResult<SearchResult>> Search(string query = "", int offset = 0, int count = 50,
         DateTimeOffset? startAt = null, DateTimeOffset? endAt = null, CancellationToken cancellationToken = default, string? excludedStates = null) =>
         Read<SearchResult>(

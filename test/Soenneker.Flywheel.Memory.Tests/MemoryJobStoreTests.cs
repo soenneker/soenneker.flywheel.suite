@@ -28,6 +28,43 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
+    public async Task HeartbeatsRecordBoundedServerHistoryWithoutDashboardReads()
+    {
+        var clock = new Clock();
+        var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
+        await store.Enqueue(Request());
+        JobLease lease = (await store.Claim("one", TimeSpan.FromMinutes(10)))!;
+        await store.Heartbeat("one", 8, TimeSpan.FromSeconds(30));
+        await store.Heartbeat("two", 8, TimeSpan.FromSeconds(30));
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
+        await store.Heartbeat("one", 8, TimeSpan.FromSeconds(30));
+        var server = (await store.GetServer("one"))!;
+        Check(server.WorkerHistory.Select(point => point.BusyWorkers).SequenceEqual(new[] { 1, 0 }), "Heartbeats must record busy counts before any dashboard read.");
+        Check((await store.GetServer("two"))!.WorkerHistory.Single().BusyWorkers == 0, "Server histories must remain separate.");
+        for (int i = 0; i < 80; i++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            await store.Heartbeat("one", 8, TimeSpan.FromSeconds(30));
+        }
+        server = (await store.GetServer("one"))!;
+        Check(server.WorkerHistory.Count <= 62 && server.WorkerHistory[^1].Timestamp == server.ObservedAt, "History must stay bounded and current.");
+    }
+    [Test]
+    public async Task SearchPlacesRunningJobsBeforeNewerJobsAcrossPages()
+    {
+        var clock = new Clock();
+        var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
+        string running = await store.Enqueue(Request("older"));
+        await store.Claim("server", TimeSpan.FromMinutes(5));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        string newer = await store.Enqueue(Request("newer"));
+        Check((await store.Search(null, 0, 1)).Items.Single().Id == running, "Running job must lead the first page.");
+        Check((await store.Search(null, 1, 1)).Items.Single().Id == newer, "Newer non-running job must follow.");
+        Check((await store.Search(null, clock.GetUtcNow().AddMinutes(-1), clock.GetUtcNow().AddMinutes(1), 0, 1)).Items.Single().Id == running,
+            "Time-filtered searches must also put running jobs first.");
+    }
+    [Test]
     public async Task ConcurrentClaimsAndSubmissionsAreAtomic()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
@@ -254,3 +291,4 @@ public sealed class MemoryJobStoreTests
         Check((await store.List()).Count == 0, "Invalid chain was partially stored.");
     }
 }
+

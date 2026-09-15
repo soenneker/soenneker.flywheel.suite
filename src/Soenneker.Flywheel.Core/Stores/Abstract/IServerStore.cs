@@ -8,7 +8,7 @@ public interface IServerStore
     /// <summary>Lists live servers and their currently leased jobs, ordered by heartbeat expiration.</summary>
     Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default);
 
-    /// <summary>Returns a live server and its currently leased jobs, or null after its heartbeat expires.</summary>
+    /// <summary>Returns a live server, its currently leased jobs, and five minutes of heartbeat worker history, or null after its heartbeat expires.</summary>
     Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the active worker capacity reported by all servers with unexpired heartbeats.</summary>

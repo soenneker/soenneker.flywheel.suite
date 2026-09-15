@@ -72,14 +72,23 @@ public abstract partial class LibrarianJobStore
             Node previous = await _nodes.Get(node);
             _notifyServers = previous.ExpiresAt <= now || previous.Workers != workers;
             await PruneServers(now);
-            await _nodes.Set(node, new Node(now + milliseconds, workers)).NoSync();
+            int busy = (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
+            long bucket = now / 5000 * 5000;
+            ServerWorkerHistoryPoint[] retained = (previous.WorkerHistory ?? [])
+                .Where(point => point.Timestamp < bucket).ToArray();
+            // Keep the preceding observation too, so the left edge has its last known count.
+            ServerWorkerHistoryPoint[] history = retained.Where(point => point.Timestamp < bucket - 300000).TakeLast(1)
+                .Concat(retained.Where(point => point.Timestamp >= bucket - 300000))
+                .Append(new ServerWorkerHistoryPoint(bucket, busy, now + milliseconds)).ToArray();
+            await _nodes.Set(node, new Node(now + milliseconds, workers) { WorkerHistory = history }).NoSync();
             return true;
         });
     }
 
-    private async Task<WorkerServerView> Server(string node, Node data, long now) =>
+    private async Task<WorkerServerView> Server(string node, Node data, long now, bool includeHistory = false) =>
         new(node, data.ExpiresAt, data.Workers, (await _jobs.Find("owner", node)).Where(j =>
-            j.State == JobState.Running && j.LeaseUntil > now).OrderBy(j => j.LeaseUntil).ToArray());
+            j.State == JobState.Running && j.LeaseUntil > now).OrderBy(j => j.LeaseUntil).ToArray())
+        { WorkerHistory = includeHistory ? data.WorkerHistory ?? [] : [], ObservedAt = now };
 
     public Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default)
     {
@@ -93,7 +102,7 @@ public abstract partial class LibrarianJobStore
     {
         ValidateId(node);
         return Mutate<WorkerServerView?>(cancellationToken, async now =>
-            (await _nodes.GetEntry(node)) is { Value: var data } && data.ExpiresAt > now ? await Server(node, data, now) : null);
+            (await _nodes.GetEntry(node)) is { Value: var data } && data.ExpiresAt > now ? await Server(node, data, now, includeHistory: true) : null);
     }
 
     public Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default) =>

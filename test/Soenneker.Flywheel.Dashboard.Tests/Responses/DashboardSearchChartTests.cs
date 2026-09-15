@@ -9,6 +9,42 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardSearchChartTests
 {
     [Test]
+    public void LiveChartRetainsSeriesAndScaleAcrossSamplesAndUnrelatedRenders()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var page = new DashboardPage();
+        var connection = new DashboardBoardConnection(null!, new ActivityTotalsState());
+        typeof(DashboardPage).GetProperty("BoardConnection", flags)!.SetValue(page, connection);
+        PropertyInfo seriesProperty = typeof(DashboardPage).GetProperty("VisibleActivitySeries", flags)!;
+        PropertyInfo optionsProperty = typeof(DashboardPage).GetProperty("ActivityOptions", flags)!;
+        var data = connection.LiveActivity.Data;
+        var start = DateTimeOffset.UtcNow;
+        data.Append(start, 10, 3, 1, 0, 2);
+        var series = (IReadOnlyList<ChartSeries>)seriesProperty.GetValue(page)!;
+        var options = (ChartOptions)optionsProperty.GetValue(page)!;
+        if (options.Maximum is not > 10) throw new Exception("Live scale needs headroom above the peak");
+        data.Append(start.AddSeconds(1), 11, 4, 1, 0, 2);
+        if (!ReferenceEquals(series, seriesProperty.GetValue(page)) || !ReferenceEquals(options, optionsProperty.GetValue(page)))
+            throw new Exception("Routine updates replaced the series or scale and interrupted scrolling");
+        if (series[0].Values[^1] != 11) throw new Exception("Cached series lost mutable samples");
+        data.Clear();
+        data.Append(start.AddSeconds(2), 2, 1, 0, 0, 0);
+        if (!ReferenceEquals(options, optionsProperty.GetValue(page)))
+            throw new Exception("An expired peak shrank the scale during scrolling");
+        data.Append(start.AddSeconds(3), 100, 1, 0, 0, 0);
+        var expanded = (ChartOptions)optionsProperty.GetValue(page)!;
+        if (expanded.Maximum is not >= 100) throw new Exception("New peaks must remain visible");
+        var hidden = (HashSet<string>)typeof(DashboardPage).GetField("_hiddenActivitySeries", flags)!.GetValue(page)!;
+        hidden.Add("Scheduled");
+        typeof(DashboardPage).GetField("_legendVersion", flags)!.SetValue(page, 1L);
+        var filtered = (IReadOnlyList<ChartSeries>)seriesProperty.GetValue(page)!;
+        if (ReferenceEquals(series, filtered) || filtered.Any(s => s.Name == "Scheduled"))
+            throw new Exception("Legend changes did not refresh the visible series");
+        if (((ChartOptions)optionsProperty.GetValue(page)!).Maximum >= expanded.Maximum)
+            throw new Exception("Explicit legend changes should allow the scale to reset");
+    }
+
+    [Test]
     public void LegendExclusionsMapFailedAndScheduledGroupsToTableStatuses()
     {
         var page = new DashboardPage();

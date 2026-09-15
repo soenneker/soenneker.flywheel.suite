@@ -7,7 +7,10 @@
 @inject IFlywheelLiveClient Live
 
 <Section aria-label="Job execution logs" MinWidth="MinWidth.Is0" Style="max-width: 100%;" Margin="Margin.FromTop.Is3">
-    <Field Padding="Padding.Is3.OnY" Style="width: 24rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" Placeholder="Search" aria-label="Search logs" /></Field>
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is3" Margin="Margin.FromBottom.Is3">
+        <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold" Margin="Margin.Is0">Execution log</H3>
+        <Field Style="width: 20rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" Placeholder="Search logs…" aria-label="Search logs" /></Field>
+    </Div>
     @if (_error is not null)
     {
         <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>

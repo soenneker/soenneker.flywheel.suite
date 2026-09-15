@@ -25,17 +25,22 @@ public sealed partial class FlywheelDashboardTests
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Host.UseDefaultServiceProvider(options => { options.ValidateOnBuild = true; options.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
-        builder.Services.AddFlywheel().AddDashboard(o => { o.EnginePath = enginePath; o.PasswordPhc = Pbkdf2HashingUtil.Hash(password); });
+        builder.Services.AddFlywheel().AddDashboard(o => { o.EnginePath = enginePath; o.PasswordPhc = Pbkdf2HashingUtil.Hash(password); o.AllowedOrigins = ["https://localhost:7039"]; });
         var store = new SearchStore();
         builder.Services.RemoveAll<IHostedService>(); builder.Services.AddSingleton<IJobStore>(store);
         builder.Services.AddSingleton<IJobLogStore>(store);
         builder.Services.AddSingleton<INodeStore>(store);
         await using WebApplication app = builder.Build();
-        app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
+        app.UseRouting(); app.UseFlywheelDashboard(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
         app.MapFlywheelDashboard();
         await app.StartAsync();
         using HttpClient client = app.GetTestClient();
         client.BaseAddress = new Uri("https://localhost");
+        client.DefaultRequestHeaders.Add("Origin", "https://localhost:7039");
+        using HttpResponseMessage anonymousUser = await client.GetAsync($"{prefix}/user");
+        Check(anonymousUser.StatusCode == HttpStatusCode.Unauthorized, "User identity must require authentication");
+        Check(anonymousUser.Headers.TryGetValues("Access-Control-Allow-Origin", out var anonymousOrigins) && anonymousOrigins.Single() == "https://localhost:7039",
+            "Signed-out dashboard must receive CORS headers to recognize the 401");
         Check((await client.GetAsync($"{prefix}/jobs")).StatusCode == HttpStatusCode.Unauthorized, "Jobs unprotected");
         Check((await client.GetAsync($"{prefix}/jobs/search?q=test")).StatusCode == HttpStatusCode.Unauthorized, "Search unprotected");
         Check(store.Calls == 0, "Unauthenticated search reached storage");
@@ -54,6 +59,14 @@ public sealed partial class FlywheelDashboardTests
         Check(cookie.Contains("secure", StringComparison.OrdinalIgnoreCase) && cookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) && cookie.Contains("samesite=strict", StringComparison.OrdinalIgnoreCase), "Cookie flags missing");
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", csrfCookie + "; " + cookie.Split(';')[0]);
+        using HttpResponseMessage user = await client.GetAsync($"{prefix}/user");
+        Check(user.IsSuccessStatusCode && (await user.Content.ReadFromJsonAsync<Soenneker.Flywheel.Communication.Responses.DashboardUser>())?.Username == "admin", "Current user unavailable");
+        Check(user.Headers.TryGetValues("Access-Control-Allow-Origin", out var origins) && origins.Single() == "https://localhost:7039" &&
+            user.Headers.TryGetValues("Access-Control-Allow-Credentials", out var credentials) && credentials.Single() == "true", "Current user missing credentialed CORS headers");
+        using var deniedRequest = new HttpRequestMessage(HttpMethod.Get, $"{prefix}/user");
+        deniedRequest.Headers.Add("Origin", "https://untrusted.example");
+        using HttpResponseMessage deniedUser = await client.SendAsync(deniedRequest);
+        Check(deniedUser.StatusCode == HttpStatusCode.Forbidden && !deniedUser.Headers.Contains("Access-Control-Allow-Origin"), "Untrusted origin accepted for current user");
         Check((await client.PostAsync($"{prefix}/hub/negotiate?negotiateVersion=1", null)).IsSuccessStatusCode, "Authenticated hub rejected");
         HttpResponseMessage search = await client.GetAsync($"{prefix}/jobs/search?q=invoice%26monthly&offset=50&count=25");
         string json = await search.Content.ReadAsStringAsync();

@@ -108,13 +108,18 @@ public partial class Dashboard
     private Task OnSnapshot(LiveBoard snapshot) => InvokeAsync(() =>
     {
         if (IsDisposed || IsCancellationRequested || snapshot.Version != _queryRevision) return;
+        bool changed = _loading || !_loaded || _error is not null || _totalCount != snapshot.TotalCount || !_jobs.SequenceEqual(snapshot.Items);
         _jobs = snapshot.Items;
         _totalCount = snapshot.TotalCount;
         _loading = false;
         _loaded = true;
         _error = null;
-        if (_liveActivity.XValues.Count == 0 && UseLiveChart && !_activityPaused) ApplyLiveActivity();
-        StateHasChanged();
+        if (_liveActivity.XValues.Count == 0 && UseLiveChart && !_activityPaused)
+        {
+            ApplyLiveActivity();
+            changed = true;
+        }
+        if (changed) StateHasChanged();
     });
 
     private DataTable? _jobsTable;
@@ -130,9 +135,27 @@ public partial class Dashboard
     private bool IsActivitySeriesHidden(string name) => SeriesStates(name).All(_hiddenActivitySeries.Contains);
     private string ExcludedStates => string.Join(',', _hiddenActivitySeries);
     private string ActivitySeriesColor(ChartSeries series) => series.Color ?? JobStatusColors.Accent(SeriesStates(series.Name)[0]);
-    private IReadOnlyList<ChartSeries> VisibleActivitySeries => ActivityLegendSeries
-        .Where(series => !IsActivitySeriesHidden(series.Name))
-        .Select(series => new ChartSeries(series.Name, series.Values) { Color = ActivitySeriesColor(series) }).ToArray();
+    private IReadOnlyList<ChartSeries>? _visibleActivitySource;
+    private long _visibleLegendVersion = -1;
+    private IReadOnlyList<ChartSeries> _visibleActivitySeries = [];
+    private IReadOnlyList<ChartSeries> VisibleActivitySeries
+    {
+        get
+        {
+            IReadOnlyList<ChartSeries> source = ActivityLegendSeries;
+            if (!ReferenceEquals(source, _visibleActivitySource) || _visibleLegendVersion != _legendVersion)
+            {
+                _visibleActivitySource = source;
+                _visibleLegendVersion = _legendVersion;
+                _visibleActivitySeries = source.Where(series => !IsActivitySeriesHidden(series.Name))
+                    .Select(series => new ChartSeries(series.Name, series.Values) { Color = ActivitySeriesColor(series) }).ToArray();
+                _liveMaximum = 1;
+                _scaledLiveOptions = null;
+                _scaledMobileLiveOptions = null;
+            }
+            return _visibleActivitySeries;
+        }
+    }
 
     private async Task ToggleActivitySeries(string name)
     {
@@ -152,6 +175,7 @@ public partial class Dashboard
     private long _activityVersion;
     private int _historyRevision;
     private Chart? _activityChart;
+    private DashboardActivityRegion? _activityRegion;
     private bool _activityPaused;
     private RealtimeChartData _liveActivity => BoardConnection.LiveActivity.Data;
     private Task? _liveClock;
@@ -168,17 +192,43 @@ public partial class Dashboard
     private static readonly ChartOptions MobileLiveActivityOptions = CreateActivityOptions(mobile: true, live: true);
     private static readonly ChartOptions MobileSearchActivityOptions = CreateActivityOptions(mobile: true, search: true);
     private static readonly ChartOptions MobileHistoryActivityOptions = CreateActivityOptions(mobile: true);
-    private ChartOptions ActivityOptions => SidebarState?.IsMobile == true
-        ? UseLiveChart ? MobileLiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? MobileSearchActivityOptions : MobileHistoryActivityOptions
-        : UseLiveChart ? LiveActivityOptions : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions;
+    private double _liveMaximum = 1;
+    private ChartOptions? _scaledLiveOptions;
+    private ChartOptions? _scaledMobileLiveOptions;
+    private ChartOptions ActivityOptions
+    {
+        get
+        {
+            bool mobile = SidebarState?.IsMobile == true;
+            if (!UseLiveChart)
+                return mobile ? !string.IsNullOrWhiteSpace(_query) ? MobileSearchActivityOptions : MobileHistoryActivityOptions
+                    : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions;
 
-    private static ChartOptions CreateActivityOptions(bool mobile = false, bool live = false, bool search = false) => new()
+            // Keep headroom and retain the scale as peaks leave the window. Repeated
+            // auto-scaling cancels horizontal scrolling and makes every sample jump.
+            double peak = 0;
+            foreach (ChartSeries series in VisibleActivitySeries)
+                foreach (double? value in series.Values)
+                    if (value is { } number && number > peak) peak = number;
+            if (peak > _liveMaximum)
+            {
+                _liveMaximum = Math.Pow(2, Math.Ceiling(Math.Log2(peak * 1.25)));
+                _scaledLiveOptions = null;
+                _scaledMobileLiveOptions = null;
+            }
+            return mobile
+                ? _scaledMobileLiveOptions ??= CreateActivityOptions(mobile: true, live: true, maximum: _liveMaximum)
+                : _scaledLiveOptions ??= CreateActivityOptions(live: true, maximum: _liveMaximum);
+        }
+    }
+
+    private static ChartOptions CreateActivityOptions(bool mobile = false, bool live = false, bool search = false, double? maximum = null) => new()
     {
         Legend = ChartLegendPosition.None, Width = mobile ? 360 : 1200, Height = mobile ? 220 : 140,
         ShowYAxis = mobile, ShowGrid = mobile, PaddingLeft = mobile ? 40 : 24, ClipPlot = true,
         ShowPoints = search, Animate = false, EnableRangeSelection = true, PauseOnRangeSelection = !search,
         EnableRealtimeScrolling = live, RealtimeScrollDuration = TimeSpan.FromSeconds(1),
-        Curve = ChartCurve.Monotone, Minimum = 0, MaximumXAxisLabels = mobile ? 3 : live ? 7 : 12,
+        Curve = ChartCurve.Monotone, Minimum = 0, Maximum = maximum, MaximumXAxisLabels = mobile ? 3 : live ? 7 : 12,
         LabelFormatter = label => live && label.Length > 8 ? label[..8] : label,
         Palette = [JobStatusColors.Accent("Scheduled"), JobStatusColors.Accent("Running"),
             JobStatusColors.Accent("Succeeded"), JobStatusColors.Accent("DeadLettered"), JobStatusColors.Accent("Queued")]
@@ -190,7 +240,7 @@ public partial class Dashboard
     private bool _liveMode = true;
     private bool UseLiveChart => _liveMode && string.IsNullOrWhiteSpace(_query);
     private string DateRangeLabel => _jobStartAt is { } start && _jobEndAt is { } end
-        ? $"{start:MMM d HH:mm}–{end:MMM d HH:mm} UTC"
+        ? $"{start:MMM d HH:mm:ss}–{end:MMM d HH:mm:ss} UTC"
         : _liveMode ? (UseLiveChart ? "Live" : "All dates") : $"{_historyStartDate:MMM d}–{_historyEndDate:MMM d} UTC";
     private int _historyRetentionDays = 1;
     private DateOnly _historyStartDate = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -248,7 +298,7 @@ public partial class Dashboard
                 {
                     if (!UseLiveChart || _activityPaused || !ActivityTotals.Live || IsDisposed) return;
                     ApplyLiveActivity();
-                    StateHasChanged();
+                    _activityRegion?.Refresh();
                 });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }

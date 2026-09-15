@@ -1,0 +1,44 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Lucide.Enums.Icons
+@inject IThemeInterop Theme
+
+<style>
+    .flywheel-account { width: 100%; min-width: 0; }
+    .flywheel-account-trigger { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; overflow: hidden; }
+    .flywheel-account-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; white-space: nowrap; }
+    [data-collapsible="icon"] .flywheel-account-name, [data-collapsible="icon"] .flywheel-account-more { display: none; }
+</style>
+<Dropdown Class="flywheel-account" RenderWrapper="true" Side="@Soenneker.Bradix.Side.Top">
+    <DropdownToggle Class="flywheel-account-trigger" AriaLabel="@($"Account menu for {Username ?? "current user"}")">
+        <Icon Name="LucideIcon.CircleUserRound" Size="Size.Is5" />
+        <Span Class="flywheel-account-name">@(Username ?? "Account")</Span>
+        <Icon Class="flywheel-account-more" Name="LucideIcon.Ellipsis" Size="Size.Is4" />
+    </DropdownToggle>
+    <DropdownMenu Role="menu" Side="@Soenneker.Bradix.Side.Top" Align="@Soenneker.Bradix.Alignment.Start">
+        <DropdownItem Clicked="ToggleTheme" CloseOnSelect="true" Disabled="@(!_themeReady)" Role="menuitem" Title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
+            <Icon Name="@(_isDark ? LucideIcon.Moon : LucideIcon.Sun)" Size="Size.Is4" /><Span>Theme</Span>
+        </DropdownItem>
+        <DropdownItem Clicked="SignOut" CloseOnSelect="true" Role="menuitem">
+            <Icon Name="LucideIcon.LogOut" Size="Size.Is4" /><Span>Sign out</Span>
+        </DropdownItem>
+    </DropdownMenu>
+</Dropdown>
+
+@code {
+    [Parameter] public string? Username { get; set; }
+    [Parameter] public EventCallback OnLogout { get; set; }
+    private bool _isDark;
+    private bool _themeReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _isDark = await Theme.Initialize();
+        _themeReady = true;
+        StateHasChanged();
+    }
+
+    private async Task ToggleTheme() => _isDark = await Theme.Toggle();
+    private Task SignOut() => OnLogout.InvokeAsync();
+}

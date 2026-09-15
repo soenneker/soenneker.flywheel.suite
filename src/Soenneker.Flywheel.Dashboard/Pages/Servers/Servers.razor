@@ -20,10 +20,19 @@
         <DataTable Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">
             <TopContent><DataTableSearch Placeholder="Search" AriaLabel="Search servers" /></TopContent>
             <TableContent>
-                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th>Server</Th><Th>Workers (busy / total)</Th><Th>Running jobs</Th><Th>Heartbeat valid until</Th></Tr></Thead><Tbody>
+                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th>Server</Th><Th>Workers</Th><Th>Heartbeat valid until</Th></Tr></Thead><Tbody>
         @foreach (ServerView server in FilteredServers.Skip(ServerOffset).Take(_pageSize))
         {
-            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td><Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(server.Id)}"))">@server.Id</Anchor></Td><Td>@($"{server.RunningJobs.Count:N0}/{server.Workers:N0}")</Td><Td>@server.RunningJobs.Count</Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
+            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td><Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(server.Id)}"))">@server.Id</Anchor></Td><Td>
+                <Div Style="position: relative; display: inline-flex; width: 48px; height: 48px; flex-shrink: 0;"
+                     title="@($"{server.RunningJobs.Count} of {server.Workers} workers busy")">
+                    <Score Value="@(server.Workers > 0 ? (int)Math.Round(100d * server.RunningJobs.Count / server.Workers) : 0)"
+                           ScoreSize="48" Thickness="3" Colored="false"
+                           Style="--score-neutral-color: var(--muted-foreground); --score-font-size: 0px;"
+                           AriaLabel="@($"{server.RunningJobs.Count} of {server.Workers} workers busy")" />
+                    <Span aria-hidden="true" Style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted-foreground); pointer-events: none;">@($"{server.RunningJobs.Count}/{server.Workers}")</Span>
+                </Div>
+            </Td><Td><JobTimestamp Value="@server.ExpiresAt" /></Td></Tr>
         }
                 </Tbody>
             </TableContent>

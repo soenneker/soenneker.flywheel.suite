@@ -27,7 +27,7 @@ else if (Session.IsAuthenticated)
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton Href="@DashboardNavigation.Path()" Match="NavLinkMatch.All" Tooltip="Flywheel home" aria-label="Flywheel home" >
-                            <Icon Name="LucideIcon.Circle" Size="Size.Is4" />
+                            <img src="_content/Soenneker.Flywheel.Dashboard/flywheel.svg" width="20" height="20" alt="" style="flex-shrink: 0;" />
                             <Span FontWeight="FontWeight.Semibold" >Flywheel</Span>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -54,17 +54,7 @@ else if (Session.IsAuthenticated)
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>
-            <SidebarFooter>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton OnClick="Logout" Tooltip="Sign out" aria-label="Sign out">
-                            <Icon Name="LucideIcon.LogOut" Size="Size.Is4" /><Span>Sign out</Span>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-                <FlywheelThemeToggle />
-                <SidebarTrigger PointerEvents="PointerEvents.Auto.OnDisabled.None" Opacity="Opacity.Is100.OnDisabled.Is50" aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar" />
-            </SidebarFooter>
+            <SidebarFooter><FlywheelAccountMenu Username="@Session.Username" OnLogout="Logout" /></SidebarFooter>
         </Sidebar>
         <SidebarInset MinWidth="MinWidth.Is0" Style="flex: 1; min-width: 0; margin: 0;" >
             <FlywheelHeader />

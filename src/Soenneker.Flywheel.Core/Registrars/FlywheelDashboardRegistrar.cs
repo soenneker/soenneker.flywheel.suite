@@ -104,7 +104,7 @@ public static class FlywheelDashboardRegistrar
         var policy = app.ApplicationServices.GetRequiredService<DashboardOriginPolicy>();
         var dashboard = app.ApplicationServices.GetRequiredService<DashboardOptions>();
         string prefix = dashboard.EnginePath.TrimEnd('/');
-        string[] paths = ["csrf", "login", "logout", "jobs", "servers", "hub"];
+        string[] paths = ["csrf", "login", "logout", "user", "jobs", "servers", "hub"];
         return app.UseWhen(context => paths.Any(path => context.Request.Path.StartsWithSegments($"{prefix}/{path}")), branch =>
         {
             branch.Use(async (context, next) =>

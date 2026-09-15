@@ -28,14 +28,33 @@
     else
     {
         <Grid Columns="GridCols.Is1.OnMd.Is3" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Workers (busy / total)</Span><Span>@($"{_server.RunningJobs.Count:N0}/{_server.Workers:N0}")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div></Grid>
+        <Div Margin="Margin.FromBottom.Is6">
+            <Chart Type="ChartType.Line" Series="@_workers.Data.Series" Labels="@_workers.Data.Labels"
+                   XValues="@_workers.Data.XValues" DataVersion="@_workers.Data.Version" Options="@_workers.Options"
+                   AriaLabel="Busy workers on this server over time" />
+        </Div>
         <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Active executions</H3>
         @if (_server.RunningJobs.Count == 0) { <Paragraph role="status">This server is live and currently idle.</Paragraph> }
         else
         {
-            <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th><Th>Progress</Th></Tr></Thead><Tbody>
+            <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
-                <Tr @key="job.Id"><Td><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></Td><Td>@job.Attempt</Td><Td>@(job.Progress is { } value ? $"{value:0.#}%" : "—")</Td></Tr>
+                <Tr @key="job.Id">
+                    <Td>
+                        <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is3" MinWidth="MinWidth.Is0">
+                            <Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))" Style="overflow-wrap: anywhere; min-width: 0;">@job.Name</Anchor>
+                            @if (job.Progress is { } progress && progress < 100)
+                            {
+                                <Score Value="@((int)Math.Round(progress))" ScoreSize="28" Thickness="3" Colored="false"
+                                       Style="flex-shrink: 0; --score-neutral-color: var(--muted-foreground); --score-value-color: var(--muted-foreground);"
+                                       AriaLabel="@($"{job.Name}: {progress:0.#}% complete")"
+                                       title="@(job.ProgressMessage ?? $"{progress:0.#}% complete")" />
+                            }
+                        </Div>
+                    </Td>
+                    <Td>@job.Attempt</Td>
+                </Tr>
             }
             </Tbody></Table>
         }
@@ -48,18 +67,31 @@
     private bool _missing;
     private string? _error;
     private Task? _refreshLoop;
+    private ServerWorkerHistory _workers = new();
+    private string? _loadedServerId;
+    private int _refreshVersion;
 
     protected override void OnInitialized() => _refreshLoop = RefreshLoop();
 
-    protected override Task OnParametersSetAsync() => Refresh();
+    protected override Task OnParametersSetAsync()
+    {
+        if (_loadedServerId == ServerId) return Task.CompletedTask;
+        _loadedServerId = ServerId;
+        _workers = new ServerWorkerHistory();
+        _server = null;
+        _missing = false;
+        _error = null;
+        return Refresh();
+    }
 
     private async Task Refresh()
     {
         string serverId = ServerId;
+        int version = ++_refreshVersion;
         try
         {
             OperationResult<ServerView> response = await Consumer.GetServer(serverId, CancellationToken);
-            if (serverId != ServerId) return;
+            if (serverId != ServerId || version != _refreshVersion || IsDisposed) return;
             if (response.StatusCode == (int)HttpStatusCode.Unauthorized)
             {
                 Session.SetAuthenticated(false);
@@ -71,9 +103,14 @@
             _missing = response.StatusCode == (int)HttpStatusCode.NotFound;
             _server = _missing ? null : response.Value;
             if (!_missing) response.EnsureSucceeded();
+            if (_server is not null) _workers.Update(_server);
             _error = null;
         }
-        catch (Exception) when (!IsDisposed && !IsCancellationRequested) { _error = "Refresh failed. Flywheel will retry automatically."; }
+        catch (Exception) when (!IsDisposed && !IsCancellationRequested)
+        {
+            if (serverId != ServerId || version != _refreshVersion) return;
+            _error = "Refresh failed. Flywheel will retry automatically.";
+        }
     }
 
     private async Task RefreshLoop()

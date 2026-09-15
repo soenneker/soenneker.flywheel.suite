@@ -17,13 +17,12 @@
     .flywheel-signin button[type="button"] { min-width: 2.75rem; }
 </style>
 <Section Class="flywheel-signin" aria-labelledby="flywheel-signin-title">
-    <H1 Id="flywheel-signin-title" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" Display="Display.Flex" Justify="Justify.Center" Margin="Margin.Is0" >
+    <H1 Id="flywheel-signin-title" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" Display="Display.Flex" Justify="Justify.Center" Margin="Margin.FromBottom.Is6" >
         <Anchor Href="@DashboardNavigation.Path()" Display="Display.InlineFlex" ItemsAlign="Items.Center" Gap="Gap.Is2">
-            <Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Circle" Size="Size.Is5" aria-hidden="true" />
+            <img src="_content/Soenneker.Flywheel.Dashboard/flywheel.svg" width="28" height="28" alt="" />
             <Span>Flywheel</Span>
         </Anchor>
     </H1>
-    <Paragraph TextAlign="TextAlign.Center" TextColor="TextColor.MutedForeground" TextSize="TextSize.Sm" Margin="Margin.FromTop.Is2.FromBottom.Is6">Sign in to your dashboard</Paragraph>
     <form @onsubmit="Login" @onsubmit:preventDefault aria-busy="@_busy">
         @if (_error is not null)
         {

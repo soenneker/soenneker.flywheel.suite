@@ -2,43 +2,34 @@
 @using Soenneker.Quark
 @using Soenneker.Flywheel.Communication.Responses
 
-<style>
-    @@media (max-width: 767px) {
-        .flywheel-job-timeline { flex-direction: column !important; gap: 0 !important; }
-        .flywheel-job-timeline > * { flex: none !important; width: 100% !important; margin-top: 0 !important; padding: 0 0 1.25rem 1.5rem !important; }
-        .flywheel-job-timeline [data-slot="timeline-indicator"] { top: .375rem !important; }
-        .flywheel-job-timeline [data-slot="timeline-separator"] { top: 1.125rem !important; left: 3px !important; width: 2px !important; height: calc(100% - 1rem) !important; }
-    }
-</style>
-<Div TextSize="TextSize.Sm" Style="max-width: 40rem; min-width: 0;">
-    <H3 TextSize="TextSize.Xs" FontWeight="FontWeight.Semibold" TextColor="TextColor.MutedForeground" Margin="Margin.Is0">Activity</H3>
-    <Div Style="overflow-x: auto; padding-top: .5rem;" tabindex="0" role="region" aria-label="Job timeline">
-        <Timeline Class="flywheel-job-timeline" Orientation="horizontal" Value="@CompletedSteps" AriaLabel="Job timeline" Style="width: 100%;">
-            @foreach (var (title, timestamp, pending, step) in Milestones)
+<Section aria-label="Execution activity" Style="min-width: 0; padding-top: .75rem;">
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
+        <H3 TextSize="TextSize.Sm" FontWeight="FontWeight.Semibold" Margin="Margin.Is0">Activity</H3>
+        <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
+            @(Job.MaxAttempts is { } max ? $"Attempt {Job.Attempt} of {max}" : $"Attempt {Job.Attempt}")
+            @if (Job.StartedAt > 0 && Job.CompletedAt >= Job.StartedAt)
             {
-                <TimelineItem Step="@step" Style="@ItemStyle">
-                    <TimelineHeader>
-                        <TimelineTitle Style="margin: 0 0 .375rem; font-size: .875rem; font-weight: 600;">@title</TimelineTitle>
-                        <TimelineDate Style="margin: 0; line-height: 1.6;"><JobTimestamp StartsAt="@pending" ShowAbsolute="true" Value="@timestamp" /></TimelineDate>
-                    </TimelineHeader>
-                    <TimelineIndicator Style="@(pending ? PendingIndicatorStyle : IndicatorStyle)" />
-                    <TimelineSeparator Style="@SeparatorStyle" />
-                </TimelineItem>
+                <Span> · Completed in @DurationLabel</Span>
             }
-        </Timeline>
+        </Span>
     </Div>
-    <Div TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" Style="margin-top: .75rem;">
-        @(Job.MaxAttempts is { } max ? $"{Job.Attempt} of {max} attempts used" : $"{Job.Attempt} attempts used")
-        @if (Job.StartedAt > 0 && Job.CompletedAt >= Job.StartedAt)
+    <Div Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem 1.5rem;">
+        @foreach (var (title, timestamp, pending, step) in Milestones)
         {
-            <Span> · Duration: @TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).ToString("g")</Span>
+            <Div @key="step" Style="min-width: 0; overflow-wrap: anywhere;">
+                <Span Display="Display.Block" TextSize="TextSize.Sm" FontWeight="FontWeight.Semibold" Margin="Margin.FromBottom.Is1">@title</Span>
+                <Div TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground" Style="line-height: 1.6;">
+                    <JobTimestamp StartsAt="@pending" ShowAbsolute="true" Value="@timestamp" />
+                </Div>
+            </Div>
         }
     </Div>
-</Div>
-
+</Section>
 @code {
     private bool IsTerminal => Job.State is "Succeeded" or "DeadLettered" or "Cancelled";
-    private int CompletedSteps => 1 + (Job.Attempt > 0 ? 1 : 0) + (IsTerminal ? 1 : 0);
+    private string DurationLabel => TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).TotalSeconds < 60
+        ? $"{(Job.CompletedAt - Job.StartedAt) / 1000d:0.#} seconds"
+        : TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).ToString(@"h\:mm\:ss");
 
     private IEnumerable<(string Title, long Timestamp, bool Pending, int Step)> Milestones
     {
@@ -58,10 +49,6 @@
         }
     }
 
-    private const string ItemStyle = "flex: 1 1 0; min-width: 0; width: auto; margin-top: 1.25rem; padding-right: 1rem; gap: .25rem;";
-    private const string IndicatorStyle = "top: -1rem; left: 0; width: .5rem; height: .5rem; transform: none; translate: none; border: 0; background: var(--primary);";
-    private const string PendingIndicatorStyle = IndicatorStyle + "border: 1px solid var(--muted-foreground); background: transparent;";
-    private const string SeparatorStyle = "top: calc(-1rem + 3px); left: .875rem; width: calc(100% - 1.25rem); height: 2px; transform: none; translate: none; background: var(--border);";
 
     /// <summary>The current execution snapshot displayed in the timeline.</summary>
     [Parameter, EditorRequired]
