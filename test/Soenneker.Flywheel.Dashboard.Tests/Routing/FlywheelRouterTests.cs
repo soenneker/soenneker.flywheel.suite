@@ -76,7 +76,7 @@ public sealed class FlywheelRouterTests
     {
         await VerifyRendering("/", "https://example.test/", "https://example.test/?view=jobs", (component, navigation, handler) =>
         {
-            Check(handler.Paths.Contains("/flywheel/jobs/search"), "Root did not render the dashboard.");
+            Check(handler.Paths.Contains("/flywheel/user"), "Root did not check the dashboard session.");
             Check(navigation.Uri == "https://example.test/signin", "Root did not preserve the anonymous sign-in redirect.");
             Check(!component.ToHtmlString().Contains("host:"), "Sign-in fell through to host content.");
             return Task.CompletedTask;
@@ -144,7 +144,8 @@ public sealed class FlywheelRouterTests
             navigation.NavigateTo("/servers");
             await component.QuiescenceTask;
             Check(live.Connections == 1 && !live.Transport.Disposed, "Navigation recreated the layout connection.");
-            Check(handler.Paths.Count(path => path.EndsWith("/jobs/search")) == 1, "Navigation repeated the layout authentication check or loaded overview executions.");
+            Check(handler.Paths.Count(path => path.EndsWith("/user")) == 1, "Navigation repeated the layout authentication check.");
+            Check(!handler.Paths.Any(path => path.EndsWith("/jobs/search")), "Schedule navigation loaded overview executions.");
             Check(!handler.Paths.Any(path => path.Contains("/history")), "Schedule navigation loaded overview history.");
             Check(component.ToHtmlString().Contains("Connected"), "The persistent header lost its connection status.");
             navigation.NavigateTo("/");

@@ -18,6 +18,7 @@ internal sealed class RouterTestHttpHandler(bool authenticated = false) : HttpMe
             string path = request.RequestUri.AbsolutePath;
             object? result = path switch
             {
+                var p when p.EndsWith("/user") => new DashboardUser("admin"),
                 var p when p.EndsWith("/jobs/search") => new SearchResult([], 0),
                 var p when p.EndsWith("/jobs/history/options") => new HistoryOptions(86400),
                 var p when p.EndsWith("/jobs/history") => new List<JobHistoryPoint>(),
