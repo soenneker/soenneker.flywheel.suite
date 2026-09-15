@@ -30,7 +30,7 @@
         }
         @foreach (LogEntry entry in FilteredEntries)
         {
-            <Div @key="entry.Id" Padding="Padding.Is1.OnY" Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" TextColor="@(entry.Level is "Error" or "Critical" ? TextColor.Destructive : TextColor.Token("inherit"))">@FormatEntry(entry)</Div>
+            <Div @key="entry.Id" Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" TextColor="@(entry.Level is "Error" or "Critical" ? TextColor.Destructive : TextColor.Token("inherit"))">@FormatEntry(entry)</Div>
         }
     </ConsolePanel>
 </Section>
