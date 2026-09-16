@@ -42,8 +42,8 @@
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.5" />
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.6" />
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.Redis" Version="4.0.2" />
+        <PackageReference Include="Soenneker.Librarian.Redis" Version="4.0.3" />
     </ItemGroup>
 </Project>
