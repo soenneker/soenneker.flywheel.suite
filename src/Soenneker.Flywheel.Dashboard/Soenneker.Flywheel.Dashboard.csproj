@@ -42,17 +42,17 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.13" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1389" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1401" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.715" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2518" />
-        <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.83" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.721" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2529" />
+        <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.87" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
-        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.239" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1495" />
-        <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.822" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.249" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.77" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.242" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1501" />
+        <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.826" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.253" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.78" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
 </Project>
