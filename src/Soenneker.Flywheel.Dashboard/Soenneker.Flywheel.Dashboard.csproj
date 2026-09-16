@@ -49,7 +49,7 @@
         <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.87" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.242" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1501" />
+        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1502" />
         <PackageReference Include="Soenneker.SignalR.Web.Client" Version="4.0.826" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.254" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.78" PrivateAssets="all" />
