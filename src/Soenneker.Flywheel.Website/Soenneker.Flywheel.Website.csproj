@@ -12,13 +12,13 @@
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.124">
+        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.125">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1401" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="4.0.255" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.254" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.78" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.79" PrivateAssets="all" />
     </ItemGroup>
 </Project>
