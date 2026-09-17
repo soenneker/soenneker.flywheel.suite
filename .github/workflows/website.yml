@@ -73,7 +73,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: '08469810296dac20f6efdab76fc98637'
-          wranglerVersion: '4.129.0'
+          wranglerVersion: '4.133.0'
           workingDirectory: src/Soenneker.Flywheel.Website
           command: deploy
       - name: Verify published pages
