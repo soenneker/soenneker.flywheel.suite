@@ -2,6 +2,16 @@
 // Quark CodeEditor through the same interop module used by the component.
 const examples = document.querySelectorAll('.code-example');
 let interopPromise;
+window.addEventListener('quark-theme-changed', async event => {
+    if (interopPromise) {
+        try {
+            const interop = await interopPromise;
+            await interop.setTheme(event.detail.isDark ? 'vs-dark' : 'quarkLight');
+        } catch (error) {
+            console.error('Unable to update code example theme.', error);
+        }
+    }
+});
 
 function loadInterop() {
     return interopPromise ??= (async () => {
@@ -36,7 +46,7 @@ async function initialize(example) {
             value: text,
             language: example.dataset.language,
             ariaLabel: example.dataset.label,
-            theme: 'quarkLight',
+            theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'quarkLight',
             readOnly: true,
             domReadOnly: true,
             minimap: { enabled: false },

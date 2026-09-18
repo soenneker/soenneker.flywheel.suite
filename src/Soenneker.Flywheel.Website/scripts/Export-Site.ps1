@@ -1,9 +1,11 @@
-param([int]$Port = 5187)
+param([int]$Port = 5187, [switch]$UseLocalQuarkProject)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $publishRoot = Join-Path $projectRoot 'artifacts/publish'
 $outputRoot = Join-Path $projectRoot 'out'
-dotnet publish (Join-Path $projectRoot 'Soenneker.Flywheel.Website.csproj') -c Release -o $publishRoot --nologo
+$buildArgs = @()
+if ($UseLocalQuarkProject) { $buildArgs += "-p:UseLocalQuarkProject=true" }
+dotnet publish (Join-Path $projectRoot 'Soenneker.Flywheel.Website.csproj') -c Release -o $publishRoot --nologo @buildArgs
 if ($LASTEXITCODE -ne 0) { throw 'Website publish failed.' }
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 Copy-Item -Path (Join-Path $publishRoot 'wwwroot/*') -Destination $outputRoot -Recurse -Force
@@ -26,7 +28,7 @@ try {
         New-Item -ItemType Directory -Path $pageRoot -Force | Out-Null
         [IO.File]::WriteAllText((Join-Path $pageRoot 'index.html'), $page.Content)
     }
-    foreach ($asset in @('css/quark-tailwind.min.css','css/site.css','images/dashboard.png','images/execution.png','favicon.svg','js/code-examples.js','_content/Soenneker.Quark.Suite/js/monacointerop.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.css','_content/Soenneker.Quark.Suite/js/monaco-editor/workers/editor.worker.esm.js')) {
+    foreach ($asset in @('css/quark-tailwind.min.css','css/site.css','images/dashboard.png','images/execution.png','images/dashboard-dark.png','images/execution-dark.png','js/theme-images.js','_content/Soenneker.Quark.Suite/js/themeinterop.js','favicon.svg','js/code-examples.js','_content/Soenneker.Quark.Suite/js/monacointerop.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.css','_content/Soenneker.Quark.Suite/js/monaco-editor/workers/editor.worker.esm.js')) {
         if (-not (Test-Path (Join-Path $outputRoot $asset))) { throw "Missing public asset: $asset" }
     }
     Write-Output "Static website exported to $outputRoot"

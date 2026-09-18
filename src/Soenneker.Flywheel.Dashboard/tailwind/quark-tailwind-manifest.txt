@@ -58,7 +58,6 @@ p-8
 pb-3
 pb-6
 pointer-events-auto
-py-1
 rounded-full
 size-10
 size-2

@@ -2,6 +2,7 @@
 @namespace Soenneker.Flywheel.Dashboard
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.Extensions.Primitives
+@inject Soenneker.Quark.IThemeInterop Theme
 @inject DashboardNavigationOptions DashboardNavigation
 @inject NavigationManager Navigation
 @inject INavigationInterception NavigationInterception
@@ -94,7 +95,10 @@ else
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
+            await Theme.Initialize();
             await NavigationInterception.EnableNavigationInterceptionAsync();
+        }
         if (!_disposed && _refreshScroll)
         {
             _refreshScroll = false;

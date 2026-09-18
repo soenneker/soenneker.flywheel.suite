@@ -8,7 +8,12 @@
 
 Background jobs for .NET with Redis, in-process memory, or filesystem storage, source-generated job registration, and an optional live Blazor dashboard.
 
-[![Flywheel dashboard with live activity, job states, and searchable executions](docs/images/dashboard.png)](https://flywheel.soenneker.com)
+<a href="https://flywheel.soenneker.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png" />
+    <img src="docs/images/dashboard.png" alt="Flywheel dashboard with live activity, job states, and searchable executions" />
+  </picture>
+</a>
 
 *Dashboard shown with illustrative demo data.*
 
@@ -53,3 +58,19 @@ Open https://localhost:7039/ and sign in with `admin` / `flywheel-demo` in Devel
 - [Filesystem storage](docs/filesystem.md)
 - [Job registration generators](docs/generators.md)
 - [Dashboard and authentication](docs/dashboard.md)
+
+## Theme
+
+The dashboard follows the OS light/dark preference until a user toggles the theme. The account menu's **Use system theme** action clears that override. Theme initialization also runs on sign-in, even when no theme toggle is visible. Hosts can apply the theme before Blazor starts by loading Quark's theme initializer in the document head (see the dashboard demo's `wwwroot/index.html`).
+
+Blazor components can inject `Soenneker.Quark.IThemeInterop`, call `Initialize()` after the first interactive render, read `IsDark`, and subscribe to `ThemeChanged` to select light/dark images. Render from event handlers through `InvokeAsync` and unsubscribe on disposal. `UseSystem()` restores OS tracking.
+
+### Coordinated Quark development
+
+The dashboard and website use Quark 4.0.1411 or later for the reactive theme API. To develop coordinated changes against a sibling Quark checkout:
+
+```powershell
+dotnet build test/Soenneker.Flywheel.Dashboard.Demo -p:UseLocalQuarkProject=true
+```
+
+`LocalQuarkProject` can override the default sibling project path. Normal builds use the published Quark package.

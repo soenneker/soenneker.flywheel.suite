@@ -47,3 +47,11 @@ Add the suite repository secret `CLOUDFLARE_API_TOKEN` with Workers Scripts: Edi
 `Components/CodeExample.razor` renders Quark Suite's read-only `CodeEditor`, with a plain-text HTML fallback. Because the export has no Blazor runtime, `wwwroot/js/code-examples.js` initializes the component through Quark's shipped Monaco interop and wires its copy button. Editors load as they approach the viewport. The fallback remains readable when JavaScript is unavailable or initialization fails.
 
 Monaco, its stylesheet, and its worker are served from the published Quark package assets under `/_content/`. No CDN or server-side Blazor session is required. Keep the static initializer in sync with CodeEditor interop when upgrading Quark; the export validates the required asset paths.
+
+## Theme and image variants
+
+The document head selects the saved preference or OS preference before loading styles. Quark's theme module then tracks OS and cross-tab preference changes. The site's colors and code editors follow that resolved theme. `ThemedScreenshot` renders a light fallback and a dark `<picture>` source; `theme-images.js` keeps the visible source and full-size link aligned with explicit preferences as well as OS changes.
+
+For each screenshot, `name.png` is light and `name-dark.png` is dark. Capture both at 1600×1050 from the same isolated demo, then copy both into `docs/images/` as well. Do not recolor screenshots: capture the dashboard in each theme.
+
+To develop against a sibling Quark checkout, export with `pwsh -File scripts/Export-Site.ps1 -UseLocalQuarkProject`. Normal exports and deployment use the published Quark dependency; see the repository README.

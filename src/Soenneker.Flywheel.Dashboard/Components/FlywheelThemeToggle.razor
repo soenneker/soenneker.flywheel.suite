@@ -1,10 +1,21 @@
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
 @inject IThemeInterop Theme
+@implements IDisposable
 
 <ThemeToggleButton IsDark="@_isDark" AriaLabel="@(_isDark ? "Switch to light mode" : "Switch to dark mode")" OnClick="Toggle" />
 
 @code {
+    protected override void OnInitialized() => Theme.ThemeChanged += OnThemeChanged;
+
+    private void OnThemeChanged(bool isDark) => _ = InvokeAsync(() =>
+    {
+        _isDark = isDark;
+        StateHasChanged();
+    });
+
+    public void Dispose() => Theme.ThemeChanged -= OnThemeChanged;
+
     private bool _isDark;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

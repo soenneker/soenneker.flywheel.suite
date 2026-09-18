@@ -1,0 +1,15 @@
+<Anchor Href="@LightSrc" aria-label="@($"View full-size {Label} screenshot")" data-theme-image-link data-light-src="@LightSrc" data-dark-src="@DarkSrc">
+    <picture>
+        <source srcset="@DarkSrc" media="(prefers-color-scheme: dark)" data-theme-image-dark />
+        <img src="@LightSrc" width="1600" height="1050" alt="@Alt" loading="@Loading" fetchpriority="@FetchPriority" />
+    </picture>
+</Anchor>
+
+@code {
+    [Parameter, EditorRequired] public string LightSrc { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string DarkSrc { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Alt { get; set; } = string.Empty;
+    [Parameter] public string Label { get; set; } = "dashboard";
+    [Parameter] public string? Loading { get; set; }
+    [Parameter] public string? FetchPriority { get; set; }
+}

@@ -10,9 +10,22 @@
     <meta property="og:description" content="Schedule, retry, and observe background work. Built for .NET with flexible storage and a live Blazor dashboard." />
     <meta property="og:type" content="website" />
 
+    <script>
+        (() => {
+            let preference;
+            try { preference = localStorage.getItem("quark-theme"); } catch { }
+            const dark = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+            document.documentElement.classList.toggle("dark", dark);
+            document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        })();
+    </script>
+    <script type="module">
+        import { initialize } from "/_content/Soenneker.Quark.Suite/js/themeinterop.js";
+        initialize();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/quark-tailwind.min.css" />
     <link rel="stylesheet" href="/css/site.css" />
 </head>
-<body><Routes /><script type="module" src="/js/code-examples.js"></script></body>
+<body><Routes /><script type="module" src="/js/theme-images.js"></script><script type="module" src="/js/code-examples.js"></script></body>
 </html>
