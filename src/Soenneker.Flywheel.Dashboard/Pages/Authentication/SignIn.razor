@@ -10,13 +10,7 @@
 @inject DashboardNavigationOptions DashboardNavigation
 @inject NavigationManager Navigation
 
-<style>
-    .flywheel-signin { box-sizing: border-box; width: 100%; max-width: 28rem; margin-inline: auto; padding: clamp(2rem, 8vh, 4rem) 1.25rem 2rem; }
-    .flywheel-signin input { min-width: 0; min-height: 2.75rem; font-size: 1rem; }
-    .flywheel-signin button { min-height: 2.75rem; }
-    .flywheel-signin button[type="button"] { min-width: 2.75rem; }
-</style>
-<Section Class="flywheel-signin" aria-labelledby="flywheel-signin-title">
+<Section Width="Width.IsFull" MaxWidth="MaxWidth.IsMd" Margin="Margin.OnX.Auto" Padding="Padding.Is6" aria-labelledby="flywheel-signin-title">
     <H1 Id="flywheel-signin-title" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" Display="Display.Flex" Justify="Justify.Center" Margin="Margin.FromBottom.Is6" >
         <Anchor Href="@DashboardNavigation.Path()" Display="Display.InlineFlex" ItemsAlign="Items.Center" Gap="Gap.Is2">
             <img src="_content/Soenneker.Flywheel.Dashboard/flywheel.svg" width="28" height="28" alt="" />

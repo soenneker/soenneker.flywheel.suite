@@ -58,13 +58,17 @@
                     {
                         <DashboardActivityRegion @ref="_activityRegion">
                         <div class="flywheel-activity-chart" style="position: relative;" aria-label="Activity chart" aria-busy="@_historyLoading">
+                            <Div Position="Position.Relative">
                             @if (_historyLoading)
                             {
-                                <Spinner Size="Size.Is5" Position="Position.Absolute" Style="top: 0.5rem; right: 0.5rem; z-index: 1;" aria-label="Loading activity" />
+                                <Div Position="Position.Absolute" Inset="Inset.Is0" Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Center" ZIndex="ZIndex.Is10" PointerEvents="PointerEvents.None">
+                                    <Spinner Size="Size.Is10" aria-label="Loading activity" />
+                                </Div>
                             }
                             <Chart @ref="_activityChart" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
                                    OnRangeSelect="SelectActivityRange"
                                    AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second UTC buckets. Drag a range to filter executions." : (_query.Length > 0 ? "Matching executions by current status and last update time. Static search results." : "Job activity in five-minute UTC buckets. Drag a range to filter executions."))" />
+                            </Div>
                             <div class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">
                                 @foreach (ChartSeries series in ActivityLegendSeries)
                                 {
@@ -118,7 +122,7 @@
                                         <Td>
                                             @if (job.State is "Queued" or "Scheduled" or "Running" or "Waiting")
                                             {
-                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Button Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Cancel {job.Name}")">@(job.CancelRequested ? "Cancellation requested" : "Cancel")</Button></span>
+                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Button Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" Loading="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Default" aria-label="@($"{(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")} {job.Name}")">@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")</Button></span>
                                             }
                                         </Td>
                                 </Tr>

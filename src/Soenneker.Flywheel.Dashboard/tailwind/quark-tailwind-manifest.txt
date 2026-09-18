@@ -34,6 +34,7 @@ justify-center
 justify-end
 m-0
 max-w-[1600px]
+max-w-md
 mb-1
 mb-3
 mb-4
@@ -54,6 +55,7 @@ opacity-100
 p-0
 p-3
 p-4
+p-6
 p-8
 pb-3
 pb-6
