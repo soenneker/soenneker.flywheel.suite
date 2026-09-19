@@ -8,6 +8,7 @@ public sealed class DashboardOptions
 
     /// <summary>Username used to sign in to the dashboard.</summary>
     public string Username { get; set; } = "admin";
+
     /// <summary>PBKDF2 password hash encoded in PHC string format and used to verify dashboard credentials.</summary>
     public string PasswordPhc { get; set; } = "";
 
