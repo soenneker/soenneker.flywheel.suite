@@ -17,7 +17,7 @@ builder.Services.AddFlywheel().AddRedis(options =>
 });
 ```
 
-Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses native hashes, sets, sorted sets, sorting, and conditional transactions. No Lua, `EVAL`, or script permission is required. The provider reads Redis server time from the primary owning its namespace slot.
+Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses native hashes, sets, sorted sets, sorting, and conditional transactions, plus Lua scripts for document reads and transaction condition checks. Redis ACLs must allow `EVAL` and `EVALSHA` as well as the commands executed by those scripts. The provider reads Redis server time from the primary owning its namespace slot.
 
 Redis Cluster deployments require Redis 8 or later for Librarian's sorting with external key patterns.
 

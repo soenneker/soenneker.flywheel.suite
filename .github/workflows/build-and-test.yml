@@ -44,8 +44,9 @@ jobs:
         run: dotnet restore Soenneker.Flywheel.Suite.slnx
       - name: Build solution
         run: dotnet build Soenneker.Flywheel.Suite.slnx -c Release --no-restore
-      - name: Disable scripting for Redis integration tests
-        run: docker exec ${{ job.services.redis.id }} redis-cli ACL SETUSER flywheel-tests on '>integration-password' '~*' '+@all' '-eval' '-evalsha' '-script' '-fcall' '-fcall_ro'
+      - name: Configure Redis integration test user
+        # Librarian uses Lua scripts for document reads and transaction condition checks.
+        run: docker exec ${{ job.services.redis.id }} redis-cli ACL SETUSER flywheel-tests on '>integration-password' '~*' '+@all'
       - name: Test all Flywheel projects
         env:
           FLYWHEEL_TEST_REDIS: localhost:6379,user=flywheel-tests,password=integration-password
