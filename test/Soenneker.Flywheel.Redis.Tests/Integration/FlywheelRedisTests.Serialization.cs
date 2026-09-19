@@ -36,7 +36,7 @@ public sealed partial class FlywheelRedisTests
     public Task CamelCaseStoragePreservesOwnership() => WithStore(async (store, db, ns) =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1, RateLimit = 2 });
-        string id = await store.EnqueueForCurrentVersion(Request(), "release-2");
+        string id = await store.EnqueueForCurrentInstance(Request(), "release-2", "worker");
         await store.AddRecurring("schedule", Request() with { Name = "recurring.v1" }, TimeSpan.FromHours(1));
         JobLease lease = (await store.ClaimForVersion("worker", TimeSpan.FromSeconds(30), "release-2"))!;
         await using var database = OpenLibrarian(db, ns);
@@ -54,7 +54,8 @@ public sealed partial class FlywheelRedisTests
         Check(await store.Finish(lease, JobOutcome.Failed, "retry", TimeSpan.Zero), "Stored lease did not finish");
         Check(await store.ClaimForVersion("old", TimeSpan.FromSeconds(30), "release-1") is null,
             "Stored job lost version restriction");
-        JobLease retry = (await store.ClaimForVersion("new", TimeSpan.FromSeconds(30), "release-2"))!;
+        Check(await store.ClaimForVersion("new", TimeSpan.FromSeconds(30), "release-2") is null, "Peer claimed instance retry");
+        JobLease retry = (await store.ClaimForVersion("worker", TimeSpan.FromSeconds(30), "release-2"))!;
         Check(retry.Job.Id == id && retry.Job.Attempt == 2, "Stored policies or rate window blocked the retry");
         await store.Finish(retry, JobOutcome.Succeeded, null, TimeSpan.Zero);
         await store.Maintain(100);

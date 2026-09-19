@@ -8,6 +8,8 @@
 
 Background jobs for .NET with Redis, in-process memory, or filesystem storage, source-generated job registration, and an optional live Blazor dashboard.
 
+**AOT-friendly job dispatch.** Flywheel generates typed job invokers at build time and calls job methods directly, without runtime reflection. This supports ahead-of-time (AOT) compilation of job dispatch; compatibility of the complete application also depends on its host, storage, and serialization configuration.
+
 <a href="https://flywheel.soenneker.com">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png" />

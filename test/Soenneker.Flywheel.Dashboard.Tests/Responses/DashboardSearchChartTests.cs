@@ -9,6 +9,30 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardSearchChartTests
 {
     [Test]
+    public void LiveChartKeepsConstantScrollSpeedWhenTimerTicksSkipBuckets()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var page = new DashboardPage();
+        var connection = new DashboardBoardConnection(null!, new ActivityTotalsState());
+        typeof(DashboardPage).GetProperty("BoardConnection", flags)!.SetValue(page, connection);
+        PropertyInfo optionsProperty = typeof(DashboardPage).GetProperty("ActivityOptions", flags)!;
+        var data = connection.LiveActivity.Data;
+        var start = DateTimeOffset.UtcNow;
+        data.Append(start, 1, 0, 0, 0, 0);
+        var initial = (ChartOptions)optionsProperty.GetValue(page)!;
+        data.Append(start.AddSeconds(2), 1, 0, 0, 0, 0);
+        var delayed = (ChartOptions)optionsProperty.GetValue(page)!;
+        if (delayed.RealtimeScrollDuration != TimeSpan.FromSeconds(2))
+            throw new Exception("A two-second domain advance must take two seconds to scroll.");
+        if (!ReferenceEquals(delayed, optionsProperty.GetValue(page)))
+            throw new Exception("An unrelated render reset the animation duration.");
+        data.Append(start.AddSeconds(3), 1, 0, 0, 0, 0);
+        var regular = (ChartOptions)optionsProperty.GetValue(page)!;
+        if (regular.RealtimeScrollDuration != TimeSpan.FromSeconds(1) || regular.Maximum != initial.Maximum)
+            throw new Exception("Regular cadence must resume without changing the vertical scale.");
+    }
+
+    [Test]
     public void LiveChartRetainsSeriesAndScaleAcrossSamplesAndUnrelatedRenders()
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;

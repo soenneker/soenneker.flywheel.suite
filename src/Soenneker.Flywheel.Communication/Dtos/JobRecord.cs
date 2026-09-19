@@ -20,6 +20,9 @@ public sealed record JobRecord
     /// <summary>Exact application build allowed to execute this job, or null for unrestricted work.</summary>
     [JsonPropertyName("applicationVersion")]
     public string? ApplicationVersion { get; init; }
+    /// <summary>Only this application instance may execute the job; null for work available to any eligible instance.</summary>
+    [JsonPropertyName("targetNodeId")]
+    public string? TargetNodeId { get; init; }
     /// <summary>Optional human-readable description displayed by dashboard clients.</summary>
     [JsonPropertyName("description")]
     public string? Description { get; init; }

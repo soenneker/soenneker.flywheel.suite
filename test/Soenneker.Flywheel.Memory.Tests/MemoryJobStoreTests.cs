@@ -28,6 +28,37 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
+    public async Task StartupSubmissionsAreOncePerInstance()
+    {
+        var store = new MemoryJobStore(new FlywheelMemoryOptions());
+        string[] ids = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
+            store.EnqueueForCurrentInstance(Request("startup"), "v2", "current")));
+        Check(ids.Distinct().Count() == 1, "Same instance submitted duplicate startup jobs.");
+        Check(await store.ClaimForVersion("peer", TimeSpan.FromMinutes(1), "v2") is null, "Peer claimed another instance's job.");
+        Check(await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v1") is null, "Wrong version claimed startup job.");
+        JobLease lease = (await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v2"))!;
+        Check(lease.Job.Id == ids[0] && lease.Job.TargetNodeId == "current", "Owner did not receive its job.");
+        await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
+        Check(await store.EnqueueForCurrentInstance(Request("startup"), "v2", "current") == ids[0], "Completion allowed duplicate submission.");
+        string restarted = await store.EnqueueForCurrentInstance(Request("startup"), "v2", "restarted");
+        Check(restarted != ids[0], "New instance reused old startup job.");
+        Check((await store.ClaimForVersion("restarted", TimeSpan.FromMinutes(1), "v2"))!.Job.Id == restarted, "Restarted instance could not run its job.");
+    }
+
+    [Test]
+    public async Task StartupVersionRestrictionSurvivesRetries()
+    {
+        var store = new MemoryJobStore(new FlywheelMemoryOptions());
+        string id = await store.EnqueueForCurrentInstance(Request("startup"), "v2", "current");
+        JobLease first = (await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v2"))!;
+        await store.Finish(first, JobOutcome.Failed, "transient", TimeSpan.Zero);
+        Check(await store.ClaimForVersion("old", TimeSpan.FromMinutes(1), "v1") is null, "Old worker claimed the retry.");
+        Check(await store.ClaimForVersion("peer", TimeSpan.FromMinutes(1), "v2") is null, "Peer claimed retry.");
+        JobLease retry = (await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v2"))!;
+        Check(retry.Job.Id == id && retry.Job.Attempt == 2 && retry.Job.ApplicationVersion == "v2", "Normal version-restricted retries did not work.");
+    }
+
+    [Test]
     public async Task HeartbeatsRecordBoundedServerHistoryWithoutDashboardReads()
     {
         var clock = new Clock();
@@ -106,7 +137,7 @@ public sealed class MemoryJobStoreTests
         string high = await store.Enqueue(Request("limited", policy: new JobPolicy { Priority = JobPriority.High }));
         await store.Enqueue(Request("limited", policy: new JobPolicy { Priority = JobPriority.High }));
         string delayed = await store.Enqueue(Request("delayed", TimeSpan.FromMinutes(2), policy: new JobPolicy { Priority = JobPriority.Critical }));
-        string versioned = await store.EnqueueForCurrentVersion(Request("version", policy: new JobPolicy { Priority = JobPriority.Critical }), "v2");
+        string versioned = await store.EnqueueForCurrentInstance(Request("version", policy: new JobPolicy { Priority = JobPriority.Critical }), "v2", "node");
         JobLease first = (await store.Claim("node", TimeSpan.FromMinutes(5)))!;
         Check(first.Job.Id == high || first.Job.Name == "limited", "Priority was ignored.");
         Check((await store.ClaimForVersion("node", TimeSpan.FromMinutes(5), "v1"))!.Job.Id == low, "Limit or version filter was ignored.");
@@ -194,7 +225,7 @@ public sealed class MemoryJobStoreTests
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions { HistoryRetention = TimeSpan.FromMinutes(5) }, clock);
         string ordinary = await store.Enqueue(Request("ordinary", key: "key"));
-        string version = await store.EnqueueForCurrentVersion(Request("version"), "v1");
+        string version = await store.EnqueueForCurrentInstance(Request("version"), "v1", "node");
         for (int i = 0; i < 2; i++)
         {
             JobLease lease = (await store.ClaimForVersion("node", TimeSpan.FromMinutes(1), "v1"))!;
@@ -207,7 +238,7 @@ public sealed class MemoryJobStoreTests
         clock.Advance(TimeSpan.FromMinutes(2));
         await store.Maintain(100);
         Check((await store.List()).Count == 0, "Expired jobs retained.");
-        Check(await store.EnqueueForCurrentVersion(Request("version"), "v1") == version, "Version marker expired with job.");
+        Check(await store.EnqueueForCurrentInstance(Request("version"), "v1", "node") == version, "Version marker expired with job.");
         Check(await store.Enqueue(Request("ordinary", key: "key")) != ordinary, "Ordinary key did not expire.");
     }
 

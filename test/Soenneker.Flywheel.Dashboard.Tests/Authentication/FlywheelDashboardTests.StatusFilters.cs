@@ -8,6 +8,21 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed partial class FlywheelDashboardTests
 {
     [Test]
+    public async Task DeadLetterFilterExcludesNewScheduledAndQueuedExecutions()
+    {
+        var failed = new JobRecord { Id = "failed", Name = "invoice", Payload = "{}", Policy = new JobPolicy(), State = JobState.DeadLettered };
+        var store = new SearchStore { SearchItems = [failed] };
+        const string excluded = "Scheduled,Queued,Running,Succeeded,Cancelled,Waiting";
+        JobSearchResult before = await DashboardJobSearch.Search(store, "", 0, 50, null, null, excluded, default);
+        Check(before.TotalCount == 1, "The dead-lettered execution was missing.");
+        store.SearchItems = [failed,
+            new JobRecord { Id = "scheduled", Name = "recurring", Payload = "{}", Policy = new JobPolicy(), State = JobState.Scheduled, DueAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds() },
+            new JobRecord { Id = "queued", Name = "recurring", Payload = "{}", Policy = new JobPolicy(), State = JobState.Scheduled, DueAt = 0 }];
+        JobSearchResult after = await DashboardJobSearch.Search(store, "", 0, 50, null, null, excluded, default);
+        Check(after.TotalCount == 1 && after.Items.Count == 1 && after.Items[0].Id == "failed", "New executions leaked into the dead-letter filter.");
+    }
+
+    [Test]
     public async Task StatusFiltersApplyBeforePaginationAndPreserveSearch()
     {
         var store = new SearchStore

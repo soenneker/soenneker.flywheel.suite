@@ -20,6 +20,9 @@ public partial class Dashboard
     private int _offset, _totalCount, _queryRevision;
     private int _pageSize = 50;
     private string _query = "";
+    private int _tableGeneration;
+    private bool HasFilters => _hiddenActivitySeries.Count > 0 || _query.Length > 0 || !_liveMode || _jobStartAt is not null || _activityPaused;
+    private bool ActivityLoading => _historyLoading || (UseLiveChart && !_loaded);
     private CancellationTokenSource? _activeRead;
     private readonly DataTableOptions _tableOptions = new() { DefaultPageSize = 50, SearchDebounceMs = 300 };
 
@@ -72,25 +75,25 @@ public partial class Dashboard
     private async Task Reload()
     {
         if (_query.Length > 200) return;
+        _loading = true;
+        StateHasChanged();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         using var read = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         _activeRead = read;
         int revision = _queryRevision;
+        string excludedStates = ExcludedStates;
         try
         {
-            if (!_loaded || !BoardConnection.IsConnected)
-            {
-                OperationResult<SearchResult> response = await Consumer.Search(_query, _offset, _pageSize, _jobStartAt, _jobEndAt, read.Token, ExcludedStates);
-                if (response.StatusCode == (int)HttpStatusCode.Unauthorized) { Session.SetAuthenticated(false); return; }
-                response.EnsureSucceeded();
-                if (revision != _queryRevision) return;
-                _jobs = response.Value?.Items ?? [];
-                _totalCount = response.Value?.TotalCount ?? 0;
-                _loaded = true;
-                _loading = false;
-            }
+            OperationResult<SearchResult> response = await Consumer.Search(_query, _offset, _pageSize, _jobStartAt, _jobEndAt, read.Token, excludedStates);
+            if (response.StatusCode == (int)HttpStatusCode.Unauthorized) { Session.SetAuthenticated(false); return; }
+            response.EnsureSucceeded();
+            if (revision != _queryRevision) return;
+            _jobs = (response.Value?.Items ?? []).Where(job => !_hiddenActivitySeries.Contains(job.State)).ToList();
+            _totalCount = response.Value?.TotalCount ?? 0;
+            _loaded = true;
+            _loading = false;
             _error = null;
-            await BoardConnection.Configure(revision, _query, _offset, _pageSize, _jobStartAt, _jobEndAt, read.Token, ExcludedStates);
+            await BoardConnection.Configure(revision, _query, _offset, _pageSize, _jobStartAt, _jobEndAt, read.Token, excludedStates);
         }
         catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception)
@@ -109,7 +112,7 @@ public partial class Dashboard
     {
         if (IsDisposed || IsCancellationRequested || snapshot.Version != _queryRevision) return;
         bool changed = _loading || !_loaded || _error is not null || _totalCount != snapshot.TotalCount || !_jobs.SequenceEqual(snapshot.Items);
-        _jobs = snapshot.Items;
+        _jobs = snapshot.Items.Where(job => !_hiddenActivitySeries.Contains(job.State)).ToList();
         _totalCount = snapshot.TotalCount;
         _loading = false;
         _loaded = true;
@@ -157,6 +160,20 @@ public partial class Dashboard
         }
     }
 
+    private async Task ClearFilters()
+    {
+        _query = "";
+        _hiddenActivitySeries.Clear();
+        _legendVersion++;
+        _appliedState = null;
+        _liveMode = true;
+        ActivityTotals.LastHour = true;
+        _tableGeneration++;
+        _jobsTable = null;
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("state", (string?)null));
+        await ClearActivitySelection();
+    }
+
     private async Task ToggleActivitySeries(string name)
     {
         bool hidden = IsActivitySeriesHidden(name);
@@ -193,6 +210,8 @@ public partial class Dashboard
     private static readonly ChartOptions MobileSearchActivityOptions = CreateActivityOptions(mobile: true, search: true);
     private static readonly ChartOptions MobileHistoryActivityOptions = CreateActivityOptions(mobile: true);
     private double _liveMaximum = 1;
+    private double? _renderedLiveEnd;
+    private TimeSpan _liveScrollDuration = TimeSpan.FromSeconds(1);
     private ChartOptions? _scaledLiveOptions;
     private ChartOptions? _scaledMobileLiveOptions;
     private ChartOptions ActivityOptions
@@ -203,6 +222,24 @@ public partial class Dashboard
             if (!UseLiveChart)
                 return mobile ? !string.IsNullOrWhiteSpace(_query) ? MobileSearchActivityOptions : MobileHistoryActivityOptions
                     : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions;
+
+            // Match animation time to the domain advance, not the nominal timer period.
+            // A late tick can skip a bucket; scrolling it in one second doubles the speed.
+            if (_liveActivity.XValues.Count > 0)
+            {
+                double end = _liveActivity.XValues[^1];
+                if (_renderedLiveEnd is { } previous && end > previous)
+                {
+                    TimeSpan duration = TimeSpan.FromMilliseconds(end - previous);
+                    if (duration != _liveScrollDuration)
+                    {
+                        _liveScrollDuration = duration;
+                        _scaledLiveOptions = null;
+                        _scaledMobileLiveOptions = null;
+                    }
+                }
+                _renderedLiveEnd = end;
+            }
 
             // Keep headroom and retain the scale as peaks leave the window. Repeated
             // auto-scaling cancels horizontal scrolling and makes every sample jump.
@@ -217,17 +254,17 @@ public partial class Dashboard
                 _scaledMobileLiveOptions = null;
             }
             return mobile
-                ? _scaledMobileLiveOptions ??= CreateActivityOptions(mobile: true, live: true, maximum: _liveMaximum)
-                : _scaledLiveOptions ??= CreateActivityOptions(live: true, maximum: _liveMaximum);
+                ? _scaledMobileLiveOptions ??= CreateActivityOptions(mobile: true, live: true, maximum: _liveMaximum, scrollDuration: _liveScrollDuration)
+                : _scaledLiveOptions ??= CreateActivityOptions(live: true, maximum: _liveMaximum, scrollDuration: _liveScrollDuration);
         }
     }
 
-    private static ChartOptions CreateActivityOptions(bool mobile = false, bool live = false, bool search = false, double? maximum = null) => new()
+    private static ChartOptions CreateActivityOptions(bool mobile = false, bool live = false, bool search = false, double? maximum = null, TimeSpan? scrollDuration = null) => new()
     {
         Legend = ChartLegendPosition.None, Width = mobile ? 360 : 1200, Height = mobile ? 220 : 140,
         ShowYAxis = mobile, ShowGrid = mobile, PaddingLeft = mobile ? 40 : 24, ClipPlot = true,
         ShowPoints = search, Animate = false, EnableRangeSelection = true, PauseOnRangeSelection = !search,
-        EnableRealtimeScrolling = live, RealtimeScrollDuration = TimeSpan.FromSeconds(1),
+        EnableRealtimeScrolling = live, RealtimeScrollDuration = scrollDuration ?? TimeSpan.FromSeconds(1),
         Curve = ChartCurve.Monotone, Minimum = 0, Maximum = maximum, MaximumXAxisLabels = mobile ? 3 : live ? 7 : 12,
         LabelFormatter = label => live && label.Length > 8 ? label[..8] : label,
         Palette = [JobStatusColors.Accent("Scheduled"), JobStatusColors.Accent("Running"),
@@ -307,6 +344,9 @@ public partial class Dashboard
     private async Task ReloadHistory(CancellationToken cancellationToken)
     {
         int revision = ++_historyRevision;
+        _historyLoading = !UseLiveChart;
+        _historyError = null;
+        StateHasChanged();
         if (!string.IsNullOrWhiteSpace(_query))
         {
             try
@@ -322,6 +362,11 @@ public partial class Dashboard
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception) { if (revision == _historyRevision) _historyError = "Unable to load matching job activity. Try the search again."; }
+            finally
+            {
+                if (revision == _historyRevision) _historyLoading = false;
+                if (!IsDisposed) await InvokeAsync(StateHasChanged);
+            }
             return;
         }
         if (_liveMode) { _historyError = null; return; }
@@ -340,9 +385,13 @@ public partial class Dashboard
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception)
         {
-            _historyError = "Unable to load job history. Reload the page to retry.";
+            if (revision == _historyRevision) _historyError = "Unable to load job history. Reload the page to retry.";
         }
-        finally { _historyLoading = false; }
+        finally
+        {
+            if (revision == _historyRevision) _historyLoading = false;
+            if (!IsDisposed) await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void ApplySearchHistory(List<JobHistoryPoint> points)

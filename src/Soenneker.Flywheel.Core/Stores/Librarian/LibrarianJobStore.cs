@@ -97,7 +97,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
         await _jobs.Set(job.Id, job).NoSync();
         if (job.State == JobState.Scheduled)
-            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt)).NoSync();
+            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId)).NoSync();
         else await _dispatch.Remove(job.Id).NoSync();
         if (job.State == JobState.Running)
             await _running.Set(job.Id, new RunningEntry(job.Name, job.LeaseUntil)).NoSync();
@@ -125,15 +125,16 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
         });
     }
 
-    public Task<string> EnqueueForCurrentVersion(EnqueueRequest request, string applicationVersion,
+    public Task<string> EnqueueForCurrentInstance(EnqueueRequest request, string applicationVersion, string instanceId,
         CancellationToken cancellationToken = default)
     {
         ValidateId(applicationVersion);
-        if (request.IdempotencyKey is not null) throw new ArgumentException("Version submissions cannot have an idempotency key.");
-        JobRecord job = Create(request) with { ApplicationVersion = applicationVersion };
+        ValidateId(instanceId);
+        if (request.IdempotencyKey is not null) throw new ArgumentException("Instance submissions cannot have an idempotency key.");
+        JobRecord job = Create(request) with { ApplicationVersion = applicationVersion, TargetNodeId = instanceId };
         return Mutate(cancellationToken, async now =>
         {
-            var key = new VersionKey(request.Name, applicationVersion);
+            var key = new VersionKey(request.Name, applicationVersion, instanceId);
             if ((await _versions.GetEntry(key)) is { Value: var existing }) return existing;
             await _versions.Set(key, job.Id).NoSync();
             return await Insert(job, (long)request.Delay.TotalMilliseconds, now);
@@ -177,6 +178,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
             var candidates = await _dispatch.Range("value.dueAt", maximum: now);
             foreach (DispatchCandidate candidate in candidates.Select(e => e.Value)
                 .Where(c => c.ApplicationVersion is null || c.ApplicationVersion == applicationVersion)
+                .Where(c => c.TargetNodeId is null || c.TargetNodeId == owner)
                 .OrderByDescending(c => c.Priority).ThenBy(c => c.DueAt).ThenBy(c => c.Id, StringComparer.Ordinal))
             {
                 if (blocked.Contains(candidate.Name)) continue;
@@ -193,7 +195,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
                 }
                 JobRecord job = await _jobs.Get(candidate.Id) ?? throw new InvalidDataException("Dispatch document has no job.");
                 if (job.State != JobState.Scheduled || job.DueAt != candidate.DueAt || job.Name != candidate.Name ||
-                    job.ApplicationVersion != candidate.ApplicationVersion || job.Policy.Priority.Value != candidate.Priority)
+                    job.ApplicationVersion != candidate.ApplicationVersion || job.TargetNodeId != candidate.TargetNodeId || job.Policy.Priority.Value != candidate.Priority)
                     throw new InvalidDataException("Dispatch document does not match its job.");
                 if ((await _policies.GetEntry(job.Name)) is { Value: var policy } && policy.RateLimit is not null)
                 {

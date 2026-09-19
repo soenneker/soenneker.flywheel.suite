@@ -14,10 +14,10 @@ public sealed partial class FlywheelRedisTests
     {
         for (int i = 0; i < 140; i++)
             await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Low } });
-        string restricted = await store.EnqueueForCurrentVersion(Request() with
+        string restricted = await store.EnqueueForCurrentInstance(Request() with
         {
             Policy = new JobPolicy { Priority = JobPriority.Critical }
-        }, "build-2");
+        }, "build-2", "versioned");
         JobLease ordinary = (await store.Claim("unversioned", TimeSpan.FromMinutes(1)))!;
         Check(ordinary.Job.Id != restricted && ordinary.Job.Policy.Priority == JobPriority.Low,
             "Unversioned worker executed a restricted job");
@@ -66,7 +66,7 @@ public sealed partial class FlywheelRedisTests
     public Task DispatchMetadataExcludesPayloadAndIsRemovedOnCompletion() => WithStore(async (store, db, ns) =>
     {
         string payload = JsonSerializer.Serialize(new { Secret = new string('x', 16000) });
-        string id = await store.EnqueueForCurrentVersion(Request() with { Name = "work-\"\\日本語-🚀", Payload = payload }, "build-β-🚀");
+        string id = await store.EnqueueForCurrentInstance(Request() with { Name = "work-\"\\日本語-🚀", Payload = payload }, "build-β-🚀", "worker");
         await using var database = OpenLibrarian(db, ns);
         var dispatch = await database.GetContainer("flywheel.dispatch");
         string? metadata = await dispatch.GetItem(DocumentId(id));

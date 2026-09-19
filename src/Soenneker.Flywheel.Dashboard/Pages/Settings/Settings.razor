@@ -1,0 +1,90 @@
+@page "/flywheel/settings"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Settings
+@using Soenneker.Quark
+@using Microsoft.JSInterop
+@using Soenneker.Blazor.Utils.LocalStorage.Abstract
+@layout FlywheelLayout
+@implements IDisposable
+@inject IThemeInterop Theme
+@inject ILocalStorageUtil LocalStorage
+
+<PageTitle>Settings · Flywheel</PageTitle>
+<Main Padding="Padding.Is4" Width="Width.IsFull">
+    <Div Margin="Margin.FromBottom.Is6"><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold">Settings</H2></Div>
+    <Div Border="Border.Is1" BorderColor="BorderColor.Border" Rounded="Rounded.Lg" Padding="Padding.Is6" Style="max-width: 40rem;">
+        <H3 Margin="Margin.Is0" TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Appearance</H3>
+        <Div TextColor="TextColor.MutedForeground" Margin="Margin.OnY.Is4">Choose how Flywheel looks. Your preference is saved in this browser.</Div>
+        @if (_error is not null)
+        {
+            <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
+        }
+        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="checkbox" checked="@_useSystem" disabled="@(!_ready || _saving)" @onchange="ChangeSystem" />
+            Use system theme
+        </label>
+        <fieldset disabled="@(!_ready || _saving || _useSystem)" style="border: 0; padding: 0; margin: 0; opacity: @(_useSystem ? "0.5" : "1");">
+            <legend style="margin-bottom: 0.5rem;">Theme</legend>
+            <div style="display: flex; gap: 1.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem;"><input type="radio" name="flywheel-theme" checked="@(!_isDark)" @onchange="() => SetTheme(false)" /> Light</label>
+                <label style="display: flex; align-items: center; gap: 0.5rem;"><input type="radio" name="flywheel-theme" checked="@_isDark" @onchange="() => SetTheme(true)" /> Dark</label>
+            </div>
+        </fieldset>
+    </Div>
+</Main>
+
+@code {
+    private bool _ready, _saving, _isDark;
+    private bool _useSystem = true;
+    private string? _error;
+
+    protected override void OnInitialized() => Theme.ThemeChanged += OnThemeChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _isDark = await Theme.Initialize();
+            string? preference = await LocalStorage.Get("quark-theme");
+            _useSystem = preference is not ("light" or "dark");
+            _ready = true;
+        }
+        catch (JSException)
+        {
+            _error = "Theme settings could not be loaded. Allow browser storage and reload to try again.";
+        }
+        StateHasChanged();
+    }
+
+    private Task ChangeSystem(ChangeEventArgs args) => SaveTheme(args.Value is true, _isDark);
+
+    private Task SetTheme(bool isDark) => SaveTheme(false, isDark);
+
+    private async Task SaveTheme(bool useSystem, bool isDark)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (useSystem)
+                await LocalStorage.Remove("quark-theme");
+            else
+                await LocalStorage.Set("quark-theme", isDark ? "dark" : "light");
+            _isDark = await Theme.Initialize();
+            _useSystem = useSystem;
+        }
+        catch (JSException)
+        {
+            _error = "Your theme preference could not be saved. Please try again.";
+        }
+        finally { _saving = false; }
+    }
+
+    private void OnThemeChanged(bool isDark) => _ = InvokeAsync(() =>
+    {
+        _isDark = isDark;
+        StateHasChanged();
+    });
+
+    public void Dispose() => Theme.ThemeChanged -= OnThemeChanged;
+}

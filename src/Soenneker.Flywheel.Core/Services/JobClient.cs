@@ -10,16 +10,16 @@ namespace Soenneker.Flywheel.Core.Services;
 
 public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
 {
-    private readonly string _applicationVersion = (options ?? new FlywheelOptions()).ApplicationVersion;
+    private readonly FlywheelOptions _options = options ?? new FlywheelOptions();
     private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
 
-    public Task<string> EnqueueForCurrentVersion<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
+    public Task<string> EnqueueForCurrentInstance<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
         CancellationToken cancellationToken = default)
     {
         EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
         if (store is not IVersionedJobStore versioned)
-            throw new NotSupportedException("The job store does not support version-restricted jobs.");
-        return versioned.EnqueueForCurrentVersion(request, _applicationVersion, cancellationToken);
+            throw new NotSupportedException("The job store does not support instance-restricted jobs.");
+        return versioned.EnqueueForCurrentInstance(request, _options.ApplicationVersion, _options.NodeId, cancellationToken);
     }
 
     private EnqueueRequest Request<T>(JobDefinition<T> job, T payload, JobPolicy? policy, TimeSpan delay, string? key)

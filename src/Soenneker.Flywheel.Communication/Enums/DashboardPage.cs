@@ -15,4 +15,5 @@ public readonly partial struct DashboardPage
     public static readonly DashboardPage Servers = new(6);
     public static readonly DashboardPage ServerDetails = new(7);
     public static readonly DashboardPage Schedule = new(8);
+    public static readonly DashboardPage Settings = new(9);
 }

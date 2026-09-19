@@ -71,20 +71,18 @@ public sealed class MessageJobs(ILogger<MessageJobs> logger)
 
 Job payloads, typed chain steps, and generated invokers use `Soenneker.Utils.Json` with its web defaults. Flywheel's communication contracts declare explicit camelCase `JsonPropertyName` attributes; use the same attributes on your application payloads to keep their wire names stable. A null payload is persisted as JSON `null`.
 
-### Once per hosting application version
+### Once per application instance
 
-Use the typed client when a startup job must be submitted once for the build that queues it:
+Use the typed client to queue a startup job once for the calling instance:
 
 ```csharp
-await client.EnqueueForCurrentVersion(FlywheelJobs.MessageJobs_Write,
-    new Message("Initialize this release"));
+await client.EnqueueForCurrentInstance(FlywheelJobs.MessageJobs_Write,
+    new Message("Initialize this instance"));
 ```
 
-Instances sharing the Redis namespace, job name, and application version receive the same job ID. Only engines with that exact application version can claim the job. Older warmup-slot engines skip it without consuming an attempt or blocking ordinary jobs of the same method. The first submission's payload and policy win. A different application build gets its own job; Flywheel does not compare version ordering or suppress older builds' pending jobs.
+Repeated calls for the same job on that instance return the original job ID; the first payload and policy win. Only that instance can claim the job. A new instance gets a separate job, including after a restart. FlywheelOptions.NodeId defaults to a fresh ID per host; do not share it between instances or persist it across restarts. The application version must also match.
 
-Flywheel automatically uses the hosting entry assembly's module version ID, identifying the compiled artifact rather than the Flywheel package version. Deploy the same artifact to matching instances. If producers and engines use different entry assemblies, set `FlywheelOptions.ApplicationVersion` to the same immutable release ID on both. It must change between releases; a slot name, instance ID, or constant assembly version is unsuitable.
-
-The once-per-version marker survives completed-job and log cleanup for the lifetime of the Redis namespace. Repeated calls after success, cancellation, or final failure return the original ID, even if its job record has expired. Each job/version pair retains one marker. Normal retry and lease-recovery rules still apply, so handlers must remain idempotent. Use `new JobPolicy { MaxAttempts = 1 }` if only one execution attempt is appropriate, accepting that an interrupted attempt will not recover by running again.
+The submission marker survives job retention. Flywheel handles normal retries and lease recovery on the original instance, so handlers must remain idempotent. Pending jobs belonging to a stopped instance do not transfer to another instance; the new instance queues its own startup job.
 
 Custom storage providers must implement `IVersionedJobStore`; unsupported providers reject this API.
 

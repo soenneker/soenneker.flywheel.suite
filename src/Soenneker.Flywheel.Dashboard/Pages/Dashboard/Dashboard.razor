@@ -31,12 +31,6 @@
     {
         <Alert role="alert"><AlertTitle>Unable to load executions</AlertTitle><AlertDescription>@_error <Button OnClick="Reload" Variant="ButtonVariant.Secondary">Retry</Button></AlertDescription></Alert>
     }
-    @if (_loading)
-    {
-        <Spinner Size="Size.Is5" aria-label="Loading executions…" />
-    }
-    else
-    {
         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.End" Margin="Margin.FromBottom.Is4">
             <ExecutionDatePicker Label="@DateRangeLabel" Min="@HistoryMinDate" Max="@HistoryMaxDate"
                                  Presets="@HistoryRangePresets" Range="@(_liveMode ? null : new CalendarDateRange(_historyStartDate, _historyEndDate))"
@@ -57,9 +51,9 @@
                     else
                     {
                         <DashboardActivityRegion @ref="_activityRegion">
-                        <div class="flywheel-activity-chart" style="position: relative;" aria-label="Activity chart" aria-busy="@_historyLoading">
+                        <div class="flywheel-activity-chart" style="position: relative;" aria-label="Activity chart" aria-busy="@ActivityLoading">
                             <Div Position="Position.Relative">
-                            @if (_historyLoading)
+                            @if (ActivityLoading)
                             {
                                 <Div Position="Position.Absolute" Inset="Inset.Is0" Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Center" ZIndex="ZIndex.Is10" PointerEvents="PointerEvents.None">
                                     <Spinner Size="Size.Is10" aria-label="Loading activity" />
@@ -88,24 +82,32 @@
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
 
                 <Div>
-                <DataTable @ref="_jobsTable" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
+                <DataTable @key="_tableGeneration" @ref="_jobsTable" aria-busy="@_loading" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
                     <TopContent>
                         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Justify="Justify.Between" Margin="Margin.FromBottom.Is4">
                             <DataTableSearch Placeholder="Search" AriaLabel="Search jobs" />
+                            @if (HasFilters)
+                            {
+                                <Button OnClick="ClearFilters" Variant="ButtonVariant.Outline" Style="white-space: nowrap;">Clear Filters</Button>
+                            }
                         </Div>
                     </TopContent>
                     <TableContent>
                         <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border">
                             <Tr>
-                                <Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Updated</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.Is3">Action</Th>
+                                <Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Updated</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Action</Th>
                             </Tr>
                         </Thead>
                         <Tbody>
-                            @foreach (JobView job in _jobs)
+                            @if (_loading)
+                            {
+                                <Tr><Td ColSpan="5" Padding="Padding.Is8" TextAlign="TextAlign.Center"><Spinner Size="Size.Is6" aria-label="Loading executions" /></Td></Tr>
+                            }
+                            @foreach (JobView job in _loading ? Enumerable.Empty<JobView>() : _jobs)
                             {
                                 <DashboardJobRow @key="job.Id" Job="job" Cancelling="@_cancellingJobs.Contains(job.Id)">
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
-                                        <Td>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">
                                             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2">
                                                 <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
                                                 @if (job.Progress is { } progress && progress < 100)
@@ -115,14 +117,14 @@
                                                 }
                                             </Div>
                                         </Td>
-                                        <Td>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">
                                             <JobStatusBadge State="@job.State" CancelRequested="@job.CancelRequested" />
                                         </Td>
-                                        <Td>@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td><JobTimestamp Value="@job.UpdatedAt" /></Td>
-                                        <Td>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp Value="@job.UpdatedAt" /></Td>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">
                                             @if (job.State is "Queued" or "Scheduled" or "Running" or "Waiting")
                                             {
-                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Button Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" Loading="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Default" aria-label="@($"{(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")} {job.Name}")">@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")</Button></span>
+                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Button ButtonSize="ButtonSize.Sm" Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" Loading="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Default" aria-label="@($"{(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")} {job.Name}")">@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")</Button></span>
                                             }
                                         </Td>
                                 </Tr>
@@ -131,7 +133,7 @@
                         </Tbody>
                     </TableContent>
                     <BottomContent>
-                        @if (_jobs.Count == 0)
+                        @if (!_loading && _jobs.Count == 0)
                         {
                             <Div  TextAlign="TextAlign.Center" Padding="Padding.Is8" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">
                                 <H3 TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.Words">@(string.IsNullOrEmpty(_query) ? (_totalCount == 0 ? "No executions yet" : "No executions on this page") : "No matching jobs")</H3>
@@ -147,6 +149,5 @@
                 </Div>
             </Div>
         </Grid>
-    }
     <JobDetailsDrawer @ref="_jobDrawer" />
 </Div>

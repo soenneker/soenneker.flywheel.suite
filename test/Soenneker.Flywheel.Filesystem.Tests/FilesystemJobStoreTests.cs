@@ -109,7 +109,7 @@ public sealed class FilesystemJobStoreTests
         {
             var store = services.GetRequiredService<FilesystemJobStore>();
             ids = await store.EnqueueChain([Request("first"), Request("second")], "chain");
-            version = await store.EnqueueForCurrentVersion(Request("version"), "v1");
+            version = await store.EnqueueForCurrentInstance(Request("version"), "v1", "node");
             await store.AddRecurring("interval", Request("recurring"), TimeSpan.FromMinutes(1));
             await store.AddCron("cron", Request("cron"), "*/10 * * * * *", includeSeconds: true);
         }
@@ -131,7 +131,7 @@ public sealed class FilesystemJobStoreTests
         await using (ServiceProvider services = Open(files.Path, clock, retain: false))
         {
             var store = services.GetRequiredService<FilesystemJobStore>();
-            Check(await store.EnqueueForCurrentVersion(Request("version"), "v1") == version, "Version marker did not survive cleanup and reopen.");
+            Check(await store.EnqueueForCurrentInstance(Request("version"), "v1", "node") == version, "Version marker did not survive cleanup and reopen.");
             Check((await store.GetHistory()).Sum(p => p.Cancelled) == 1, "Retained history lost on reopen.");
         }
     }

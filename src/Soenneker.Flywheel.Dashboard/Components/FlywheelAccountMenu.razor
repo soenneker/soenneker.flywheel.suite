@@ -1,8 +1,8 @@
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
 @using Soenneker.Lucide.Enums.Icons
-@inject IThemeInterop Theme
-@implements IDisposable
+@inject DashboardNavigationOptions DashboardNavigation
+@inject NavigationManager Navigation
 
 <style>
     .flywheel-account { width: 100%; min-width: 0; }
@@ -17,11 +17,8 @@
         <Icon Class="flywheel-account-more" Name="LucideIcon.Ellipsis" Size="Size.Is4" />
     </DropdownToggle>
     <DropdownMenu Role="menu" Side="@Soenneker.Bradix.Side.Top" Align="@Soenneker.Bradix.Alignment.Start">
-        <DropdownItem Clicked="ToggleTheme" CloseOnSelect="true" Disabled="@(!_themeReady)" Role="menuitem" Title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
-            <Icon Name="@(_isDark ? LucideIcon.Moon : LucideIcon.Sun)" Size="Size.Is4" /><Span>Theme</Span>
-        </DropdownItem>
-        <DropdownItem Clicked="UseSystemTheme" CloseOnSelect="true" Disabled="@(!_themeReady)" Role="menuitem">
-            <Span>Use system theme</Span>
+        <DropdownItem Clicked="OpenSettings" CloseOnSelect="true" Role="menuitem">
+            <Icon Name="LucideIcon.Settings" Size="Size.Is4" /><Span>Settings</Span>
         </DropdownItem>
         <DropdownItem Clicked="SignOut" CloseOnSelect="true" Role="menuitem">
             <Icon Name="LucideIcon.LogOut" Size="Size.Is4" /><Span>Sign out</Span>
@@ -30,30 +27,9 @@
 </Dropdown>
 
 @code {
-    protected override void OnInitialized() => Theme.ThemeChanged += OnThemeChanged;
-
-    private void OnThemeChanged(bool isDark) => _ = InvokeAsync(() =>
-    {
-        _isDark = isDark;
-        StateHasChanged();
-    });
-
-    public void Dispose() => Theme.ThemeChanged -= OnThemeChanged;
-
     [Parameter] public string? Username { get; set; }
     [Parameter] public EventCallback OnLogout { get; set; }
-    private bool _isDark;
-    private bool _themeReady;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        _isDark = await Theme.Initialize();
-        _themeReady = true;
-        StateHasChanged();
-    }
-
-    private async Task ToggleTheme() => _isDark = await Theme.Toggle();
-    private async Task UseSystemTheme() => _isDark = await Theme.UseSystem();
+    private void OpenSettings() => Navigation.NavigateTo(DashboardNavigation.Path("settings"));
     private Task SignOut() => OnLogout.InvokeAsync();
 }

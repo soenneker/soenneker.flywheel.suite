@@ -37,11 +37,11 @@
         @if (_server.RunningJobs.Count == 0) { <Paragraph role="status">This server is live and currently idle.</Paragraph> }
         else
         {
-            <Table><Thead><Tr><Th>Job</Th><Th>Attempt</Th></Tr></Thead><Tbody>
+            <Table><Thead><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
                 <Tr @key="job.Id">
-                    <Td>
+                    <Td Padding="Padding.OnX.Is3.OnY.Is1">
                         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is3" MinWidth="MinWidth.Is0">
                             <Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))" Style="overflow-wrap: anywhere; min-width: 0;">@job.Name</Anchor>
                             @if (job.Progress is { } progress && progress < 100)
@@ -53,7 +53,7 @@
                             }
                         </Div>
                     </Td>
-                    <Td>@job.Attempt</Td>
+                    <Td Padding="Padding.OnX.Is3.OnY.Is1">@job.Attempt</Td>
                 </Tr>
             }
             </Tbody></Table>
