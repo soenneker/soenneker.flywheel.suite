@@ -21,7 +21,8 @@ public partial class Dashboard
     private int _pageSize = 50;
     private string _query = "";
     private int _tableGeneration;
-    private bool HasFilters => _hiddenActivitySeries.Count > 0 || _query.Length > 0 || !_liveMode || _jobStartAt is not null || _activityPaused;
+    private bool HasFilters => _offset > 0 || _hiddenActivitySeries.Count > 0 || _query.Length > 0 || !_liveMode || _jobStartAt is not null || _activityPaused;
+    private bool LiveTable => _offset == 0 && _liveMode && _jobStartAt is null && string.IsNullOrWhiteSpace(_query);
     private bool ActivityLoading => _historyLoading || (UseLiveChart && !_loaded);
     private CancellationTokenSource? _activeRead;
     private readonly DataTableOptions _tableOptions = new() { DefaultPageSize = 50, SearchDebounceMs = 300 };
@@ -54,11 +55,10 @@ public partial class Dashboard
             foreach (string state in FilterStates)
                 if (state != selected) _hiddenActivitySeries.Add(state);
         _legendVersion++;
-        _offset = 0;
+        ResetFilterPage();
         _queryRevision = BoardConnection.NextVersion();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
-        if (_jobsTable is not null) await _jobsTable.GoToPage(1);
-        await Task.WhenAll(firstLoad ? LoadOverviewHistory() : Task.CompletedTask, Reload());
+        await Task.WhenAll(firstLoad ? LoadOverviewHistory() : ReloadHistory(CancellationToken), Reload());
     }
 
     private async Task LoadOverviewHistory()
@@ -93,7 +93,11 @@ public partial class Dashboard
             _loaded = true;
             _loading = false;
             _error = null;
-            await BoardConnection.Configure(revision, _query, _offset, _pageSize, _jobStartAt, _jobEndAt, read.Token, excludedStates);
+            // Historical pages are one-shot reads. Keep the shared header connected,
+            // but do not stream replacement pages into a historical table.
+            await BoardConnection.Configure(revision, LiveTable ? _query : "", 0, LiveTable ? _pageSize : 1,
+                null, null, read.Token, LiveTable ? excludedStates : null);
+            if (_offset > 0) await ReloadPageHistory(revision, read.Token);
         }
         catch (OperationCanceledException) when (read.IsCancellationRequested) { }
         catch (Exception)
@@ -103,14 +107,18 @@ public partial class Dashboard
         finally
         {
             if (ReferenceEquals(_activeRead, read)) _activeRead = null;
-            if (revision == _queryRevision) _loading = false;
+            if (revision == _queryRevision)
+            {
+                _loading = false;
+                if (_offset > 0) _historyLoading = false;
+            }
             if (!IsDisposed && !IsCancellationRequested) await InvokeAsync(StateHasChanged);
         }
     }
 
     private Task OnSnapshot(LiveBoard snapshot) => InvokeAsync(() =>
     {
-        if (IsDisposed || IsCancellationRequested || snapshot.Version != _queryRevision) return;
+        if (IsDisposed || IsCancellationRequested || snapshot.Version != _queryRevision || !LiveTable) return;
         bool changed = _loading || !_loaded || _error is not null || _totalCount != snapshot.TotalCount || !_jobs.SequenceEqual(snapshot.Items);
         _jobs = snapshot.Items.Where(job => !_hiddenActivitySeries.Contains(job.State)).ToList();
         _totalCount = snapshot.TotalCount;
@@ -174,6 +182,22 @@ public partial class Dashboard
         await ClearActivitySelection();
     }
 
+    private void ResetFilterPage()
+    {
+        if (_offset > 0) { _tableGeneration++; _jobsTable = null; }
+        _offset = 0;
+        _pageStartAt = _pageEndAt = null;
+    }
+
+    private void ClearHeaderSelection()
+    {
+        // A manually edited legend is no longer the header's single-status filter.
+        // Update the applied parameter before navigation so it does not clear the legend.
+        if (_appliedState is null) return;
+        _appliedState = null;
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("state", (string?)null), replace: true);
+    }
+
     private async Task ToggleActivitySeries(string name)
     {
         bool hidden = IsActivitySeriesHidden(name);
@@ -181,14 +205,13 @@ public partial class Dashboard
             if (hidden) _hiddenActivitySeries.Remove(state);
             else _hiddenActivitySeries.Add(state);
         _legendVersion++;
-        _offset = 0;
-        if (_jobsTable is not null) await _jobsTable.GoToPage(1);
+        ClearHeaderSelection();
+        ResetFilterPage();
         _queryRevision = BoardConnection.NextVersion();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
-        await Reload();
+        await Task.WhenAll(Reload(), ReloadHistory(CancellationToken));
     }
 
-    private static readonly string[] ActivityColors = [JobStatusColors.Accent("Scheduled"), JobStatusColors.Accent("Succeeded"), JobStatusColors.Accent("DeadLettered")];
     private long _activityVersion;
     private int _historyRevision;
     private Chart? _activityChart;
@@ -220,8 +243,8 @@ public partial class Dashboard
         {
             bool mobile = SidebarState?.IsMobile == true;
             if (!UseLiveChart)
-                return mobile ? !string.IsNullOrWhiteSpace(_query) ? MobileSearchActivityOptions : MobileHistoryActivityOptions
-                    : !string.IsNullOrWhiteSpace(_query) ? SearchActivityOptions : HistoryActivityOptions;
+                return mobile ? UseMatchingHistory ? MobileSearchActivityOptions : MobileHistoryActivityOptions
+                    : UseMatchingHistory ? SearchActivityOptions : HistoryActivityOptions;
 
             // Match animation time to the domain advance, not the nominal timer period.
             // A late tick can skip a bucket; scrolling it in one second doubles the speed.
@@ -275,8 +298,13 @@ public partial class Dashboard
     private string? _historyError;
     private bool _historyLoading;
     private bool _liveMode = true;
-    private bool UseLiveChart => _liveMode && string.IsNullOrWhiteSpace(_query);
-    private string DateRangeLabel => _jobStartAt is { } start && _jobEndAt is { } end
+    private DateTimeOffset? _pageStartAt, _pageEndAt;
+    private bool UseLiveChart => _offset == 0 && _liveMode && string.IsNullOrWhiteSpace(_query);
+    private bool UseMatchingHistory => !string.IsNullOrWhiteSpace(_query) || _hiddenActivitySeries.Count > 0;
+    private string DateRangeLabel => _offset > 0
+        ? _pageStartAt is { } pageStart && _pageEndAt is { } pageEnd
+            ? $"{pageStart:MMM d HH:mm}–{pageEnd:MMM d HH:mm} UTC" : "Page activity"
+        : _jobStartAt is { } start && _jobEndAt is { } end
         ? $"{start:MMM d HH:mm:ss}–{end:MMM d HH:mm:ss} UTC"
         : _liveMode ? (UseLiveChart ? "Live" : "All dates") : $"{_historyStartDate:MMM d}–{_historyEndDate:MMM d} UTC";
     private int _historyRetentionDays = 1;
@@ -307,7 +335,7 @@ public partial class Dashboard
         from = from < HistoryMinDate ? HistoryMinDate : from;
         to = to > HistoryMaxDate ? HistoryMaxDate : to;
         if (to.DayNumber - from.DayNumber + 1 > _historyRetentionDays) return;
-        if (!_liveMode && _historyStartDate == from && _historyEndDate == to) return;
+        if (_offset == 0 && !_liveMode && _historyStartDate == from && _historyEndDate == to) return;
         _liveMode = false;
         ActivityTotals.LastHour = false;
         _historyStartDate = from;
@@ -317,12 +345,58 @@ public partial class Dashboard
 
     private async Task ShowLive()
     {
+        if (_query.Length > 0) { _query = ""; _tableGeneration++; _jobsTable = null; }
         _liveMode = true;
         ActivityTotals.LastHour = true;
         await ClearActivitySelection();
     }
 
     private void ApplyLiveActivity() => BoardConnection.LiveActivity.Advance(ActivityTotals);
+
+    private void SetPageActivityRange()
+    {
+        _pageStartAt = _pageEndAt = null;
+        if (_jobs.Count == 0) return;
+        // Table date filters use UpdatedAt. Include the complete five-minute
+        // history buckets containing both ends of this page, independent of order.
+        const long bucket = 300000;
+        _pageStartAt = DateTimeOffset.FromUnixTimeMilliseconds(_jobs.Min(job => job.UpdatedAt) / bucket * bucket);
+        _pageEndAt = DateTimeOffset.FromUnixTimeMilliseconds((_jobs.Max(job => job.UpdatedAt) / bucket + 1) * bucket);
+    }
+
+    private async Task ReloadPageHistory(int revision, CancellationToken cancellationToken)
+    {
+        SetPageActivityRange();
+        _historyError = null;
+        _historyLoading = true;
+        _historyPoints = null;
+        _activitySeries = [];
+        _activityLabels = [];
+        _activityXValues = [];
+        _activityVersion++;
+        StateHasChanged();
+        try
+        {
+            if (_pageStartAt is not { } start || _pageEndAt is not { } end) return;
+            bool matching = UseMatchingHistory;
+            var response = matching
+                ? await Consumer.GetSearchHistory(_query, start, end, cancellationToken)
+                : await Consumer.GetHistory(start, end, cancellationToken);
+            response.EnsureSucceeded();
+            if (revision != _queryRevision || _offset == 0) return;
+            if (matching) ApplySearchHistory(response.Value ?? []);
+            else ApplyHistory(response.Value ?? []);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception)
+        {
+            if (revision == _queryRevision) _historyError = "Activity for this page is unavailable or outside retained history.";
+        }
+        finally
+        {
+            if (revision == _queryRevision) _historyLoading = false;
+        }
+    }
 
     private async Task AdvanceLiveChart()
     {
@@ -334,8 +408,9 @@ public partial class Dashboard
                 await InvokeAsync(() =>
                 {
                     if (!UseLiveChart || _activityPaused || !ActivityTotals.Live || IsDisposed) return;
+                    long previousVersion = _liveActivity.Version;
                     ApplyLiveActivity();
-                    _activityRegion?.Refresh();
+                    if (_liveActivity.Version != previousVersion) _activityRegion?.Refresh();
                 });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -343,11 +418,12 @@ public partial class Dashboard
 
     private async Task ReloadHistory(CancellationToken cancellationToken)
     {
+        if (_offset > 0) return; // Loaded after the requested table page establishes its timestamps.
         int revision = ++_historyRevision;
         _historyLoading = !UseLiveChart;
         _historyError = null;
         StateHasChanged();
-        if (!string.IsNullOrWhiteSpace(_query))
+        if (!UseLiveChart && UseMatchingHistory)
         {
             try
             {
@@ -414,16 +490,10 @@ public partial class Dashboard
     {
         _historyError = null;
         if (_historyPoints is not null && _historyPoints.SequenceEqual(points)) return;
-        _historyPoints = points;
-        _activityXValues = points.Select(point => (double)point.Timestamp).ToArray();
-        _activityLabels = points.Select(point => DateTimeOffset.FromUnixTimeMilliseconds(point.Timestamp).ToString("MMM d HH:mm")).ToArray();
-        double[][] values = [points.Select(p => (double)p.Scheduled).ToArray(),
-            points.Select(p => (double)p.Succeeded).ToArray(), points.Select(p => (double)p.DeadLettered).ToArray()];
-        string[] labels = ["Queued / scheduled", "Succeeded", "Failed"];
-        _activityTotals = values.Select(series => series.Sum()).ToArray();
+        _activityTotals = [points.Sum(p => (double)p.Scheduled), points.Sum(p => (double)p.Succeeded), points.Sum(p => (double)p.DeadLettered)];
         ActivityTotals.Update(_activityTotals);
-        _activityVersion++;
-        _activitySeries = labels.Select((label, index) => new ChartSeries(label, values[index]) { Color = ActivityColors[index] }).ToArray();
+        ApplySearchHistory(points);
+        _historyPoints = points;
         _historyError = null;
     }
 
@@ -432,14 +502,22 @@ public partial class Dashboard
         if (selection.StartXValue is not { } start || selection.EndXValue is not { } end) return;
         _jobStartAt = DateTimeOffset.FromUnixTimeMilliseconds((long)start);
         _jobEndAt = DateTimeOffset.FromUnixTimeMilliseconds((long)end).Add(UseLiveChart ? TimeSpan.FromSeconds(1) : TimeSpan.FromMinutes(5));
-        _offset = 0;
+        if (_offset > 0)
+        {
+            _liveMode = false;
+            ActivityTotals.LastHour = false;
+            _historyStartDate = DateOnly.FromDateTime(_jobStartAt.Value.UtcDateTime);
+            _historyEndDate = DateOnly.FromDateTime(_jobEndAt.Value.UtcDateTime);
+        }
+        ResetFilterPage();
         _queryRevision = BoardConnection.NextVersion();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
-        await Task.WhenAll(Reload(), !string.IsNullOrWhiteSpace(_query) ? ReloadHistory(CancellationToken) : Task.CompletedTask);
+        await Task.WhenAll(Reload(), !UseLiveChart && UseMatchingHistory ? ReloadHistory(CancellationToken) : Task.CompletedTask);
     }
 
     private async Task ClearActivitySelection()
     {
+        ResetFilterPage();
         _jobStartAt = _liveMode ? null : new DateTimeOffset(_historyStartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         _jobEndAt = _liveMode ? null : new DateTimeOffset(_historyEndDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         _activityChart?.ResetZoom();
@@ -478,8 +556,9 @@ public partial class Dashboard
 
     private async Task SearchJobs(DataTableServerSideRequest request)
     {
-        if (_loaded && _query == (request.Search?.Value ?? "") && _offset == request.Start && _pageSize == request.Length) return;
+        if ((_loaded || _loading) && _query == (request.Search?.Value ?? "") && _offset == request.Start && _pageSize == request.Length) return;
         bool queryChanged = _query != (request.Search?.Value ?? "");
+        bool pageChanged = _offset != request.Start;
         _query = request.Search?.Value ?? "";
         if (queryChanged)
         {
@@ -488,6 +567,22 @@ public partial class Dashboard
         }
         _offset = request.Start;
         _pageSize = request.Length;
+        _historyLoading = false;
+        if (pageChanged && UseLiveChart) ApplyLiveActivity();
+        if (_offset > 0)
+        {
+            ++_historyRevision; // Invalidate an earlier timeline request.
+            _activityPaused = false;
+            _activityChart?.ResetZoom();
+            _historyLoading = true;
+            _historyError = null;
+            _pageStartAt = _pageEndAt = null;
+            _activitySeries = [];
+            _activityLabels = [];
+            _activityXValues = [];
+            _historyPoints = null;
+            _activityVersion++;
+        }
         _queryRevision = BoardConnection.NextVersion();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         if (_query.Length > 200)
@@ -498,7 +593,8 @@ public partial class Dashboard
             return;
         }
 
-        await Task.WhenAll(Reload(), queryChanged ? ReloadHistory(CancellationToken) : Task.CompletedTask);
+        await Task.WhenAll(Reload(), _offset == 0 && (queryChanged || !_liveMode || pageChanged && !string.IsNullOrWhiteSpace(_query))
+            ? ReloadHistory(CancellationToken) : Task.CompletedTask);
     }
 
     public override async ValueTask DisposeAsync()

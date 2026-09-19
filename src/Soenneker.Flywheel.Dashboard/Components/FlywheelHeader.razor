@@ -10,17 +10,8 @@
         <Div Display="Display.Flex" MinWidth="MinWidth.Is0" Flex="Flex.Is1" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5" aria-label="Activity totals">
             @foreach (int index in HeaderOrder)
             {
-                <Div Display="@(index is 6 or 1 or 3 ? Display.Block : Display.None.OnMd.Block)">
-                    <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@HeaderTitle(index)">@HeaderLabels[index]</Span>
-                    @if (HeaderHref(index) is { } href)
-                    {
-                        <Anchor Href="@href" Display="Display.Block" aria-label="@($"View {HeaderLabels[index].ToLowerInvariant()}")"><Strong>@HeaderValue(index)</Strong></Anchor>
-                    }
-                    else
-                    {
-                        <Strong Display="Display.Block">@HeaderValue(index)</Strong>
-                    }
-                </Div>
+                <FlywheelHeaderMetric Label="@HeaderLabels[index]" Value="@HeaderValue(index)"
+                                      Href="@HeaderHref(index)" Title="@HeaderTitle(index)" AlwaysVisible="@(index is 6 or 1 or 3)" />
             }
         </Div>
         <Div Margin="Margin.FromLeft.Auto" role="status" title="@(ActivityTotals.Connected ? "Real-time connection established" : "Real-time connection unavailable")" Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">

@@ -18,7 +18,11 @@
     else
     {
         <DataTable Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">
-            <TopContent><DataTableSearch Placeholder="Search" AriaLabel="Search servers" /></TopContent>
+            <TopContent>
+                <Div Margin="Margin.FromBottom.Is4">
+                    <DataTableSearch Placeholder="Search" AriaLabel="Search servers" />
+                </Div>
+            </TopContent>
             <TableContent>
                 <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Server</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Workers</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Heartbeat valid until</Th></Tr></Thead><Tbody>
         @foreach (ServerView server in FilteredServers.Skip(ServerOffset).Take(_pageSize))

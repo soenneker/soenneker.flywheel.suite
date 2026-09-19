@@ -44,9 +44,9 @@
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
     </ItemGroup>
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.10" />
-        <PackageReference Include="Soenneker.Hashing.Sha256" Version="4.0.5" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />        <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.16" />
+
+                <PackageReference Include="Soenneker.Hashing.Sha256" Version="4.0.5" />
         <PackageReference Include="Soenneker.Utils.PooledStringBuilders" Version="4.0.32" />
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.6" />
         <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.89" />

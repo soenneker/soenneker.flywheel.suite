@@ -12,6 +12,7 @@ public abstract partial class LibrarianJobStore
 {
     private readonly ILibrarianDatabase _database;
     private readonly ILibrarianTable[] _tables;
+    private readonly string[] _controlIds;
     private readonly Func<CancellationToken, ValueTask<long>> _clock;
     private readonly bool _ownsDatabase;
     private bool _disposed;
@@ -36,7 +37,10 @@ public abstract partial class LibrarianJobStore
                 {
                     foreach (ILibrarianTable table in _tables) table.Reset();
                     _notifyServers = false;
-                    var controls = (await control.GetLibrarianItems(ct).NoSync()).ToDictionary(p => p.Id, p => p.Value, StringComparer.Ordinal);
+                    _livePruned = false;
+                    string?[] controlValues = await control.GetItems(_controlIds, ct).NoSync();
+                    var controls = new Dictionary<string, string?>(_controlIds.Length, StringComparer.Ordinal);
+                    for (int i = 0; i < _controlIds.Length; i++) controls.Add(_controlIds[i], controlValues[i]);
                     _lifecycleRevision = controls.GetValueOrDefault("revision");
                     string? format = controls.GetValueOrDefault("format");
                     if (format is not null && format != "4") throw new InvalidDataException("Unsupported Flywheel Librarian format.");
@@ -45,9 +49,19 @@ public abstract partial class LibrarianJobStore
                     InvalidDataException? inconsistent = null;
                     try { result = await action(now).NoSync(); }
                     catch (InvalidDataException ex) { inconsistent = ex; }
-                    List<LibrarianWrite> writes = _tables.SelectMany(t => t.Writes).ToList();
-                    var conditions = _tables.Where(t => t.Touched).Select(t => new LibrarianCondition(Control, t.Name,
-                        controls.GetValueOrDefault(t.Name))).ToList();
+                    int writeCount = 0, touchedCount = 0;
+                    foreach (ILibrarianTable table in _tables)
+                    {
+                        writeCount += table.WriteCount;
+                        if (table.Touched) touchedCount++;
+                    }
+                    var writes = new List<LibrarianWrite>(writeCount + (writeCount == 0 ? 0 : touchedCount + 3));
+                    var conditions = new List<LibrarianCondition>(touchedCount + 3);
+                    foreach (ILibrarianTable table in _tables)
+                    {
+                        table.AddWrites(writes);
+                        if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controls.GetValueOrDefault(table.Name)));
+                    }
                     conditions.Add(new LibrarianCondition(Control, "format", format));
                     if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
                     if (inconsistent is not null)
@@ -62,17 +76,17 @@ public abstract partial class LibrarianJobStore
                     if (writes.Count != 0)
                     {
                         string next = Guid.NewGuid().ToString("N");
-                        foreach (string table in writes.Select(w => w.Container).Distinct().ToArray())
-                            if (table != Control) writes.Add(new LibrarianWrite(Control, table, next));
+                        foreach (ILibrarianTable table in _tables)
+                            if (table.WriteCount != 0) writes.Add(new LibrarianWrite(Control, table.Name, next));
                         JobChange[] changes = Changes(writes);
                         if (changes.Length != 0)
                         {
-                            string? previous = controls.GetValueOrDefault("feed");
+                            string? previous = await control.GetItem("feed", ct).NoSync();
                             string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous)!.Revision;
                             writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes))!));
                             conditions.Add(new LibrarianCondition(Control, "feed", previous));
                         }
-                        if (writes.Any(w => w.Container is "flywheel.jobs" or "flywheel.policies" or "flywheel.rates" or "flywheel.schedules"))
+                        if (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0)
                             writes.Add(new LibrarianWrite(Control, "revision", next));
                     }
                     // Even read-only results validate the revision: multiple reads are one optimistic snapshot.

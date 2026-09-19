@@ -14,6 +14,33 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class FlywheelRouterTests
 {
     [Test]
+    [Arguments("Running")]
+    [Arguments("Succeeded")]
+    [Arguments("DeadLettered")]
+    [Arguments("Queued")]
+    public async Task HeaderFiltersExposeClearAndSelectTheSameGraphAndTableStatus(string state)
+    {
+        var live = new BoardConnectionTestClient();
+        await VerifyRendering("/", "https://example.test/", "https://example.test/?state=" + state, async (component, navigation, handler) =>
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000 * 1000;
+            await live.Snapshot(new LiveBoard(live.Transport.Version, [], 0, null, null,
+                LiveActivity: [new(now - 1000, 1, 2, 3, 4) { RunningCount = 2, QueuedCount = 3 },
+                    new(now, 1, 2, 3, 4) { RunningCount = 2, QueuedCount = 3 }]));
+            string html = component.ToHtmlString();
+            string label = state == "DeadLettered" ? "Failed" : state;
+            Check(html.Contains("Clear Filters"), "Header filtering did not expose Clear Filters.");
+            Check(html.Contains("<th>" + label + "</th>"), "The filtered graph does not contain the header status.");
+            var excluded = live.Transport.ExcludedStates!.Split(',');
+            Check(excluded.Length == 6 && !excluded.Contains(state), "Table filtering disagrees with the header selection.");
+            navigation.NavigateTo("/");
+            await component.QuiescenceTask;
+            Check(!component.ToHtmlString().Contains("Clear Filters"), "Removing the header filter left an active filter indicator.");
+            Check(string.IsNullOrEmpty(live.Transport.ExcludedStates), "Removing the header filter left table exclusions.");
+        }, authenticated: true, live: live);
+    }
+
+    [Test]
     [Arguments("/", "", "Dashboard", null)]
     [Arguments("/", "?view=jobs#activity", "Dashboard", null)]
     [Arguments("/flywheel", "", "NotFound", null)]

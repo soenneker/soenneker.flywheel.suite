@@ -87,7 +87,7 @@ public static class RedisOperationsBenchmark
         async Task Scenario(string name, Func<RedisJobStore, Func<Func<Task>, int, Task>, Task> run)
         {
             string ns = "performance-" + Guid.NewGuid().ToString("N");
-            string prefix = "librarian:{" + new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(string.Concat(ns.Select(c => ((int)c).ToString("X4", System.Globalization.CultureInfo.InvariantCulture)))).ToUpperInvariant() + "}:batches:";
+            string prefix = "flywheel:{" + ns + "}:containers:";
             var store = new RedisJobStore(_ => Task.FromResult(db), ns);
             try
             {
@@ -116,6 +116,7 @@ public static class RedisOperationsBenchmark
             }
             finally
             {
+                await store.DisposeAsync();
                 await foreach (RedisKey key in server.KeysAsync(pattern: prefix + "*")) await db.KeyDeleteAsync(key);
             }
         }

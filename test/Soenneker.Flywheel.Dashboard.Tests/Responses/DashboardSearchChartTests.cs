@@ -9,6 +9,124 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardSearchChartTests
 {
     [Test]
+    public void GraphRangeFilteringExposesClearAndResetsPaginationWithoutLosingSearchScope()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Type type = typeof(DashboardPage);
+        var page = new DashboardPage();
+        var start = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var end = start.AddMinutes(1);
+        type.GetField("_offset", flags)!.SetValue(page, 50);
+        type.GetField("_query", flags)!.SetValue(page, "maintenance");
+        type.GetField("_jobStartAt", flags)!.SetValue(page, start);
+        type.GetField("_jobEndAt", flags)!.SetValue(page, end);
+        type.GetMethod("ResetFilterPage", flags)!.Invoke(page, null);
+        if (!(bool)type.GetProperty("HasFilters", flags)!.GetValue(page)! ||
+            (int)type.GetField("_offset", flags)!.GetValue(page)! != 0 ||
+            (int)type.GetField("_tableGeneration", flags)!.GetValue(page)! != 1 ||
+            (string)type.GetField("_query", flags)!.GetValue(page)! != "maintenance" ||
+            (DateTimeOffset)type.GetField("_jobStartAt", flags)!.GetValue(page)! != start ||
+            (DateTimeOffset)type.GetField("_jobEndAt", flags)!.GetValue(page)! != end)
+            throw new Exception("Graph filtering must expose Clear Filters and reset paging while preserving search and selected time bounds.");
+    }
+
+    [Test]
+    public void EditingHeaderSelectionKeepsLegendFiltersAndExposesClearFilters()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Type type = typeof(DashboardPage);
+        var page = new DashboardPage();
+        var navigation = new RouterTestNavigationManager("https://example.test/", "https://example.test/?state=Running");
+        type.GetProperty("Navigation", flags)!.SetValue(page, navigation);
+        type.GetField("_appliedState", flags)!.SetValue(page, "Running");
+        var hidden = (HashSet<string>)type.GetField("_hiddenActivitySeries", flags)!.GetValue(page)!;
+        hidden.Add("DeadLettered");
+        type.GetMethod("ClearHeaderSelection", flags)!.Invoke(page, null);
+        if (navigation.Uri.Contains("state=") || !hidden.SetEquals(["DeadLettered"]) ||
+            !(bool)type.GetProperty("HasFilters", flags)!.GetValue(page)!)
+            throw new Exception("Editing a legend must clear the stale header URL, retain graph filters, and offer Clear Filters.");
+    }
+
+    [Test]
+    public void HistoricalStatusFiltersDoNotCombineQueuedAndScheduledValues()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Type type = typeof(DashboardPage);
+        var page = new DashboardPage();
+        type.GetProperty("ActivityTotals", flags)!.SetValue(page, new ActivityTotalsState());
+        type.GetField("_liveMode", flags)!.SetValue(page, false);
+        type.GetMethod("ApplyHistory", flags)!.Invoke(page, [new List<JobHistoryPoint> { new(300000, 11, 12, 13, 14, 15, 16, 17) }]);
+        var hidden = (HashSet<string>)type.GetField("_hiddenActivitySeries", flags)!.GetValue(page)!;
+        foreach (string state in new[] { "Scheduled", "Running", "Succeeded", "DeadLettered", "Cancelled", "Waiting" }) hidden.Add(state);
+        var visible = (IReadOnlyList<ChartSeries>)type.GetProperty("VisibleActivitySeries", flags)!.GetValue(page)!;
+        if (visible.Count != 1 || visible[0].Name != "Queued" || visible[0].Values[0] != 17 ||
+            !(bool)type.GetProperty("UseMatchingHistory", flags)!.GetValue(page)!)
+            throw new Exception("Queued filtering must match queue counts, without showing scheduled activity.");
+    }
+
+    [Test]
+    public void LaterPagesUseTheirOwnStaticTimeRangeWithoutChangingTableFilters()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var page = new DashboardPage();
+        Type type = typeof(DashboardPage);
+        type.GetField("_offset", flags)!.SetValue(page, 50);
+        type.GetField("_jobs", flags)!.SetValue(page, new List<JobView>
+        {
+            new("newer", "job", "Succeeded", 1, 940000, false, null, 1, 0, 0, 0, null),
+            new("older", "job", "Succeeded", 1, 310000, false, null, 1, 0, 0, 0, null)
+        });
+        type.GetMethod("SetPageActivityRange", flags)!.Invoke(page, null);
+        if ((bool)type.GetProperty("UseLiveChart", flags)!.GetValue(page)! ||
+            (bool)type.GetProperty("LiveTable", flags)!.GetValue(page)!)
+            throw new Exception("A later table page must not stream live chart or table updates.");
+        if (((DateTimeOffset)type.GetField("_pageStartAt", flags)!.GetValue(page)!).ToUnixTimeMilliseconds() != 300000 ||
+            ((DateTimeOffset)type.GetField("_pageEndAt", flags)!.GetValue(page)!).ToUnixTimeMilliseconds() != 1200000)
+            throw new Exception("Page activity must include the oldest and newest job update buckets.");
+        if (type.GetField("_jobStartAt", flags)!.GetValue(page) is not null)
+            throw new Exception("Chart bounds must not filter the next table page.");
+        type.GetField("_offset", flags)!.SetValue(page, 0);
+        if (!(bool)type.GetProperty("UseLiveChart", flags)!.GetValue(page)!)
+            throw new Exception("Returning to the unfiltered first page must restore live activity.");
+        type.GetField("_liveMode", flags)!.SetValue(page, false);
+        if ((bool)type.GetProperty("LiveTable", flags)!.GetValue(page)!)
+            throw new Exception("A selected historical timeline must stay static even on its first page.");
+    }
+
+    [Test]
+    public void EmptyPageClearsThePreviousPageRange()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var page = new DashboardPage();
+        typeof(DashboardPage).GetField("_pageStartAt", flags)!.SetValue(page, DateTimeOffset.UtcNow);
+        typeof(DashboardPage).GetMethod("SetPageActivityRange", flags)!.Invoke(page, null);
+        if (typeof(DashboardPage).GetField("_pageStartAt", flags)!.GetValue(page) is not null)
+            throw new Exception("An empty page retained another page's activity range.");
+    }
+
+    [Test]
+    public void SearchPeriodIsIndependentOfTheCurrentPagesChartBounds()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var page = new DashboardPage();
+        Type type = typeof(DashboardPage);
+        var start = DateTimeOffset.FromUnixTimeMilliseconds(0);
+        var end = start.AddDays(1);
+        type.GetField("_query", flags)!.SetValue(page, "maintenance");
+        type.GetField("_offset", flags)!.SetValue(page, 50);
+        type.GetField("_jobStartAt", flags)!.SetValue(page, start);
+        type.GetField("_jobEndAt", flags)!.SetValue(page, end);
+        type.GetField("_jobs", flags)!.SetValue(page, new List<JobView>
+        {
+            new("one", "maintenance", "Succeeded", 1, 610000, false, null, 1, 0, 0, 0, null)
+        });
+        type.GetMethod("SetPageActivityRange", flags)!.Invoke(page, null);
+        if ((DateTimeOffset)type.GetField("_jobStartAt", flags)!.GetValue(page)! != start ||
+            (DateTimeOffset)type.GetField("_jobEndAt", flags)!.GetValue(page)! != end)
+            throw new Exception("Paging narrowed the full-period job search to the visible chart buckets.");
+    }
+
+    [Test]
     public void LiveChartKeepsConstantScrollSpeedWhenTimerTicksSkipBuckets()
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -127,7 +245,7 @@ public sealed class DashboardSearchChartTests
         totals.UpdateRunning(3);
         Type type = typeof(DashboardLiveActivityState);
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        type.GetField("_latestLiveActivity", flags)!.SetValue(page, new List<JobHistoryPoint> { new(60000, 0, 1, 1, 0) });
+        page.Update([new JobHistoryPoint(60000, 0, 1, 1, 0)], totals);
         type.GetField("_liveClockAnchor", flags)!.SetValue(page, 60000L);
         type.GetField("_liveReceivedAt", flags)!.SetValue(page, System.Diagnostics.Stopwatch.GetTimestamp());
         MethodInfo apply = type.GetMethod("Advance")!;
@@ -154,7 +272,7 @@ public sealed class DashboardSearchChartTests
         var page = new DashboardLiveActivityState();
         var totals = new ActivityTotalsState();
         totals.UpdateLive(true);
-        type.GetField("_latestLiveActivity", flags)!.SetValue(page, new List<JobHistoryPoint> { new(60000, 0, 1, 1, 0) });
+        page.Update([new JobHistoryPoint(60000, 0, 1, 1, 0)], totals);
         type.GetField("_liveClockAnchor", flags)!.SetValue(page, 60000L);
         type.GetField("_liveReceivedAt", flags)!.SetValue(page, System.Diagnostics.Stopwatch.GetTimestamp() - 2 * System.Diagnostics.Stopwatch.Frequency);
         MethodInfo apply = type.GetMethod("Advance")!;
@@ -162,8 +280,7 @@ public sealed class DashboardSearchChartTests
         var data = (RealtimeChartData)type.GetField("_liveActivity", flags)!.GetValue(page)!;
         double end = data.XValues[^1];
         if (end < 62000 || data.Series.Where(series => series.Name is "Succeeded" or "Failed").Any(series => series.Values[^1] != 0)) throw new Exception("Idle time introduces missing data at the right edge");
-        type.GetField("_latestLiveActivity", flags)!.SetValue(page,
-            new List<JobHistoryPoint> { new(60000, 0, 1, 1, 0), new(65000, 0, 0, 1, 0) });
+        page.Update([new JobHistoryPoint(60000, 0, 1, 1, 0), new JobHistoryPoint(65000, 0, 0, 1, 0)], totals);
         apply.Invoke(page, [totals]);
         if (data.XValues[^1] >= 65000) throw new Exception("A network snapshot changed the steady scroll clock");
         type.GetField("_liveReceivedAt", flags)!.SetValue(page, System.Diagnostics.Stopwatch.GetTimestamp());

@@ -58,6 +58,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
         _running = new LibrarianTable<string, RunningEntry>("running");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
         _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _chainMembership];
+        _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 
     public TimeSpan HistoryRetention { get; }
@@ -77,6 +78,9 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
 
     private static bool Terminal(JobState state) =>
         state == JobState.Succeeded || state == JobState.Cancelled || state == JobState.DeadLettered;
+
+    // Job IDs are bounded to 200 characters, so this includes every ID at the inclusive millisecond boundary.
+    private static string ScheduledUpperBound(long now) => now.ToString("D19", System.Globalization.CultureInfo.InvariantCulture) + ":\uffff";
 
     private static JobRecord Create(EnqueueRequest request)
     {

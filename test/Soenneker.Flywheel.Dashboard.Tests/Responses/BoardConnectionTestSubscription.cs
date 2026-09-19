@@ -9,6 +9,7 @@ internal sealed class BoardConnectionTestSubscription(Func<Task> restored) : IFl
     public int Subscriptions { get; private set; }
     public int Version { get; private set; }
     public string Query { get; private set; } = "";
+    public string? ExcludedStates { get; private set; }
 
     public async ValueTask Start(CancellationToken cancellationToken = default)
     {
@@ -23,6 +24,7 @@ internal sealed class BoardConnectionTestSubscription(Func<Task> restored) : IFl
         Subscriptions++;
         Version = version;
         Query = query;
+        ExcludedStates = excludedStates;
         return Task.CompletedTask;
     }
 

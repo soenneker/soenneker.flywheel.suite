@@ -1,0 +1,23 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+
+<Div Display="@(AlwaysVisible ? Display.Block : Display.None.OnMd.Block)">
+    <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" title="@Title">@Label</Span>
+    @if (Href is not null)
+    {
+        <Anchor Href="@Href" Display="Display.Block" aria-label="@($"View {Label.ToLowerInvariant()}")"><Strong>@Value</Strong></Anchor>
+    }
+    else
+    {
+        <Strong Display="Display.Block">@Value</Strong>
+    }
+</Div>
+
+@code {
+    // Primitive parameters let Blazor skip unchanged metrics when another count updates.
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public bool AlwaysVisible { get; set; }
+}

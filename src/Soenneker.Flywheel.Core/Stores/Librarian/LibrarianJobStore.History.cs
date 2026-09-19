@@ -10,6 +10,7 @@ public abstract partial class LibrarianJobStore
     private readonly LibrarianTable<long, JobHistoryPoint> _live;
     private readonly LibrarianTable<long, Sample> _samples;
     private readonly LibrarianTable<string, IdleSample> _idle;
+    private bool _livePruned;
 
     private static JobHistoryPoint Increment(JobHistoryPoint point, JobState state) => state.Value switch
     {
@@ -24,33 +25,35 @@ public abstract partial class LibrarianJobStore
 
     private async Task RecordTransition(JobState state, long now)
     {
+        await PruneLive(now);
         long bucket = now / 300000 * 300000;
         await _history.Set(bucket, Increment((await _history.Get(bucket)) ?? new JobHistoryPoint(bucket, 0, 0, 0, 0), state)).NoSync();
         long second = now / 1000 * 1000;
         await _live.Set(second, Increment((await _live.Get(second)) ?? new JobHistoryPoint(second, 0, 0, 0, 0), state)).NoSync();
-        await PruneLive(now);
     }
 
     private async Task PruneLive(long now)
     {
+        if (_livePruned) return;
         long first = now / 1000 * 1000 - 60000;
-        foreach (long stamp in (await _live.GetKeys()).Where(t => t < first).ToArray()) await _live.Remove(stamp).NoSync();
-        foreach (long stamp in (await _samples.GetKeys()).Where(t => t < first).ToArray()) await _samples.Remove(stamp).NoSync();
+        foreach (var entry in await _live.Range("key", maximum: first - 1)) await _live.Remove(entry.Key).NoSync();
+        foreach (var entry in await _samples.Range("key", maximum: first - 1)) await _samples.Remove(entry.Key).NoSync();
+        _livePruned = true;
     }
 
     public Task<bool> SampleLiveActivity(CancellationToken cancellationToken)
     {
         return Mutate(cancellationToken, async now =>
         {
+            await PruneLive(now);
             long running = await _jobs.Count("state", JobState.Running.Value);
-            var pending = await _jobs.Find("state", JobState.Scheduled.Value);
-            long queued = pending.LongCount(j => j.DueAt <= now);
-            long scheduled = pending.Count - queued;
+            long pending = await _jobs.Count("state", JobState.Scheduled.Value);
+            long queued = await _jobs.CountRange("scheduledOrder", minimum: "", maximum: ScheduledUpperBound(now));
+            long scheduled = pending - queued;
             await _samples.Set(now / 1000 * 1000, new Sample(scheduled, running, queued)).NoSync();
             bool active = scheduled + running + queued != 0;
             if (!active) await _idle.Set("latest", new IdleSample(now / 1000 * 1000, _lifecycleRevision)).NoSync();
             else await _idle.Remove("latest").NoSync();
-            await PruneLive(now);
             return active;
         });
     }

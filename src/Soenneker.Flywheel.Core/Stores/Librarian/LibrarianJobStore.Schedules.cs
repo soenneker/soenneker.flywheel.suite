@@ -109,15 +109,24 @@ public abstract partial class LibrarianJobStore
     {
         ValidatePage(0, count);
         return Mutate<IReadOnlyList<RecurringJobView>>(cancellationToken, async now =>
-            await Task.WhenAll((await _schedules.Range("order", minimum: "", take: count)).Select(async pair =>
-                {
-                    Schedule s = pair.Value;
-                    JobRecord? execution = s.LastExecutionId is null ? null : (await _jobs.Get(s.LastExecutionId));
-                    string? status = execution is null ? s.LastExecutionStatus :
-                        execution.CancelRequested && execution.State == JobState.Running ? "Cancelling" : execution.DisplayState(now);
-                    return new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt!.Value, s.Cron,
-                        s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId);
-                })));
+        {
+            var schedules = await _schedules.Range("order", minimum: "", take: count);
+            string[] ids = schedules.Where(pair => pair.Value.LastExecutionId is not null).Select(pair => pair.Value.LastExecutionId!).ToArray();
+            JobRecord?[] executions = await _jobs.GetMany(ids);
+            var result = new RecurringJobView[schedules.Count];
+            int executionIndex = 0;
+            for (int i = 0; i < schedules.Count; i++)
+            {
+                var pair = schedules[i];
+                Schedule s = pair.Value;
+                JobRecord? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
+                string? status = execution is null ? s.LastExecutionStatus :
+                    execution.CancelRequested && execution.State == JobState.Running ? "Cancelling" : execution.DisplayState(now);
+                result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt!.Value, s.Cron,
+                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId);
+            }
+            return result;
+        });
     }
 
     public Task Maintain(int batchSize, CancellationToken cancellationToken = default)

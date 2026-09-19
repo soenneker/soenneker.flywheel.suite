@@ -6,7 +6,8 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 internal interface ILibrarianTable
 {
     string Name { get; }
-    IEnumerable<LibrarianWrite> Writes { get; }
+    int WriteCount { get; }
+    void AddWrites(List<LibrarianWrite> writes);
     bool Touched { get; }
     void Bind(ILibrarianContainer container, CancellationToken token);
     void Reset();

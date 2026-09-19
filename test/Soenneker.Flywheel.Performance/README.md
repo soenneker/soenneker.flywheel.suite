@@ -2,6 +2,8 @@
 
 # Standalone performance measurements
 
+The [Librarian integration pass](../../docs/librarian-performance.md) records current memory measurements and the local-project build options. Set `FLYWHEEL_BENCHMARK_MODE=memory` to run its standalone harness; it starts no servers.
+
 This console harness starts the worker pool, maintenance, and live recorder against an isolated Redis server.
 It warms up for five seconds, then measures the whole process for 61 seconds without a test framework,
 web server, dashboard connection, job handlers, or recurring schedules. The default is 12 workers. It removes only its own random namespace and

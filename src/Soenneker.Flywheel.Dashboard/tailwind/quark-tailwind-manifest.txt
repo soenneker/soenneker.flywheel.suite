@@ -35,7 +35,6 @@ hidden
 in-data-[slot=button-group]:rounded-lg
 inline-block
 inline-flex
-inset-0
 items-center
 items-start
 justify-between
@@ -70,7 +69,6 @@ p-8
 pb-3
 pb-6
 pointer-events-auto
-pointer-events-none
 px-2.5
 px-3
 py-1
@@ -83,7 +81,6 @@ size-10
 size-2
 size-4
 size-5
-size-6
 space-y-1
 space-y-2
 space-y-4
@@ -103,4 +100,3 @@ uppercase
 w-auto
 w-full
 whitespace-pre-wrap
-z-10

@@ -10,6 +10,11 @@ using Soenneker.Flywheel.Core.Services;
 using Soenneker.Flywheel.Redis;
 using StackExchange.Redis;
 
+if (Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_MODE") == "memory")
+{
+    await MemoryInteropBenchmark.Run();
+    return;
+}
 if (Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_MODE") == "operations")
 {
     await Soenneker.Flywheel.Redis.Performance.RedisOperationsBenchmark.Run();
@@ -29,7 +34,7 @@ using ConnectionMultiplexer connection = await ConnectionMultiplexer.ConnectAsyn
 IDatabase db = connection.GetDatabase();
 IServer server = connection.GetServer((await db.IdentifyEndpointAsync("performance"))!);
 string ns = "performance-host-" + Guid.NewGuid().ToString("N");
-string prefix = "librarian:{" + new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(string.Concat(ns.Select(c => ((int)c).ToString("X4", System.Globalization.CultureInfo.InvariantCulture)))).ToUpperInvariant() + "}:batches:";
+string prefix = "flywheel:{" + ns + "}:containers:";
 var store = new RedisJobStore(_ => Task.FromResult(db), ns);
 var options = new FlywheelOptions { Workers = workerCount };
 await using ServiceProvider services = new ServiceCollection().AddLogging().AddFileUtilAsSingleton().BuildServiceProvider();
@@ -67,6 +72,7 @@ try
 finally
 {
     for (int i = hosted.Length - 1; i >= 0; i--) await hosted[i].StopAsync(CancellationToken.None);
+    await store.DisposeAsync();
     await foreach (RedisKey key in server.KeysAsync(pattern: prefix + "*")) await db.KeyDeleteAsync(key);
 }
 
