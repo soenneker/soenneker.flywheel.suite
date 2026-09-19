@@ -4,7 +4,6 @@
     <Version Condition="'$(BUILD_VERSION)' != ''">$(BUILD_VERSION)</Version>
     <RepositoryUrl>https://github.com/soenneker/soenneker.flywheel.suite</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <LibrarianVersion Condition="'$(LibrarianVersion)' == ''">4.0.16</LibrarianVersion>
     <UseLocalQuarkProject Condition="'$(UseLocalQuarkProject)' == ''">false</UseLocalQuarkProject>
     <LocalQuarkProject Condition="'$(LocalQuarkProject)' == ''">$(MSBuildThisFileDirectory)..\..\Quark\soenneker.quark.suite\src\Soenneker.Quark.Suite\Soenneker.Quark.Suite.csproj</LocalQuarkProject>
   </PropertyGroup>
