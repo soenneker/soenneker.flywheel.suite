@@ -85,7 +85,7 @@ public sealed partial class FlywheelDashboardTests
         Check(!detailJson.Contains("\"payload\"") && !detailJson.Contains("\"token\""), "Job detail leaked execution capabilities");
         var projection = System.Text.Json.JsonSerializer.Deserialize<Soenneker.Flywheel.Communication.Responses.JobView>(detailJson,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-        Check(projection is { MaxAttempts: 5, TimeoutSeconds: 300, Priority: "Normal" }, "Execution policy is missing from the public detail projection");
+        Check(projection is { MaxAttempts: 1, TimeoutSeconds: 300, Priority: "Normal" }, "Execution policy is missing from the public detail projection");
         Check((await client.GetAsync($"{prefix}/jobs/missing")).StatusCode == HttpStatusCode.NotFound, "Missing job detail should return 404");
         Check((await client.GetAsync($"{prefix}/jobs/search?q=" + new string('x', 201))).StatusCode == HttpStatusCode.BadRequest, "Oversized query accepted");
         Check((await client.GetAsync($"{prefix}/jobs/search?offset=-1")).StatusCode == HttpStatusCode.BadRequest, "Invalid offset accepted");

@@ -82,7 +82,7 @@ public sealed partial class FlywheelDashboardTests
             .Get(enginePath == "/" ? "flywheel/servers" : "servers");
         Check(obsolete.StatusCode == System.Net.HttpStatusCode.NotFound, "An endpoint remained mapped outside the configured base path.");
         OperationResult<JobView> job = await consumer.GetJob("one");
-        Check(job.Value is { MaxAttempts: 5, Priority: "Normal" }, "Shared execution projection was lost.");
+        Check(job.Value is { MaxAttempts: 1, Priority: "Normal" }, "Shared execution projection was lost.");
         OperationResult<JobView> missing = await consumer.GetJob("missing");
         Check(missing.StatusCode == 404 && missing.Failed, "Missing execution did not preserve failure status.");
         OperationResult<ScheduleView> schedules = await consumer.GetSchedules();

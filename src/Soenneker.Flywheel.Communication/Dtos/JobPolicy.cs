@@ -9,9 +9,9 @@ public sealed record JobPolicy
     [JsonPropertyName("priority")]
     public Enums.JobPriority Priority { get; init; } = Enums.JobPriority.Normal;
 
-    /// <summary>Maximum execution attempts, including attempts recovered after a lost lease.</summary>
+    /// <summary>Maximum execution attempts, including attempts recovered after a lost lease. Defaults to one (no retries).</summary>
     [JsonPropertyName("maxAttempts")]
-    public int MaxAttempts { get; init; } = 5;
+    public int MaxAttempts { get; init; } = 1;
     /// <summary>Maximum duration of one execution attempt.</summary>
     [JsonPropertyName("timeout")]
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);

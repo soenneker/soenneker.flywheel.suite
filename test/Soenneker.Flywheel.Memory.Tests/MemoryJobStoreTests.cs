@@ -49,7 +49,7 @@ public sealed class MemoryJobStoreTests
     public async Task StartupVersionRestrictionSurvivesRetries()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
-        string id = await store.EnqueueForCurrentInstance(Request("startup"), "v2", "current");
+        string id = await store.EnqueueForCurrentInstance(Request("startup", policy: new JobPolicy { MaxAttempts = 2 }), "v2", "current");
         JobLease first = (await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v2"))!;
         await store.Finish(first, JobOutcome.Failed, "transient", TimeSpan.Zero);
         Check(await store.ClaimForVersion("old", TimeSpan.FromMinutes(1), "v1") is null, "Old worker claimed the retry.");
@@ -110,7 +110,7 @@ public sealed class MemoryJobStoreTests
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
-        string id = await store.Enqueue(Request());
+        string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 2 }));
         JobLease first = (await store.Claim("first", TimeSpan.FromSeconds(1)))!;
         clock.Advance(TimeSpan.FromSeconds(1));
         Check(await store.Renew(first, TimeSpan.FromMinutes(1)) == LeaseStatus.Lost, "Expired renewal accepted.");
@@ -168,6 +168,17 @@ public sealed class MemoryJobStoreTests
         await store.Finish(second, JobOutcome.Failed, "failure", TimeSpan.Zero);
         Check((await store.Get(ids[1]))!.State == JobState.DeadLettered, "Attempt limit ignored.");
         Check((await store.Get(ids[2]))!.State == JobState.Cancelled, "Failure did not cancel suffix.");
+    }
+
+    [Test]
+    public async Task DefaultPolicyDoesNotRetryFailures()
+    {
+        var store = new MemoryJobStore(new FlywheelMemoryOptions());
+        string id = await store.Enqueue(Request());
+        JobLease first = (await store.Claim("node", TimeSpan.FromMinutes(1)))!;
+        await store.Finish(first, JobOutcome.Failed, "failure", TimeSpan.Zero);
+        Check((await store.Get(id))!.State == JobState.DeadLettered, "Default policy retried a failed job.");
+        Check(await store.Claim("node", TimeSpan.FromMinutes(1)) is null, "Failed job was available for retry.");
     }
 
     [Test]
