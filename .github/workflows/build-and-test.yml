@@ -23,6 +23,18 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: flywheel
+          POSTGRES_PASSWORD: integration-password
+          POSTGRES_DB: flywheel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U flywheel -d flywheel"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:8.10
         ports: ['6379:6379']
@@ -50,10 +62,11 @@ jobs:
       - name: Test all Flywheel projects
         env:
           FLYWHEEL_TEST_REDIS: localhost:6379,user=flywheel-tests,password=integration-password
+          FLYWHEEL_TEST_POSTGRES: Host=localhost;Port=5432;Username=flywheel;Password=integration-password;Database=flywheel
         shell: bash
         run: |
           set -euo pipefail
-          for component in Core Redis Memory Filesystem Generators Dashboard; do
+          for component in Core Redis Postgres Memory Filesystem Generators Dashboard; do
             dotnet test --project "test/Soenneker.Flywheel.$component.Tests/Soenneker.Flywheel.$component.Tests.csproj" -c Release --no-build --no-restore
           done
       - name: Publish the hosted demo
@@ -62,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for component in Communication Core Redis Memory Filesystem Generators Dashboard; do
+          for component in Communication Core Redis Postgres Memory Filesystem Generators Dashboard; do
             dotnet pack "src/Soenneker.Flywheel.$component/Soenneker.Flywheel.$component.csproj" -c Release --no-build --no-restore -o artifacts/packages
           done
       - uses: actions/upload-artifact@v7

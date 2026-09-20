@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [Communication, Core, Redis, Memory, Filesystem, Generators, Dashboard]
+        package: [Communication, Core, Redis, Postgres, Memory, Filesystem, Generators, Dashboard]
     steps:
       - uses: actions/setup-dotnet@v6
         with:

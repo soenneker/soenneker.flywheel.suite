@@ -4,7 +4,7 @@
 
 Queue, schedule, retry, and chain background jobs in .NET. Flywheel pairs a typed C# job API with your choice of storage and an optional live Blazor dashboard, so you can keep work moving and see what happens along the way.
 
-Use it for report generation, data imports, scheduled maintenance, notifications, and workflows with multiple steps. Start locally with in-memory storage, persist work to disk, or coordinate workers across application instances with Redis.
+Use it for report generation, data imports, scheduled maintenance, notifications, and workflows with multiple steps. Start locally with in-memory storage, persist work to disk, or coordinate workers across application instances with Redis or PostgreSQL.
 
 [**Explore Flywheel →**](https://flywheel.soenneker.com) · [Get started](#get-started) · [Try the dashboard](#try-the-dashboard) · [Documentation](#keep-building)
 
@@ -28,7 +28,7 @@ Use it for report generation, data imports, scheduled maintenance, notifications
 - **Run on your schedule.** Enqueue immediately, delay execution, choose a specific time, or set up interval and cron schedules with time-zone support.
 - **Keep workflows moving.** Chain jobs so each step follows a successful execution. Configure retries, concurrency limits, and rate limits around the work you run.
 - **See the execution story.** Follow live activity, search jobs, inspect attempts and progress, and read captured `ILogger` output in the dashboard.
-- **Choose the storage that fits.** Use memory for a simple local start, filesystem storage for persistence in a single process, or Redis for shared work across instances.
+- **Choose the storage that fits.** Use memory for a simple local start, filesystem storage for persistence in a single process, or Redis or PostgreSQL for shared work across instances.
 - **Use AOT-friendly dispatch.** Generated invokers call job methods directly without runtime reflection. Full application AOT compatibility depends on the host, storage, and serialization configuration.
 
 Flywheel targets **.NET 10** and is **MIT licensed**. The job runtime works independently of the dashboard; add the UI when you want an operational view of your workers.
@@ -111,7 +111,7 @@ Look for **Hello from Flywheel** in the console. Your application queues the mes
 
 `Enqueue` returns after saving the job to your selected storage; execution happens in the background. In your own application, inject `IJobClient` into the service or endpoint that submits work, and inject application services into your job class.
 
-**Memory storage is temporary:** jobs, schedules, and history are lost when the process stops. Choose filesystem or Redis storage when work must survive restarts.
+**Memory storage is temporary:** jobs, schedules, and history are lost when the process stops. Choose filesystem, Redis, or PostgreSQL storage when work must survive restarts.
 
 ## One job, your schedule
 
@@ -153,7 +153,7 @@ Declare limits on the job method when a workload needs them:
     RateWindowSeconds = 60)]
 ```
 
-Applied to the quick start's `Write` method, this allows one execution at a time and up to ten execution starts per minute. With Redis, workers sharing the same job storage coordinate these limits across instances.
+Applied to the quick start's `Write` method, this allows one execution at a time and up to ten execution starts per minute. With Redis or PostgreSQL, workers sharing the same job storage coordinate these limits across instances.
 
 ## Choose your storage
 
@@ -164,6 +164,7 @@ Choose one provider when registering Flywheel. Your job methods and submission A
 | [Memory](docs/memory.md) | Local development, tests, and temporary background work | No database to run. Each application process has independent data, which is lost on restart. |
 | [Filesystem](docs/filesystem.md) | Local applications and modest workloads that need persistence | Stores jobs on disk without a database server. One process owns the database path at a time. |
 | [Redis](docs/redis.md) | Shared queues and workers across application instances | Requires Redis. Configure persistence and a no-eviction policy when jobs must survive restarts without data loss. |
+| [Postgres](docs/postgres.md) | Shared queues and workers using PostgreSQL | Uses Librarian documents and atomic PostgreSQL transactions. |
 
 To switch the quick start to Redis, install `Soenneker.Flywheel.Redis`, replace the memory namespace with `using Soenneker.Flywheel.Redis;`, and replace its registration with:
 
@@ -229,6 +230,7 @@ Flywheel ships as focused NuGet packages. Most applications start with **Core + 
 | [Soenneker.Flywheel.Memory](https://www.nuget.org/packages/Soenneker.Flywheel.Memory/) | In-process storage. |
 | [Soenneker.Flywheel.Filesystem](https://www.nuget.org/packages/Soenneker.Flywheel.Filesystem/) | Local disk persistence. |
 | [Soenneker.Flywheel.Redis](https://www.nuget.org/packages/Soenneker.Flywheel.Redis/) | Shared Redis storage. |
+| [Soenneker.Flywheel.Postgres](https://www.nuget.org/packages/Soenneker.Flywheel.Postgres/) | Shared PostgreSQL storage. |
 | [Soenneker.Flywheel.Generators](https://www.nuget.org/packages/Soenneker.Flywheel.Generators/) | Typed job identifiers and registrations from your job methods. |
 | [Soenneker.Flywheel.Dashboard](https://www.nuget.org/packages/Soenneker.Flywheel.Dashboard/) | Live Blazor dashboard. |
 

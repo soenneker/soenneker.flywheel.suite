@@ -5,6 +5,7 @@
     <Project Path="src/Soenneker.Flywheel.Dashboard/Soenneker.Flywheel.Dashboard.csproj" />
     <Project Path="src/Soenneker.Flywheel.Generators/Soenneker.Flywheel.Generators.csproj" />
     <Project Path="src/Soenneker.Flywheel.Memory/Soenneker.Flywheel.Memory.csproj" />
+    <Project Path="src/Soenneker.Flywheel.Postgres/Soenneker.Flywheel.Postgres.csproj" />
     <Project Path="src/Soenneker.Flywheel.Redis/Soenneker.Flywheel.Redis.csproj" />
     <Project Path="src/Soenneker.Flywheel.Filesystem/Soenneker.Flywheel.Filesystem.csproj" />
     <Project Path="src/Soenneker.Flywheel.Website/Soenneker.Flywheel.Website.csproj" />
@@ -14,6 +15,7 @@
     <Project Path="test/Soenneker.Flywheel.Dashboard.Tests/Soenneker.Flywheel.Dashboard.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Generators.Tests/Soenneker.Flywheel.Generators.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Memory.Tests/Soenneker.Flywheel.Memory.Tests.csproj" />
+    <Project Path="test/Soenneker.Flywheel.Postgres.Tests/Soenneker.Flywheel.Postgres.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Redis.Tests/Soenneker.Flywheel.Redis.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Filesystem.Tests/Soenneker.Flywheel.Filesystem.Tests.csproj" />
     <Project Path="test/Soenneker.Flywheel.Performance/Soenneker.Flywheel.Performance.csproj" />
