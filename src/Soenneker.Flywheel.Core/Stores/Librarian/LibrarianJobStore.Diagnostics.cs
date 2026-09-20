@@ -108,6 +108,9 @@ public abstract partial class LibrarianJobStore
     public Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default) =>
         Mutate(cancellationToken, async now => (await _nodes.Range("value.expiresAt", minimum: now + 1)).Sum(n => n.Value.Workers));
 
+    public Task<long> GetFailedCount(CancellationToken cancellationToken = default) =>
+        Mutate(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.DeadLettered.Value));
+
     public Task<long> GetRunningCount(CancellationToken cancellationToken = default) =>
         Mutate(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.Running.Value));
 }

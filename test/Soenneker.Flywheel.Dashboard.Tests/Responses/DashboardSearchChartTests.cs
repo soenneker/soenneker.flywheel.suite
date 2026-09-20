@@ -291,6 +291,28 @@ public sealed class DashboardSearchChartTests
     }
 
     [Test]
+    public void FailedHeaderUsesRetainedTotalAcrossHistoryRanges()
+    {
+        var totals = new ActivityTotalsState();
+        var snapshot = new LiveBoard(1, [], 0,
+            [new JobHistoryPoint(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 0, 0, 5, 0)],
+            null, FailedCount: 12);
+        totals.UpdateSnapshot(snapshot);
+        var header = new FlywheelHeader();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(FlywheelHeader).GetProperty("ActivityTotals", flags)!.SetValue(header, totals);
+        MethodInfo value = typeof(FlywheelHeader).GetMethod("HeaderValue", flags)!;
+        if ((string)value.Invoke(header, [3])! != "12") throw new Exception("Failed header used recent history instead of retained jobs");
+        totals.LastHour = false;
+        totals.Update([0, 0, 2]);
+        if ((string)value.Invoke(header, [3])! != "12") throw new Exception("Date range overwrote the retained failed total");
+        totals.UpdateSnapshot(snapshot with { FailedCount = 0 });
+        if ((string)value.Invoke(header, [3])! != "0") throw new Exception("Failed header did not refresh to zero");
+        totals.Clear();
+        if (totals.FailedCount is not null) throw new Exception("Clearing state retained a stale failed count");
+    }
+
+    [Test]
     public void HeaderShowsBusyWorkersAndLinksRunningToHome()
     {
         var header = new FlywheelHeader();
