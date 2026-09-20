@@ -37,7 +37,7 @@
         @if (_server.RunningJobs.Count == 0) { <Paragraph role="status">This server is live and currently idle.</Paragraph> }
         else
         {
-            <Table><Thead><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th></Tr></Thead><Tbody>
+            <Table AdaptiveLayout="true"><Thead><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
                 <Tr @key="job.Id">

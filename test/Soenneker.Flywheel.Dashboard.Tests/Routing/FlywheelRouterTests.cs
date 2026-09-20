@@ -31,11 +31,17 @@ public sealed class FlywheelRouterTests
             string label = state == "DeadLettered" ? "Failed" : state;
             Check(html.Contains("Clear Filters"), "Header filtering did not expose Clear Filters.");
             Check(html.Contains("<th>" + label + "</th>"), "The filtered graph does not contain the header status.");
+            Check(System.Text.RegularExpressions.Regex.Matches(html, "<button[^>]*aria-pressed=\"true\"").Count == 1,
+                "The selected status should be the only uncrossed legend.");
+            Check(System.Text.RegularExpressions.Regex.Matches(html, "<button[^>]*aria-pressed=\"false\"").Count == 4,
+                "Every excluded status must render the false value used by the legend strikethrough style.");
             var excluded = live.Transport.ExcludedStates!.Split(',');
             Check(excluded.Length == 6 && !excluded.Contains(state), "Table filtering disagrees with the header selection.");
             navigation.NavigateTo("/");
             await component.QuiescenceTask;
             Check(!component.ToHtmlString().Contains("Clear Filters"), "Removing the header filter left an active filter indicator.");
+            Check(System.Text.RegularExpressions.Regex.Matches(component.ToHtmlString(), "<button[^>]*aria-pressed=\"true\"").Count == 5,
+                "Clearing the status filter should uncross every legend.");
             Check(string.IsNullOrEmpty(live.Transport.ExcludedStates), "Removing the header filter left table exclusions.");
         }, authenticated: true, live: live);
     }
