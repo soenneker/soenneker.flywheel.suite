@@ -23,7 +23,7 @@
 
 @code {
     private static readonly int[] HeaderOrder = [7, 0, 6, 1, 2, 3, 4, 5];
-    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Dead lettered", "Servers", "Workers", "Queued", "Recurring"];
+    private static readonly string[] HeaderLabels = ["Scheduled", "Running", "Succeeded", "Failed", "Servers", "Workers", "Queued", "Recurring"];
 
     protected override void OnInitialized() => ActivityTotals.Changed += OnChanged;
 

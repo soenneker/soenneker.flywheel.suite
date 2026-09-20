@@ -95,9 +95,9 @@
                             {
                                 <DashboardJobRow @key="job.Id" Job="job" Cancelling="@_cancellingJobs.Contains(job.Id)">
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
-                                        <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="overflow-wrap: anywhere;">
-                                            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2">
-                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;">
+                                            <Div Display="Display.Flex" MinWidth="MinWidth.Is0" ItemsAlign="Items.Center" Gap="Gap.Is2">
+                                                <span style="min-width: 0; flex: 1;" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Style="white-space: normal; overflow-wrap: anywhere;" Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
                                                 @if (job.Progress is { } progress && progress < 100)
                                                 {
                                                     <Score Value="@((int)Math.Round(progress))" ScoreSize="28" Thickness="3" Colored="false"
@@ -133,7 +133,7 @@
                         {
                             <Div  TextAlign="TextAlign.Center" Padding="Padding.Is8" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">
                                 <H3 TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.Words">@(string.IsNullOrEmpty(_query) ? (_totalCount == 0 ? "No executions yet" : "No executions on this page") : "No matching jobs")</H3>
-                                <Paragraph >@(string.IsNullOrEmpty(_query) ? "New executions appear here automatically. Use the page controls to return to earlier results." : "Try a job name, ID, worker, or a status such as DeadLettered. Clear the search to see all executions.")</Paragraph>
+                                <Paragraph >@(string.IsNullOrEmpty(_query) ? "New executions appear here automatically. Use the page controls to return to earlier results." : "Try a job name, ID, worker, or a status such as Running. Clear the search to see all executions.")</Paragraph>
                             </Div>
                         }
                         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap" Justify="Justify.Between" Margin="Margin.FromTop.Is4">

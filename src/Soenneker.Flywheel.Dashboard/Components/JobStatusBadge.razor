@@ -14,5 +14,5 @@
     private string Foreground => JobStatusColors.Foreground(EffectiveState);
 
     private string EffectiveState => CancelRequested && State == "Running" ? "Cancelling" : State;
-    private string Label => EffectiveState == "DeadLettered" ? "Dead lettered" : EffectiveState;
+    private string Label => EffectiveState == "DeadLettered" ? "Failed" : EffectiveState;
 }

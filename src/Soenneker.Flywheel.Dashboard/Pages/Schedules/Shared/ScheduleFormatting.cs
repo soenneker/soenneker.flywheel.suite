@@ -2,6 +2,28 @@ namespace Soenneker.Flywheel.Dashboard.Pages.Schedules.Shared;
 
 internal static class ScheduleFormatting
 {
+    public static string TimeZoneLabel(string timeZoneId, long dueAt)
+    {
+        try
+        {
+            TimeSpan offset = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId)
+                .GetUtcOffset(DateTimeOffset.FromUnixTimeMilliseconds(dueAt));
+            TimeSpan absolute = offset.Duration();
+            string sign = offset < TimeSpan.Zero ? "-" : "+";
+            return absolute.Minutes == 0
+                ? $"UTC{sign}{absolute.Hours}"
+                : $"UTC{sign}{absolute.Hours}:{absolute.Minutes:00}";
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return timeZoneId;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return timeZoneId;
+        }
+    }
+
     public static string IntervalLabel(long milliseconds)
     {
         TimeSpan interval = TimeSpan.FromMilliseconds(milliseconds);

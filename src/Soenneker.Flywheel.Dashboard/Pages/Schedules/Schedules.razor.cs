@@ -57,7 +57,7 @@ public partial class Schedules
             _recurringSource = source;
             _cachedRecurringSearch = _recurringSearch;
             IEnumerable<RecurringScheduleView> filtered = source is null ? [] : _recurringSearch.Length == 0 ? source :
-                source.Where(schedule => $"{schedule.Name} {schedule.Id} {schedule.Cron} {schedule.TimeZoneId} Every {IntervalLabel(schedule.Interval)}"
+                source.Where(schedule => $"{schedule.Name} {schedule.Id} {schedule.Cron} {schedule.TimeZoneId} {TimeZoneLabel(schedule.TimeZoneId, schedule.DueAt)} Every {IntervalLabel(schedule.Interval)}"
                     .Contains(_recurringSearch, StringComparison.OrdinalIgnoreCase));
             IOrderedEnumerable<RecurringScheduleView>? ordered = null;
             foreach (DataTableOrderRequest order in _recurringOrder)

@@ -46,7 +46,7 @@
                 <Span Display="Display.Block" FontWeight="FontWeight.Medium">@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : schedule.Cron)</Span>
                 @if (schedule.Cron is not null)
                 {
-                    <Span Display="Display.Block" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">@schedule.TimeZoneId</Span>
+                    <Span Display="Display.Block" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground" title="@schedule.TimeZoneId">@TimeZoneLabel(schedule.TimeZoneId, schedule.DueAt)</Span>
                 }
             </Div>
             <Div Space="Space.Y.Is2">
