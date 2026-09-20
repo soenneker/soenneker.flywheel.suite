@@ -80,7 +80,8 @@ public sealed partial class FlywheelDashboardTests
         store.Changes.Writer.TryWrite(new JobChange("Job", "one"));
         Check((await boards.Reader.ReadAsync(timeout.Token)).GetProperty("version").GetInt32() == 1, "Committed change was not pushed");
         await connection.InvokeAsync("SubscribeBoard", 2, "new-query", 50, 10, false, null, null, timeout.Token);
-        Check((await boards.Reader.ReadAsync(timeout.Token)).GetProperty("version").GetInt32() == 2 && store.Query == "new-query" && store.Offset == 50, "Search subscription was not replaced");
+        Check((await boards.Reader.ReadAsync(timeout.Token)).GetProperty("version").GetInt32() == 2 &&
+            store.Searches.Contains(("new-query", 50, 10)), "Search subscription was not replaced");
         await connection.InvokeAsync("SubscribeLogs", 3, "one", timeout.Token);
         Check((await logs.Reader.ReadAsync(timeout.Token)).GetProperty("entries").GetArrayLength() == 1, "Initial logs missing");
         store.Changes.Writer.TryWrite(new JobChange("Logs", "one"));

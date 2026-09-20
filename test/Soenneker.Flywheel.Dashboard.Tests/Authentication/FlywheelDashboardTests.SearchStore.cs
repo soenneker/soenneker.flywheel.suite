@@ -22,9 +22,11 @@ public sealed partial class FlywheelDashboardTests
         public JobRecord[]? SearchItems;
         public int Calls, Offset, Count;
         public string? Query;
+        public readonly System.Collections.Concurrent.ConcurrentQueue<(string? Query, int Offset, int Count)> Searches = new();
         public Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50, CancellationToken cancellationToken = default)
         {
             Calls++; Query = query; Offset = offset; Count = count;
+            Searches.Enqueue((query, offset, count));
             if (SearchItems is { } source)
             {
                 JobRecord[] matches = source.Where(job => string.IsNullOrEmpty(query) || job.Name.Contains(query)).ToArray();

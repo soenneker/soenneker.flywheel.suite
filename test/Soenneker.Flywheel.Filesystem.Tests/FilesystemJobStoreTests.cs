@@ -194,7 +194,7 @@ public sealed class FilesystemJobStoreTests
         await using (ServiceProvider services = Open(files.Path, clock))
         {
             var store = services.GetRequiredService<FilesystemJobStore>();
-            await store.Enqueue(Request());
+            await store.Enqueue(Request() with { Policy = new JobPolicy { MaxAttempts = 2 } });
             lease = (await store.Claim("old", TimeSpan.FromSeconds(1)))!;
         }
         clock.Advance(TimeSpan.FromSeconds(2));
@@ -204,8 +204,8 @@ public sealed class FilesystemJobStoreTests
             Check(!await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Expired persisted owner completed.");
             await store.Maintain(100);
             clock.Advance(TimeSpan.FromSeconds(5));
-            JobLease recovered = (await store.Claim("new", TimeSpan.FromMinutes(1)))!;
-            Check(recovered.Version > lease.Version && recovered.Job.Attempt == 2, "Persisted lease recovery failed.");
+            JobLease? recovered = await store.Claim("new", TimeSpan.FromMinutes(1));
+            Check(recovered is not null && recovered.Version > lease.Version && recovered.Job.Attempt == 2, "Persisted lease recovery failed.");
         }
     }
 
