@@ -6,6 +6,7 @@ using Soenneker.Utils.Json;
 using Soenneker.Utils.PooledStringBuilders;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
+using System.Text.Json;
 
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
@@ -139,13 +140,17 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     {
         Touched = true;
         await _container.EnsureIndex(path, _token).NoSync();
-        var page = await _container.FindByIndex<LibrarianEntry<TKey, TValue>>(path, value, take: int.MaxValue,
+        // Keep indexed reads on the same serialization contract as raw reads and writes.
+        var page = await _container.FindByIndex<JsonElement>(path, value, take: int.MaxValue,
             cancellationToken: _token).NoSync();
-        if (_writes.Count == 0) return page.Items;
+        if (_writes.Count == 0) return page.Items.Select(item => Decode(item.GetRawText())).ToList();
         var result = new List<LibrarianEntry<TKey, TValue>>(page.Items.Count + _writes.Count);
         // Apply only this transaction's overlay to indexed results.
-        foreach (var entry in page.Items)
+        foreach (JsonElement item in page.Items)
+        {
+            var entry = Decode(item.GetRawText());
             if (!_writes.ContainsKey(Id(entry.Key))) result.Add(entry);
+        }
         using var expected = System.Text.Json.JsonDocument.Parse(JsonUtil.Serialize(value)!);
         string[] segments = path.Split('.');
         foreach (string? raw in _writes.Values)
@@ -203,9 +208,9 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         await _container.EnsureIndex(path, _token).NoSync();
         // Paged reads cannot include an uncommitted overlay: callers use them before staging writes.
         if (_writes.Count != 0) throw new InvalidOperationException("Range queries must precede writes to the queried table.");
-        var page = await _container.FindRangeByIndex<LibrarianEntry<TKey, TValue>>(path, minimum, maximum,
+        var page = await _container.FindRangeByIndex<JsonElement>(path, minimum, maximum,
             descending, skip, take, _token).NoSync();
-        return page.Items;
+        return page.Items.Select(item => Decode(item.GetRawText())).ToList();
     }
 
     public async ValueTask<int> CountRange(string path, object? minimum = null, object? maximum = null)
