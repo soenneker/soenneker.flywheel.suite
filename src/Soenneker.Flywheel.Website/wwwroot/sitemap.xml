@@ -2,14 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://flywheel.soenneker.com/</loc>
-    <lastmod>2026-09-20</lastmod>
+    <lastmod>2026-09-21</lastmod>
   </url>
   <url>
-    <loc>https://flywheel.soenneker.com/dashboard</loc>
-    <lastmod>2026-09-12</lastmod>
+    <loc>https://flywheel.soenneker.com/dashboard/</loc>
+    <lastmod>2026-09-21</lastmod>
   </url>
   <url>
-    <loc>https://flywheel.soenneker.com/getting-started</loc>
-    <lastmod>2026-09-12</lastmod>
+    <loc>https://flywheel.soenneker.com/getting-started/</loc>
+    <lastmod>2026-09-21</lastmod>
   </url>
 </urlset>

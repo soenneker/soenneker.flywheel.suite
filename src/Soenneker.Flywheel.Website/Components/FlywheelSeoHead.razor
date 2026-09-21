@@ -1,0 +1,84 @@
+@using System.Text.Json
+@using System
+@using System.Collections.Generic
+@inject NavigationManager Navigation
+
+<Soenneker.Quark.SeoHead Title="@Title" Description="@Description" CanonicalUrl="@CanonicalUrl"
+    SiteName="Flywheel" Locale="en_US" NoIndex="@NoIndex"
+    SocialImageUrl="https://flywheel.soenneker.com/images/dashboard.png"
+    SocialImageAlt="Flywheel background jobs dashboard"
+    StructuredDataJson="@(NoIndex ? null : StructuredData)" />
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Description { get; set; } = "";
+    [Parameter] public bool NoIndex { get; set; }
+    [Parameter] public string? CanonicalPath { get; set; }
+
+    private string Path => "/" + (CanonicalPath ?? new Uri(Navigation.Uri).AbsolutePath)
+        .Split('?', '#')[0].Trim('/');
+    private string CanonicalUrl => "https://flywheel.soenneker.com" + (Path == "/" ? "/" : Path + "/");
+
+    private string StructuredData => JsonSerializer.Serialize(new Dictionary<string, object>
+    {
+        ["@context"] = "https://schema.org",
+        ["@graph"] = new object[]
+        {
+            new Dictionary<string, object>
+            {
+                ["@type"] = "WebSite",
+                ["@id"] = "https://flywheel.soenneker.com/#website",
+                ["name"] = "Flywheel",
+                ["url"] = "https://flywheel.soenneker.com/",
+                ["inLanguage"] = "en"
+            },
+            PageData
+        }
+    });
+
+    private Dictionary<string, object> PageData
+    {
+        get
+        {
+            var page = new Dictionary<string, object>
+            {
+                ["@type"] = "WebPage",
+                ["@id"] = CanonicalUrl + "#webpage",
+                ["url"] = CanonicalUrl,
+                ["name"] = Title,
+                ["description"] = Description,
+                ["inLanguage"] = "en",
+                ["isPartOf"] = new Dictionary<string, string> { ["@id"] = "https://flywheel.soenneker.com/#website" },
+                ["about"] = new Dictionary<string, object>
+                {
+                    ["@type"] = "SoftwareSourceCode",
+                    ["name"] = "Soenneker.Flywheel.Suite",
+                    ["programmingLanguage"] = "C#",
+                    ["codeRepository"] = "https://github.com/soenneker/soenneker.flywheel.suite"
+                }
+            };
+            if (Path != "/")
+                page["breadcrumb"] = Breadcrumbs;
+            return page;
+        }
+    }
+
+    private object Breadcrumbs => new Dictionary<string, object>
+    {
+        ["@type"] = "BreadcrumbList",
+        ["itemListElement"] = new object[]
+            {
+                Breadcrumb(1, "Flywheel", "https://flywheel.soenneker.com/"),
+                Breadcrumb(2, Title.Split('|')[0].Trim(), CanonicalUrl)
+            }
+    };
+
+    private static object Breadcrumb(int position, string name, string url) => new Dictionary<string, object>
+    {
+        ["@type"] = "ListItem",
+        ["position"] = position,
+        ["name"] = name,
+        ["item"] = url
+    };
+
+}
