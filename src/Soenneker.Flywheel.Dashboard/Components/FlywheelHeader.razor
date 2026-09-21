@@ -31,7 +31,8 @@
 
     private string HeaderValue(int index) => index switch
     {
-        3 => ActivityTotals.FailedCount?.ToString("N0") ?? "�",
+        2 => ActivityTotals.SucceededCount?.ToString("N0") ?? "—",
+        3 => ActivityTotals.FailedCount?.ToString("N0") ?? "—",
         7 => ActivityTotals.RecurringCount?.ToString("N0") ?? "—",
         6 => ActivityTotals.QueuedCount?.ToString("N0") ?? "—",
         0 => ActivityTotals.ScheduledCount?.ToString("N0") ?? "—",
@@ -55,6 +56,7 @@
 
     private static string? HeaderTitle(int index) => index switch
     {
+        2 => "All retained succeeded jobs, independent of the selected date range",
         3 => "All retained failed jobs, independent of the selected date range",
         7 => "Recurring jobs with an active schedule",
         6 => "Jobs ready to run, waiting for an available worker",

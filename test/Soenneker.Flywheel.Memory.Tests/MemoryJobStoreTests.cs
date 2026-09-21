@@ -28,6 +28,33 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
+    public async Task StatusSearchPreservesCountsPagingAndQueuedBoundaries()
+    {
+        var clock = new Clock();
+        await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
+        DateTimeOffset start = clock.GetUtcNow();
+        for (int i = 0; i < 12; i++)
+        {
+            await store.Enqueue(Request("invoice", policy: new JobPolicy { MaxAttempts = 1 }));
+            JobLease lease = (await store.Claim("node", TimeSpan.FromMinutes(1)))!;
+            await store.Finish(lease, i % 2 == 0 ? JobOutcome.Failed : JobOutcome.Succeeded, null, TimeSpan.Zero);
+            clock.Advance(TimeSpan.FromSeconds(1));
+        }
+        string queued = await store.Enqueue(Request("invoice"));
+        string scheduled = await store.Enqueue(Request("invoice", TimeSpan.FromHours(1)));
+        var excluded = new HashSet<string> { "Scheduled", "Queued", "Running", "Succeeded", "Cancelled", "Waiting" };
+        JobSearchResult result = await Soenneker.Flywheel.Core.Dashboard.DashboardJobSearch.Search(store, "invoice", 2, 2, start, clock.GetUtcNow(), string.Join(',', excluded), default);
+        Check(result.TotalCount == 6 && result.Items.Count == 2 && result.Items.All(j => j.State == JobState.DeadLettered), "Indexed status search lost counts or paging.");
+        Check((await store.Search("missing", null, null, excluded)).TotalCount == 0, "Text filtering was ignored.");
+        excluded.Add("DeadLettered");
+        excluded.Remove("Queued");
+        Check((await store.Search(null, null, null, excluded)).Items.Single().Id == queued, "Queued boundary was lost.");
+        excluded.Add("Queued");
+        excluded.Remove("Scheduled");
+        Check((await store.Search(null, null, null, excluded)).Items.Single().Id == scheduled, "Scheduled boundary was lost.");
+    }
+
+    [Test]
     public async Task StartupSubmissionsAreOncePerInstance()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());

@@ -5,13 +5,47 @@ using Soenneker.Utils.Json;
 using Soenneker.Cron.Parser;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Options;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Soenneker.Flywheel.Core.Services;
 
-public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
+public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null,
+    IServiceScopeFactory? scopeFactory = null) : IJobClient
 {
     private readonly FlywheelOptions _options = options ?? new FlywheelOptions();
     private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+
+    public async Task EnqueueDebounced<T>(JobDefinition<T> job, T payload, string key, string requestId,
+        DateTimeOffset requestedAt, TimeSpan delay, JobPolicy? policy = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        if (delay < TimeSpan.Zero || delay > TimeSpan.FromDays(365)) throw new ArgumentOutOfRangeException(nameof(delay));
+        EnqueueRequest request = Request(job, payload, policy, delay, null);
+        await using AsyncServiceScope scope = CreateDebounceScope();
+        await scope.ServiceProvider.GetRequiredService<IJobDebounceCoordinator>()
+            .Enqueue(key, requestId, requestedAt, request, cancellationToken);
+    }
+
+    public async ValueTask<string?> GetDebouncedRequestId(string key, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        await using AsyncServiceScope scope = CreateDebounceScope();
+        return await scope.ServiceProvider.GetRequiredService<IJobDebounceCoordinator>().Current(key, cancellationToken);
+    }
+
+    public async ValueTask<bool> CommitDebounced(string key, string? requestId, Func<CancellationToken, ValueTask> action,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(action);
+        await using AsyncServiceScope scope = CreateDebounceScope();
+        return await scope.ServiceProvider.GetRequiredService<IJobDebounceCoordinator>().Commit(key, requestId, action, cancellationToken);
+    }
+
+    private AsyncServiceScope CreateDebounceScope() =>
+        (scopeFactory ?? throw new NotSupportedException("Debounced jobs require a service scope factory and IJobDebounceCoordinator registration."))
+        .CreateAsyncScope();
 
     public Task<string> EnqueueForCurrentInstance<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
         CancellationToken cancellationToken = default)

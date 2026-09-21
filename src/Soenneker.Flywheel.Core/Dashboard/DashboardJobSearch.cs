@@ -21,6 +21,8 @@ public static class DashboardJobSearch
             : store.Search(query, skip, take, cancellationToken);
         if (string.IsNullOrEmpty(excludedStates)) return await Read(offset, count);
         HashSet<string> excluded = excludedStates.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
+        if (store is IJobStatusSearchStore statusStore)
+            return await statusStore.Search(query, startAt, endAt, excluded, offset, count, cancellationToken);
         var items = new List<JobRecord>(count);
         int matches = 0;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

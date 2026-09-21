@@ -14,4 +14,5 @@ public sealed record LiveBoard(
     [property: JsonPropertyName("totalWorkers")] int? TotalWorkers = null,
     [property: JsonPropertyName("liveActivity")] List<JobHistoryPoint>? LiveActivity = null,
     [property: JsonPropertyName("recurringCount")] long? RecurringCount = null,
-    [property: JsonPropertyName("failedCount")] long? FailedCount = null);
+    [property: JsonPropertyName("failedCount")] long? FailedCount = null,
+    [property: JsonPropertyName("succeededCount")] long? SucceededCount = null);

@@ -5,6 +5,19 @@ namespace Soenneker.Flywheel.Core.Services.Abstract;
 /// <summary>Typed producer API. A completed call means persisted, not executed. Handlers must be idempotent.</summary>
 public interface IJobClient
 {
+    /// <summary>Queues the newest request for a key after a quiet period, cancelling its predecessor.
+    /// Reuse requestId and requestedAt when retrying an ambiguous submission. Requires IJobDebounceCoordinator.</summary>
+    Task EnqueueDebounced<T>(JobDefinition<T> job, T payload, string key, string requestId, DateTimeOffset requestedAt,
+        TimeSpan delay, JobPolicy? policy = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads the latest accepted request identifier for a debounce key. Requires IJobDebounceCoordinator.</summary>
+    ValueTask<string?> GetDebouncedRequestId(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>Runs an idempotent commit only if the request is current, excluding concurrent replacement submissions.
+    /// A null requestId matches a key with no accepted request. Requires IJobDebounceCoordinator.</summary>
+    ValueTask<bool> CommitDebounced(string key, string? requestId, Func<CancellationToken, ValueTask> action,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Submits a registered job once for the calling application instance.
     /// Only that instance can claim it. Repeated calls on the same instance return the
     /// original ID even after retention removes the record. Payload and policy from the first call win.

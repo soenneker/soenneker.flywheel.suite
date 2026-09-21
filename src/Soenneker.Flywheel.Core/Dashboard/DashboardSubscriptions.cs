@@ -81,6 +81,10 @@ public sealed partial class DashboardSubscriptions(
                 ? await failedStore.GetFailedCount(ct)
                 : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
                     "Scheduled,Queued,Running,Succeeded,Cancelled,Waiting", ct)).TotalCount;
+            long succeededCount = store is IJobSucceededCountStore succeededStore
+                ? await succeededStore.GetSucceededCount(ct)
+                : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
+                    "Scheduled,Queued,Running,DeadLettered,Cancelled,Waiting", ct)).TotalCount;
             int? totalWorkers = null;
             int? serverCount = null;
             if (store is IServerStore serverStore)
@@ -99,7 +103,7 @@ public sealed partial class DashboardSubscriptions(
                 schedules = snapshots.Schedules(await scheduleStore.ListRecurring(200, ct), await scheduleStore.ListScheduled(200, ct));
             await client.BoardSnapshot(new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
                 result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
-                liveActivity?.ToList(), recurringCount, failedCount)).WaitAsync(ct);
+                liveActivity?.ToList(), recurringCount, failedCount, succeededCount)).WaitAsync(ct);
         }
         else if (kind == "Job")
         {

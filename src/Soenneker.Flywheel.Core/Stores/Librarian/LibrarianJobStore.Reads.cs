@@ -76,14 +76,35 @@ public abstract partial class LibrarianJobStore
         return SearchCore(query, startAt.ToUnixTimeMilliseconds(), endAt.ToUnixTimeMilliseconds(), offset, count, cancellationToken);
     }
 
-    private Task<JobSearchResult> SearchCore(string? query, long? start, long? end, int offset, int count, CancellationToken ct)
+    public Task<JobSearchResult> Search(string? query, DateTimeOffset? startAt, DateTimeOffset? endAt,
+        IReadOnlySet<string> excludedStates, int offset = 0, int count = 50, CancellationToken cancellationToken = default)
+    {
+        if (startAt.HasValue != endAt.HasValue || startAt >= endAt) throw new ArgumentOutOfRangeException(nameof(startAt));
+        return SearchCore(query, startAt?.ToUnixTimeMilliseconds(), endAt?.ToUnixTimeMilliseconds(), offset, count, cancellationToken, excludedStates);
+    }
+
+    private Task<JobSearchResult> SearchCore(string? query, long? start, long? end, int offset, int count, CancellationToken ct,
+        IReadOnlySet<string>? excludedStates = null)
     {
         ValidatePage(offset, count);
         string text = ValidateQuery(query);
         return Mutate(ct, async now =>
         {
-            IEnumerable<JobRecord> candidates = start.HasValue ?
-                (await _jobs.Range("value.updatedAt", start, end!.Value - 1)).Select(e => e.Value) : await _jobs.GetValues();
+            IEnumerable<JobRecord> candidates;
+            if (excludedStates is { Count: > 0 })
+            {
+                var included = new List<JobRecord>();
+                JobState[] states = [JobState.Scheduled, JobState.Running, JobState.Succeeded, JobState.DeadLettered, JobState.Cancelled, JobState.Waiting];
+                foreach (JobState state in states)
+                {
+                    if (excludedStates.Contains(state.Name) && (state != JobState.Scheduled || excludedStates.Contains("Queued"))) continue;
+                    included.AddRange(await _jobs.Find("state", state.Value));
+                }
+                candidates = included.Where(j => !excludedStates.Contains(j.DisplayState(now)));
+            }
+            else
+                candidates = start.HasValue ?
+                    (await _jobs.Range("value.updatedAt", start, end!.Value - 1)).Select(e => e.Value) : await _jobs.GetValues();
             JobRecord[] page = Page(candidates.Where(j => Matches(j, text, now, start, end)), RunningFirst, offset, count, out int total);
             return new JobSearchResult(page, total);
         });

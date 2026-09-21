@@ -57,16 +57,15 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         catch (Exception ex)
         {
             outcome = Communication.Enums.JobOutcome.Failed;
-            // Do not persist exception messages/stacks, which may contain credentials or payload data.
-            error = ex is not OperationCanceledException ? ex.GetType().Name
+            error = ex is not OperationCanceledException ? $"{ex.GetType().Name}: {ex.Message}"
                 : Volatile.Read(ref cancelled) != 0 ? "Cancellation requested"
                 : Volatile.Read(ref lost) != 0 ? "Execution stopped because its lease was lost"
                 : cancellationToken.IsCancellationRequested ? "Execution interrupted by worker shutdown"
                 : timeout.IsCancellationRequested ? $"Execution exceeded its configured timeout ({lease.Job.Policy.Timeout})"
                 : "A handler or dependency cancelled an operation before the job timeout";
-            // Preserve diagnostic types and call sites without persisting exception messages or payload data.
+            // Include each cause's message so stored job logs explain the failure as well as its call site.
             for (Exception? cause = ex; cause is not null; cause = cause.InnerException)
-                logSession?.Write("Warning", "Flywheel", $"{cause.GetType().FullName}\n{cause.StackTrace}");
+                logSession?.Write("Warning", "Flywheel", $"{cause.GetType().FullName}: {cause.Message}\n{cause.StackTrace}");
             logger.LogWarning(ex, "Job {JobId} attempt {Attempt} failed: {Error}", lease.Job.Id, lease.Job.Attempt, error);
         }
         finally

@@ -313,6 +313,30 @@ public sealed class DashboardSearchChartTests
     }
 
     [Test]
+    public void SucceededHeaderUsesRetainedTotalAcrossHistoryRanges()
+    {
+        var totals = new ActivityTotalsState();
+        var snapshot = new LiveBoard(1, [], 0,
+            [new JobHistoryPoint(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 0, 0, 5, 0)],
+            null, SucceededCount: 12);
+        totals.UpdateSnapshot(snapshot);
+        var header = new FlywheelHeader();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(FlywheelHeader).GetProperty("ActivityTotals", flags)!.SetValue(header, totals);
+        MethodInfo value = typeof(FlywheelHeader).GetMethod("HeaderValue", flags)!;
+        if ((string)value.Invoke(header, [2])! != "12") throw new Exception("Succeeded header used recent history instead of retained jobs");
+        totals.LastHour = false;
+        totals.Update([0, 0, 2]);
+        if ((string)value.Invoke(header, [2])! != "12") throw new Exception("Date range overwrote the retained succeeded total");
+        totals.UpdateSnapshot(snapshot with { SucceededCount = 0 });
+        if ((string)value.Invoke(header, [2])! != "0") throw new Exception("Succeeded header did not refresh to zero");
+        totals.Clear();
+        if ((string)value.Invoke(header, [2])! != "—" || (string)value.Invoke(header, [3])! != "—")
+            throw new Exception("Unavailable totals should show a dash");
+        if (totals.SucceededCount is not null) throw new Exception("Clearing state retained a stale succeeded count");
+    }
+
+    [Test]
     public void HeaderShowsBusyWorkersAndLinksRunningToHome()
     {
         var header = new FlywheelHeader();
