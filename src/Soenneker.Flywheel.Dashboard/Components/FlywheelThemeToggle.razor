@@ -1,29 +1,58 @@
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
+@using Microsoft.JSInterop
 @inject IThemeInterop Theme
 @implements IDisposable
 
-<ThemeToggleButton IsDark="@_isDark" AriaLabel="@(_isDark ? "Switch to light mode" : "Switch to dark mode")" OnClick="Toggle" />
+@if (_error is not null)
+{
+    <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
+}
+<fieldset disabled="@(!_ready || _saving)" style="border: 0; padding: 0; margin: 0;">
+    <ThemeToggleButton Mode="@Theme.Mode" AriaLabel="@($"Theme: {Theme.Mode.Value}. Switch to {NextMode.Value} mode")" ModeChanged="SetMode" />
+</fieldset>
 
 @code {
+    private bool _ready, _saving;
+    private string? _error;
+
+    private ThemeMode NextMode => Theme.Mode == ThemeMode.System ? ThemeMode.Light
+        : Theme.Mode == ThemeMode.Light ? ThemeMode.Dark : ThemeMode.System;
+
     protected override void OnInitialized() => Theme.ThemeChanged += OnThemeChanged;
 
-    private void OnThemeChanged(bool isDark) => _ = InvokeAsync(() =>
-    {
-        _isDark = isDark;
-        StateHasChanged();
-    });
+    private void OnThemeChanged(bool isDark) => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => Theme.ThemeChanged -= OnThemeChanged;
-
-    private bool _isDark;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        _isDark = await Theme.Initialize();
+        try
+        {
+            await Theme.Initialize();
+            _ready = true;
+        }
+        catch (JSException)
+        {
+            _error = "Theme settings could not be loaded. Allow browser storage and reload to try again.";
+        }
         StateHasChanged();
     }
 
-    private async Task Toggle() => _isDark = await Theme.Toggle();
+    private async Task SetMode(ThemeMode mode)
+    {
+        if (!_ready || _saving) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Theme.SetMode(mode);
+        }
+        catch (JSException)
+        {
+            _error = "Your theme preference could not be saved. Please try again.";
+        }
+        finally { _saving = false; }
+    }
 }

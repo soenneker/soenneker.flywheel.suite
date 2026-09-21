@@ -44,8 +44,8 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Locks" Version="4.0.89" />
         <PackageReference Include="Soenneker.Utils.File" Version="4.0.2280" />
-        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.6" />
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.7" />
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.FileSystem" Version="4.0.16" />
+        <PackageReference Include="Soenneker.Librarian.FileSystem" Version="4.0.17" />
     </ItemGroup>
 </Project>

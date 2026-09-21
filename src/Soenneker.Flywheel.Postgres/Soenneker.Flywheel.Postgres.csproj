@@ -43,7 +43,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.16" />
+        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.17" />
     </ItemGroup>
 </Project>
 
