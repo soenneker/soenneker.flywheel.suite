@@ -7,10 +7,11 @@ using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Core.Stores.Abstract;
+using Soenneker.Flywheel.Core.Services.Abstract;
 
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
-public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
+public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
     IJobChainStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
     IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
@@ -57,7 +58,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IVersionedJobStore,
         _dispatch = new LibrarianTable<string, DispatchCandidate>("dispatch");
         _running = new LibrarianTable<string, RunningEntry>("running");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _chainMembership];
+        _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _chainMembership, _debounce];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 

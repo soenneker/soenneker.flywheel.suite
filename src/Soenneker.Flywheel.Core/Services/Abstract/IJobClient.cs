@@ -5,8 +5,13 @@ namespace Soenneker.Flywheel.Core.Services.Abstract;
 /// <summary>Typed producer API. A completed call means persisted, not executed. Handlers must be idempotent.</summary>
 public interface IJobClient
 {
+    /// <summary>Schedules the latest payload for a debounce ID after the delay. Each submission cancels the previous execution
+    /// and resets the due time using the store clock. Running executions are cancelled cooperatively.</summary>
+    Task EnqueueDebounced<T>(JobDefinition<T> job, T payload, string debounceId, TimeSpan delay,
+        JobPolicy? policy = null, CancellationToken cancellationToken = default);
+
     /// <summary>Queues the newest request for a key after a quiet period, cancelling its predecessor.
-    /// Reuse requestId and requestedAt when retrying an ambiguous submission. Requires IJobDebounceCoordinator.</summary>
+    /// Reuse requestId and requestedAt when retrying an ambiguous submission. The job store must support IJobDebounceCoordinator.</summary>
     Task EnqueueDebounced<T>(JobDefinition<T> job, T payload, string key, string requestId, DateTimeOffset requestedAt,
         TimeSpan delay, JobPolicy? policy = null, CancellationToken cancellationToken = default);
 
