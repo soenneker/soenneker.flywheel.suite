@@ -3014,6 +3014,10 @@
     --tw-duration: 25ms;
     transition-duration: 25ms;
   }
+  .duration-75 {
+    --tw-duration: 75ms;
+    transition-duration: 75ms;
+  }
   .duration-100 {
     --tw-duration: 100ms;
     transition-duration: 100ms;

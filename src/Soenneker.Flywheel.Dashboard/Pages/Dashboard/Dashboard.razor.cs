@@ -227,6 +227,21 @@ public partial class Dashboard
     }
 
     private long _activityVersion;
+    private (bool Live, long Version, string TimeZone)? _activityLabelsKey;
+    private string[] _activityLabels = [];
+    private string[] ActivityLabels
+    {
+        get
+        {
+            var key = (UseLiveChart, UseLiveChart ? _liveActivity.Version : _activityVersion, DisplayTimeZone);
+            if (_activityLabelsKey != key)
+            {
+                _activityLabels = TimeZone.ChartLabels(UseLiveChart ? _liveActivity.XValues : _activityXValues, UseLiveChart);
+                _activityLabelsKey = key;
+            }
+            return _activityLabels;
+        }
+    }
     private int _historyRevision;
     private Chart? _activityChart;
     private DashboardActivityRegion? _activityRegion;

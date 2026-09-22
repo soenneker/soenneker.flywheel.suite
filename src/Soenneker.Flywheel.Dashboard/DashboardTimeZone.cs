@@ -105,5 +105,6 @@ public sealed class DashboardTimeZone(ILocalStorageUtil storage)
     }
 
     public string[] ChartLabels(IEnumerable<double> timestamps, bool live) => timestamps
-        .Select(value => Format((long)value, live ? "HH:mm:ss" : "MMM d HH:mm")).ToArray();
+        .Select(value => Convert(DateTimeOffset.FromUnixTimeMilliseconds((long)value))
+            .ToString(live ? "HH:mm:ss" : "MMM d HH:mm", CultureInfo.InvariantCulture)).ToArray();
 }

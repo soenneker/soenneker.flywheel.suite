@@ -53,7 +53,7 @@
                     {
                         <DashboardActivityRegion @ref="_activityRegion">
                         <Div Class="flywheel-activity-chart" aria-label="Activity chart">
-                            <Chart @key="DisplayTimeZone" @ref="_activityChart" IsLoading="@ActivityLoading" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@TimeZone.ChartLabels(UseLiveChart ? _liveActivity.XValues : _activityXValues, UseLiveChart)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
+                            <Chart @key="DisplayTimeZone" @ref="_activityChart" IsLoading="@ActivityLoading" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@ActivityLabels" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
                                    OnRangeSelect="SelectActivityRange"
                                    AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second buckets. Drag a range to filter executions." : (UseMatchingHistory ? "Matching executions by current status and last update time. Static filtered results." : "Job state transitions in five-minute buckets. Drag a range to filter executions."))" />
                             <Div Class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">

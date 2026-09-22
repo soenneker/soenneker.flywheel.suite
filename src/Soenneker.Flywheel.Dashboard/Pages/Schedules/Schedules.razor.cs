@@ -17,17 +17,16 @@ public partial class Schedules
     private string? _cachedRecurringSearch;
     private IReadOnlyList<RecurringScheduleView> _filteredRecurring = [];
     private RecurringScheduleView? _selectedSchedule;
-    private Drawer? _drawer;
+    private bool _drawerVisible;
 
-    private async Task ShowScheduleDrawer(RecurringScheduleView schedule)
+    private Task ShowScheduleDrawer(RecurringScheduleView schedule)
     {
         _selectedSchedule = schedule;
-        await InvokeAsync(StateHasChanged);
-        if (_drawer is not null) await _drawer.Show();
+        _drawerVisible = true;
+        return InvokeAsync(StateHasChanged);
     }
     private Task OpenScheduleDrawer(KeyboardEventArgs e, RecurringScheduleView schedule) =>
         e.Key is "Enter" or " " ? ShowScheduleDrawer(schedule) : Task.CompletedTask;
-    private void OnDrawerVisibleChanged(bool visible) { if (!visible) _selectedSchedule = null; }
     protected override void SchedulesChanged()
     {
         if (_selectedSchedule is { } selected && _schedules is not null)

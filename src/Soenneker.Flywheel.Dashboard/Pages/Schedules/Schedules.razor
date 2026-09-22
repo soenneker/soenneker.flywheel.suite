@@ -11,7 +11,7 @@
 
 <Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
     @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
-    <Drawer @ref="_drawer" Visible="@(_selectedSchedule is not null)" VisibleChanged="OnDrawerVisibleChanged" Direction="right" TrapFocus="true" ShowBackdrop="true">
+    <Drawer @bind-Visible="_drawerVisible" Direction="right" TrapFocus="true" ShowBackdrop="true">
         <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
             <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Recurring jobs</H3></Div>
             <DataTable AdaptiveLayout="true" LoadingAtTop="true" IsLoading="@(_schedules is null && _scheduleError is null)" Options="@_recurringTableOptions" TotalRecords="@FilteredRecurring.Count" OnInteraction="SearchRecurring">
