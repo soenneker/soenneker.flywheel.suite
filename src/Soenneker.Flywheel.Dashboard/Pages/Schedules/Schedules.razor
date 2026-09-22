@@ -44,13 +44,13 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted-foreground">No execution recorded</span>
+                                    <Span TextColor="TextColor.MutedForeground">No execution recorded</Span>
                                 }
                             </Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@schedule.DueAt" /></Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" class="px-3 py-1 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
                                 <Button ButtonSize="ButtonSize.Sm" OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Position="Position.Relative" aria-busy="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">
-                                    <span style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</span>
+                                    <Span Style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</Span>
                                     @if (_startingSchedules.Contains(schedule.Id))
                                     {
                                         <Spinner Size="Size.Is4" Position="Position.Absolute" aria-label="Queuing job" />

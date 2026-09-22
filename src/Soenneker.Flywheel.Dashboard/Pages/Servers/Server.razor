@@ -1,9 +1,11 @@
+@inject DashboardTimeZone TimeZone
 @inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/servers/{ServerId}"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Servers
 @using System.Net
 @using Soenneker.Dtos.Results.Operation
 @using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Lucide.Enums.Icons
 @using Soenneker.Quark
 @layout FlywheelLayout
 @inject IFlywheelDashboardConsumer Consumer
@@ -12,7 +14,7 @@
 
 <PageTitle>@(_server?.Id ?? "Server") · Flywheel</PageTitle>
 <Main MaxWidth='MaxWidth.Token("[1600px]")' Margin="Margin.Auto.OnX" Padding="Padding.Is4.OnMd.Is8" Width="Width.IsFull">
-    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="@DashboardNavigation.Path("servers")" Variant="ButtonVariant.Secondary" aria-label="Back to servers">←</Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
+    <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6"><Button Href="@DashboardNavigation.Path("servers")" Variant="ButtonVariant.Secondary" aria-label="Back to servers"><Icon Name="LucideIcon.ArrowLeft" Size="Size.Is4" aria-hidden="true" /></Button><H2 Margin="Margin.Is0" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@ServerId</H2></Div>
     @if (_error is not null) { <Alert role="alert"><AlertTitle>Could not load server</AlertTitle><AlertDescription>@_error</AlertDescription></Alert> }
     else if (_server is null)
     {
@@ -29,7 +31,7 @@
     {
         <Grid Columns="GridCols.Is1.OnMd.Is3" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Workers (busy / total)</Span><Span>@($"{_server.RunningJobs.Count:N0}/{_server.Workers:N0}")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div></Grid>
         <Div Margin="Margin.FromBottom.Is6">
-            <Chart Type="ChartType.Line" Series="@_workers.Data.Series" Labels="@_workers.Data.Labels"
+            <Chart @key="DisplayTimeZone" Type="ChartType.Line" Series="@_workers.Data.Series" Labels="@TimeZone.ChartLabels(_workers.Data.XValues, true)"
                    XValues="@_workers.Data.XValues" DataVersion="@_workers.Data.Version" Options="@_workers.Options"
                    AriaLabel="Busy workers on this server over time" />
         </Div>
@@ -133,4 +135,8 @@
         await base.DisposeAsync();
         if (_refreshLoop is not null) await _refreshLoop;
     }
+}
+
+@code {
+    [CascadingParameter(Name = "DisplayTimeZone")] public string DisplayTimeZone { get; set; } = "UTC";
 }

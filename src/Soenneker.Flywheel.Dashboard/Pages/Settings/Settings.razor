@@ -11,4 +11,9 @@
         <Div TextColor="TextColor.MutedForeground" Margin="Margin.OnY.Is4">Switch between system, light, and dark themes. Your preference is saved in this browser.</Div>
         <FlywheelThemeToggle />
     </Div>
+    <Section Border="Border.Is1" BorderColor="BorderColor.Border" Rounded="Rounded.Lg" Padding="Padding.Is6" Margin="Margin.FromTop.Is6" Style="max-width: 40rem;" aria-labelledby="timezone-heading">
+        <H3 Id="timezone-heading" Margin="Margin.Is0" TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Timezone</H3>
+        <Paragraph TextColor="TextColor.MutedForeground" Margin="Margin.OnY.Is4">Choose how dates and times appear throughout Flywheel, including timestamps inside log messages. Changes are saved automatically in this browser.</Paragraph>
+        <FlywheelTimeZoneSelector />
+    </Section>
 </Main>

@@ -12,6 +12,7 @@ public sealed class PostgresLiveActivityRecorder(PostgresJobStore store, ILogger
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var changed = new SemaphoreSlim(0, 1);
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         using var watchStop = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         Task watcher = Watch(changed, watchStop.Token);
         try
@@ -25,7 +26,10 @@ public sealed class PostgresLiveActivityRecorder(PostgresJobStore store, ILogger
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
                 catch (Exception exception) { logger.LogWarning(exception, "Could not record Flywheel live activity."); }
                 if (active) Volatile.Write(ref _idle, 0);
-                await changed.WaitAsync(TimeSpan.FromSeconds(active ? 1 : 15), stoppingToken);
+                // Keep active samples on a fixed cadence; waiting a full second after
+                // each store call accumulates its latency and skips history buckets.
+                if (active) await timer.WaitForNextTickAsync(stoppingToken);
+                else await changed.WaitAsync(TimeSpan.FromSeconds(15), stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }

@@ -1,3 +1,4 @@
+@inject DashboardTimeZone TimeZone
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
 @using Soenneker.Flywheel.Communication.Responses
@@ -53,10 +54,10 @@
     private string _filter = "";
     private IEnumerable<LogEntry> FilteredEntries => _entries.Where(entry =>
         string.IsNullOrWhiteSpace(_filter) ||
-        $"{entry.Message} {entry.Level} {entry.Category} Attempt {entry.Attempt}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+        $"{FormatEntry(entry)} {entry.Category} Attempt {entry.Attempt}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    private static string FormatEntry(LogEntry entry) =>
-        $"{DateTimeOffset.FromUnixTimeMilliseconds(entry.Timestamp):yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Message}";
+    private string FormatEntry(LogEntry entry) =>
+        $"{TimeZone.Format(entry.Timestamp, "yyyy-MM-dd HH:mm:ss.fff")} [{entry.Level}] {TimeZone.FormatMessage(entry.Message)}";
 
     private string ConsoleText => string.Join(Environment.NewLine, FilteredEntries.Select(FormatEntry));
 
@@ -117,4 +118,8 @@
         if (_connection is not null) await _connection.DisposeAsync();
         ConnectionState.RemoveConnection(_signalId);
     }
+}
+
+@code {
+    [CascadingParameter(Name = "DisplayTimeZone")] public string DisplayTimeZone { get; set; } = "UTC";
 }

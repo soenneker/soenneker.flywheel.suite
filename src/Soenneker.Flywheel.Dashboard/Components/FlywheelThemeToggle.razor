@@ -8,9 +8,9 @@
 {
     <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
 }
-<fieldset disabled="@(!_ready || _saving)" style="border: 0; padding: 0; margin: 0;">
+<Fieldset Disabled="@(!_ready || _saving)" Style="border: 0; padding: 0; margin: 0;">
     <ThemeToggleButton Mode="@Theme.Mode" AriaLabel="@($"Theme: {Theme.Mode.Value}. Switch to {NextMode.Value} mode")" ModeChanged="SetMode" />
-</fieldset>
+</Fieldset>
 
 @code {
     private bool _ready, _saving;

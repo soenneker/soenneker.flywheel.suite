@@ -6,6 +6,18 @@ namespace Soenneker.Flywheel.Dashboard;
 
 public partial class FlywheelLayout
 {
+    private bool _timezoneReady;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await TimeZone.Initialize();
+        TimeZone.Changed += OnTimeZoneChanged;
+        _timezoneReady = true;
+        StateHasChanged();
+    }
+
+    private void OnTimeZoneChanged() => _ = InvokeAsync(StateHasChanged);
+
     private readonly CancellationTokenSource _stop = new();
     private bool _checking = true, _disposed;
     private string? _error;
@@ -79,6 +91,7 @@ public partial class FlywheelLayout
         if (_disposed) return;
         _disposed = true;
         Session.Changed -= OnSessionChanged;
+        TimeZone.Changed -= OnTimeZoneChanged;
         await _stop.CancelAsync();
         if (_connecting is not null) await _connecting;
         await BoardConnection.Stop();

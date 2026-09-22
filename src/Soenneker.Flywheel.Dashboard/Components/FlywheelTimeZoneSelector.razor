@@ -1,0 +1,38 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@inject DashboardTimeZone TimeZone
+
+<Div Space="Space.Y.Is4">
+    <Check Checked="@TimeZone.Enabled" CheckedChanged="Toggle">Convert timezone</Check>
+    <Paragraph TextColor="TextColor.MutedForeground" TextSize="TextSize.Sm">When off, dates display in UTC and timestamps inside log messages stay as written.</Paragraph>
+    <Field>
+        <FieldLabel For="flywheel-timezone">Timezone</FieldLabel>
+        <SearchableSelect Choices="@_choices" Value="@TimeZone.SelectedId" ValueChanged="Select"
+                          Disabled="@(!TimeZone.Enabled)" Placeholder="Search timezones…"
+                          InputAttributes="@_inputAttributes" />
+    </Field>
+    @if (_notSaved)
+    {
+        <Paragraph role="status" TextColor="TextColor.MutedForeground">Timezone preferences apply for this session; browser storage is unavailable.</Paragraph>
+    }
+</Div>
+
+@code {
+    private bool _notSaved;
+    private IReadOnlyList<SelectOption> _choices = [];
+    private readonly IReadOnlyDictionary<string, object> _inputAttributes = new Dictionary<string, object>
+    {
+        ["id"] = "flywheel-timezone",
+        ["aria-label"] = "Display timezone"
+    };
+
+    protected override void OnInitialized() => _choices = TimeZone.Zones
+        .Select(zone => new SelectOption(zone.Id, zone.Id.Replace('_', ' '))).ToArray();
+
+    private async Task Toggle(bool enabled) => _notSaved = !await TimeZone.SetEnabled(enabled);
+
+    private async Task Select(string? id)
+    {
+        if (id is not null) _notSaved = !await TimeZone.Select(id);
+    }
+}

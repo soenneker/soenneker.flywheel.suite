@@ -1,6 +1,7 @@
 @inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel/recurring/{ScheduleId}"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Schedules
+@using Soenneker.Lucide.Enums.Icons
 @using Soenneker.Quark
 @inherits JobsPageBase
 @layout FlywheelLayout
@@ -25,6 +26,10 @@
     {
         <Div Display="Display.Flex" Justify="Justify.Between" ItemsAlign="Items.Start" Gap="Gap.Is4" Margin="Margin.FromBottom.Is6">
             <Div Display="Display.Flex" ItemsAlign="Items.Center" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is3" MinWidth="MinWidth.Is0">
+                @if (!Embedded)
+                {
+                    <Button Href="@DashboardNavigation.Path("recurring")" Variant="ButtonVariant.Secondary" aria-label="Back to recurring jobs" title="Back"><Icon Name="LucideIcon.ArrowLeft" Size="Size.Is4" aria-hidden="true" /></Button>
+                }
                 <H2 Margin="Margin.Is0" TextSize="TextSize.Xl" TextBreak="TextBreak.Words">@schedule.Name</H2>
                 <Badge Variant="BadgeVariant.Secondary">Recurring</Badge>
             </Div>
@@ -34,15 +39,11 @@
                 {
                     <DrawerClose AsChild="true"><Button Variant="ButtonVariant.Secondary" aria-label="Close recurring job">Close</Button></DrawerClose>
                 }
-                else
-                {
-                    <Button Href="@DashboardNavigation.Path("recurring")" Variant="ButtonVariant.Secondary">All recurring jobs</Button>
-                }
             </Div>
         </Div>
-        <Grid Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1.5rem;" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
+        <Grid Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, max-content)); gap: 1.5rem;" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
             <Div Space="Space.Y.Is2">
-                <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Schedule</Span>
+                <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Frequency</Span>
                 <Span Display="Display.Block" FontWeight="FontWeight.Medium">@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : schedule.Cron)</Span>
                 @if (schedule.Cron is not null)
                 {
@@ -50,10 +51,7 @@
                 }
             </Div>
             <Div Space="Space.Y.Is2">
-                <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2">
-                    <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next execution</Span>
-                    <JobStatusBadge State="Scheduled" />
-                </Div>
+                <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next execution</Span>
                 <JobTimestamp StartsAt="true" Value="@schedule.DueAt" ShowAbsolute="true" />
             </Div>
         </Grid>

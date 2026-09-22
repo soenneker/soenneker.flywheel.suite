@@ -34,6 +34,6 @@ internal sealed class ServerWorkerHistory
         ShowPoints = false, Curve = ChartCurve.Monotone,
         EnableRealtimeScrolling = true, RealtimeScrollDuration = TimeSpan.FromSeconds(5),
         MaximumXAxisLabels = 5, Palette = ["#0ea5e9"],
-        LabelFormatter = label => label.Length > 8 ? label[..8] : label
+        LabelFormatter = label => label
     };
 }

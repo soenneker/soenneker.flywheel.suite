@@ -29,6 +29,7 @@ public partial class Dashboard
 
     protected override void OnInitialized()
     {
+        _historyStartDate = _historyEndDate = TimeZone.Today;
         _queryRevision = BoardConnection.NextVersion();
         ActivityTotals.LastHour = true;
         BoardConnection.Snapshot += OnSnapshot;
@@ -42,9 +43,22 @@ public partial class Dashboard
     private static readonly string[] FilterStates = ["Scheduled", "Queued", "Running", "Succeeded", "DeadLettered", "Cancelled", "Waiting"];
     private bool _parametersInitialized;
     private string? _appliedState;
+    private string? _appliedTimeZone;
 
     protected override async Task OnParametersSetAsync()
     {
+        bool timezoneChanged = _appliedTimeZone is not null && _appliedTimeZone != DisplayTimeZone;
+        _appliedTimeZone = DisplayTimeZone;
+        if (timezoneChanged)
+        {
+            if (_liveMode) _historyStartDate = _historyEndDate = TimeZone.Today;
+            else
+            {
+                _historyEndDate = _historyEndDate > HistoryMaxDate ? HistoryMaxDate : _historyEndDate;
+                _historyStartDate = _historyStartDate > _historyEndDate ? _historyEndDate : _historyStartDate;
+                await ClearActivitySelection();
+            }
+        }
         string? selected = FilterStates.FirstOrDefault(state => string.Equals(state, SelectedState, StringComparison.OrdinalIgnoreCase));
         if (_parametersInitialized && selected == _appliedState) return;
         bool firstLoad = !_parametersInitialized;
@@ -220,7 +234,6 @@ public partial class Dashboard
     private RealtimeChartData _liveActivity => BoardConnection.LiveActivity.Data;
     private Task? _liveClock;
     private double[] _activityTotals = [0, 0, 0];
-    private string[] _activityLabels = [];
     private double[] _activityXValues = [];
     private ChartSeries[] _activitySeries = [];
     [CascadingParameter(Name = "SidebarContextState")]
@@ -289,7 +302,7 @@ public partial class Dashboard
         ShowPoints = search, Animate = false, EnableRangeSelection = true, PauseOnRangeSelection = !search,
         EnableRealtimeScrolling = live, RealtimeScrollDuration = scrollDuration ?? TimeSpan.FromSeconds(1),
         Curve = ChartCurve.Monotone, Minimum = 0, Maximum = maximum, MaximumXAxisLabels = mobile ? 3 : live ? 7 : 12,
-        LabelFormatter = label => live && label.Length > 8 ? label[..8] : label,
+        LabelFormatter = label => label,
         Palette = [JobStatusColors.Accent("Scheduled"), JobStatusColors.Accent("Running"),
             JobStatusColors.Accent("Succeeded"), JobStatusColors.Accent("DeadLettered"), JobStatusColors.Accent("Queued")]
     };
@@ -303,14 +316,14 @@ public partial class Dashboard
     private bool UseMatchingHistory => !string.IsNullOrWhiteSpace(_query) || _hiddenActivitySeries.Count > 0;
     private string DateRangeLabel => _offset > 0
         ? _pageStartAt is { } pageStart && _pageEndAt is { } pageEnd
-            ? $"{pageStart:MMM d HH:mm}–{pageEnd:MMM d HH:mm} UTC" : "Page activity"
+            ? $"{TimeZone.Format(pageStart, "MMM d HH:mm")}–{TimeZone.Format(pageEnd, "MMM d HH:mm")}" : "Page activity"
         : _jobStartAt is { } start && _jobEndAt is { } end
-        ? $"{start:MMM d HH:mm:ss}–{end:MMM d HH:mm:ss} UTC"
-        : _liveMode ? (UseLiveChart ? "Live" : "All dates") : $"{_historyStartDate:MMM d}–{_historyEndDate:MMM d} UTC";
+        ? $"{TimeZone.Format(start, "MMM d HH:mm:ss")}–{TimeZone.Format(end, "MMM d HH:mm:ss")}"
+        : _liveMode ? (UseLiveChart ? "Live" : "All dates") : $"{_historyStartDate:MMM d}–{_historyEndDate:MMM d} {TimeZone.Id}";
     private int _historyRetentionDays = 1;
     private DateOnly _historyStartDate = DateOnly.FromDateTime(DateTime.UtcNow);
     private DateOnly _historyEndDate = DateOnly.FromDateTime(DateTime.UtcNow);
-    private DateOnly HistoryMaxDate => DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly HistoryMaxDate => TimeZone.Today;
     private DateOnly HistoryMinDate => HistoryMaxDate.AddDays(-_historyRetentionDays + 1);
     private IReadOnlyList<PresetDateRangePickerOption> HistoryRangePresets =>
         new[] { 1, 3, 7, 14, 30 }
@@ -371,7 +384,6 @@ public partial class Dashboard
         _historyLoading = true;
         _historyPoints = null;
         _activitySeries = [];
-        _activityLabels = [];
         _activityXValues = [];
         _activityVersion++;
         StateHasChanged();
@@ -429,7 +441,6 @@ public partial class Dashboard
             {
                 _historyError = null;
                 _activitySeries = [];
-                _activityLabels = [];
                 _activityXValues = [];
                 _activityVersion++;
                 OperationResult<List<JobHistoryPoint>> response = await Consumer.GetSearchHistory(_query, _jobStartAt, _jobEndAt, cancellationToken);
@@ -449,8 +460,8 @@ public partial class Dashboard
         try
         {
             _historyLoading = true;
-            DateTimeOffset startAt = new(_historyStartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-            DateTimeOffset requestedEnd = new(_historyEndDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+            DateTimeOffset startAt = TimeZone.StartOfDay(_historyStartDate);
+            DateTimeOffset requestedEnd = TimeZone.StartOfDay(_historyEndDate.AddDays(1));
             DateTimeOffset endAt = requestedEnd > DateTimeOffset.UtcNow ? DateTimeOffset.UtcNow : requestedEnd;
             OperationResult<List<JobHistoryPoint>> response = await Consumer.GetHistory(startAt, endAt, cancellationToken);
             response.EnsureSucceeded();
@@ -475,7 +486,6 @@ public partial class Dashboard
         _historyPoints = null;
         _historyError = null;
         _activityXValues = points.Select(p => (double)p.Timestamp).ToArray();
-        _activityLabels = points.Select(p => DateTimeOffset.FromUnixTimeMilliseconds(p.Timestamp).ToString("MMM d HH:mm")).ToArray();
         string[] states = ["Scheduled", "Running", "Succeeded", "DeadLettered", "Cancelled", "Waiting", "Queued"];
         double[][] values = [points.Select(p => (double)p.Scheduled).ToArray(), points.Select(p => (double)p.Running).ToArray(),
             points.Select(p => (double)p.Succeeded).ToArray(), points.Select(p => (double)p.DeadLettered).ToArray(),
@@ -506,8 +516,8 @@ public partial class Dashboard
         {
             _liveMode = false;
             ActivityTotals.LastHour = false;
-            _historyStartDate = DateOnly.FromDateTime(_jobStartAt.Value.UtcDateTime);
-            _historyEndDate = DateOnly.FromDateTime(_jobEndAt.Value.UtcDateTime);
+            _historyStartDate = DateOnly.FromDateTime(TimeZone.Convert(_jobStartAt.Value).DateTime);
+            _historyEndDate = DateOnly.FromDateTime(TimeZone.Convert(_jobEndAt.Value).DateTime);
         }
         ResetFilterPage();
         _queryRevision = BoardConnection.NextVersion();
@@ -518,8 +528,8 @@ public partial class Dashboard
     private async Task ClearActivitySelection()
     {
         ResetFilterPage();
-        _jobStartAt = _liveMode ? null : new DateTimeOffset(_historyStartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-        _jobEndAt = _liveMode ? null : new DateTimeOffset(_historyEndDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        _jobStartAt = _liveMode ? null : TimeZone.StartOfDay(_historyStartDate);
+        _jobEndAt = _liveMode ? null : TimeZone.StartOfDay(_historyEndDate.AddDays(1));
         _activityChart?.ResetZoom();
         _activityPaused = false;
         if (_liveMode) ApplyLiveActivity();
@@ -578,7 +588,6 @@ public partial class Dashboard
             _historyError = null;
             _pageStartAt = _pageEndAt = null;
             _activitySeries = [];
-            _activityLabels = [];
             _activityXValues = [];
             _historyPoints = null;
             _activityVersion++;

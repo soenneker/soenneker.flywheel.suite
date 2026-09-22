@@ -1,5 +1,6 @@
 @page "/jobs/{JobId}"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Jobs
+@using Soenneker.Lucide.Enums.Icons
 @using Soenneker.Quark
 @using Soenneker.Flywheel.Dashboard
 @layout FlywheelLayout
@@ -22,7 +23,7 @@ else
             <Div Display="Display.Flex" MinWidth="MinWidth.Is0" Style="max-width: 100%;" ItemsAlign="Items.Center" Gap="Gap.Is4" FlexWrap="FlexWrap.Wrap">
                 @if (!Embedded)
                 {
-                    <Button Href="@(BackHref ?? DashboardNavigation.Path())" Variant="ButtonVariant.Secondary" aria-label="Back to previous page" title="Back">←</Button>
+                    <Button Href="@(BackHref ?? DashboardNavigation.Path())" Variant="ButtonVariant.Secondary" aria-label="Back to previous page" title="Back"><Icon Name="LucideIcon.ArrowLeft" Size="Size.Is4" aria-hidden="true" /></Button>
                 }
                 <H2 Margin="Margin.Is0" style="border: 0; padding: 0; min-width: 0; overflow-wrap: anywhere;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
                 @if (_job is not null)
@@ -77,7 +78,7 @@ else
             </Div>
             @if (_job is not null)
             {
-                <Grid aria-label="Job properties" Columns="GridCols.Is2.OnMd.Is4" Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem 2rem;" Gap="Gap.Is5" TextSize="TextSize.Sm">
+                <Grid aria-label="Job properties" Columns="GridCols.Is2.OnMd.Is4" Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, max-content)); gap: 1rem 2rem;" Gap="Gap.Is5" TextSize="TextSize.Sm">
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Priority</Span><Span Display="Display.Block">@(_job.Priority ?? "Unavailable")</Span></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
                     @if (_job.State == "Running")

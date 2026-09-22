@@ -6,12 +6,13 @@
 @implements IAsyncDisposable
 @inject DashboardNavigationOptions DashboardNavigation
 @inject DashboardSessionState Session
+@inject DashboardTimeZone TimeZone
 @inject IFlywheelDashboardConsumer Consumer
 @inject DashboardBoardConnection BoardConnection
 @inject ActivityTotalsState ActivityTotals
 @inject NavigationManager Navigation
 
-@if (_checking)
+@if (_checking || !_timezoneReady)
 {
     <Spinner Size="Size.Is5" aria-label="Loading dashboard…" />
 }
@@ -21,13 +22,14 @@ else if (_error is not null)
 }
 else if (Session.IsAuthenticated)
 {
+    <CascadingValue Name="DisplayTimeZone" Value="@TimeZone.PreferenceKey">
     <SidebarProvider SidebarWidth="14rem" CloseMobileOnNavigation="true" Style="width: 100%; min-width: 0; overflow-x: clip;" >
         <Sidebar Collapsible="SidebarCollapsible.Icon" >
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton Href="@DashboardNavigation.Path()" Match="NavLinkMatch.All" Tooltip="Flywheel home" aria-label="Flywheel home" >
-                            <img src="_content/Soenneker.Flywheel.Dashboard/flywheel.svg" width="20" height="20" alt="" style="flex-shrink: 0;" />
+                            <Image Src="_content/Soenneker.Flywheel.Dashboard/flywheel.svg" Style="width: 20px; height: 20px; flex-shrink: 0;" Alt="" />
                             <Span FontWeight="FontWeight.Semibold" >Flywheel</Span>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -61,12 +63,13 @@ else if (Session.IsAuthenticated)
             @Body
         </SidebarInset>
     </SidebarProvider>
+    </CascadingValue>
 }
 else if (IsSignInPage)
 {
-    <div style="display: flex; align-items: center; min-height: 100vh; min-height: 100dvh;">
+    <Div Style="display: flex; align-items: center; min-height: 100vh; min-height: 100dvh;">
         @Body
-    </div>
+    </Div>
 }
 
 <Sonner />

@@ -1,3 +1,4 @@
+@inject DashboardTimeZone TimeZone
 @inject DashboardNavigationOptions DashboardNavigation
 @page "/flywheel"
 @namespace Soenneker.Flywheel.Dashboard.Pages.Dashboard
@@ -51,20 +52,20 @@
                     else
                     {
                         <DashboardActivityRegion @ref="_activityRegion">
-                        <div class="flywheel-activity-chart" aria-label="Activity chart">
-                            <Chart @ref="_activityChart" IsLoading="@ActivityLoading" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@(UseLiveChart ? _liveActivity.Labels : _activityLabels)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
+                        <Div Class="flywheel-activity-chart" aria-label="Activity chart">
+                            <Chart @key="DisplayTimeZone" @ref="_activityChart" IsLoading="@ActivityLoading" @bind-ScrollPaused="_activityPaused" DataVersion="@((UseLiveChart ? _liveActivity.Version : _activityVersion) + _legendVersion)" Type="ChartType.Line" Labels="@TimeZone.ChartLabels(UseLiveChart ? _liveActivity.XValues : _activityXValues, UseLiveChart)" XValues="@(UseLiveChart ? _liveActivity.XValues : _activityXValues)" Series="@VisibleActivitySeries" Options="@ActivityOptions"
                                    OnRangeSelect="SelectActivityRange"
-                                   AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second UTC buckets. Drag a range to filter executions." : (UseMatchingHistory ? "Matching executions by current status and last update time. Static filtered results." : "Job state transitions in five-minute UTC buckets. Drag a range to filter executions."))" />
-                            <div class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">
+                                   AriaLabel="@(UseLiveChart ? "Live job transitions and concurrent running jobs over the last minute in one-second buckets. Drag a range to filter executions." : (UseMatchingHistory ? "Matching executions by current status and last update time. Static filtered results." : "Job state transitions in five-minute buckets. Drag a range to filter executions."))" />
+                            <Div Class="flywheel-activity-legend" aria-label="Filter chart and jobs by status">
                                 @foreach (ChartSeries series in ActivityLegendSeries)
                                 {
-                                    <button type="button" aria-pressed="@(IsActivitySeriesHidden(series.Name) ? "false" : "true")"
-                                            @onclick="() => ToggleActivitySeries(series.Name)">
-                                        <span style="background: @ActivitySeriesColor(series)"></span>@series.Name
-                                    </button>
+                                    <Button Variant="ButtonVariant.Ghost" aria-pressed="@(IsActivitySeriesHidden(series.Name) ? "false" : "true")"
+                                            OnClick="() => ToggleActivitySeries(series.Name)">
+                                        <Span Style="@($"background: {ActivitySeriesColor(series)}")"></Span>@series.Name
+                                    </Button>
                                 }
-                            </div>
-                        </div>
+                            </Div>
+                        </Div>
                         </DashboardActivityRegion>
                     }
                 </Div>
@@ -97,7 +98,9 @@
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
                                         <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;">
                                             <Div Display="Display.Flex" MinWidth="MinWidth.Is0" ItemsAlign="Items.Center" Gap="Gap.Is2">
-                                                <span style="min-width: 0; flex: 1;" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Style="white-space: normal; overflow-wrap: anywhere;" Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
+                                                <Span Style="min-width: 0; flex: 1;">
+                                                    <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Style="white-space: normal; overflow-wrap: anywhere;" Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span>
+                                                </Span>
                                                 @if (job.Progress is { } progress && progress < 100)
                                                 {
                                                     <Score Value="@((int)Math.Round(progress))" ScoreSize="28" Thickness="3" Colored="false"
@@ -114,7 +117,7 @@
                                             {
                                                 <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
                                                     <Button ButtonSize="ButtonSize.Sm" Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" Position="Position.Relative" aria-busy="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Default" aria-label="@($"{(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")} {job.Name}")">
-                                                        <span style="@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "visibility: hidden;" : null)">Cancel</span>
+                                                        <Span Style="@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "visibility: hidden;" : null)">Cancel</Span>
                                                         @if (job.CancelRequested || _cancellingJobs.Contains(job.Id))
                                                         {
                                                             <Spinner Size="Size.Is4" Position="Position.Absolute" aria-label="Canceling job" />
@@ -147,3 +150,7 @@
         </Grid>
     <JobDetailsDrawer @ref="_jobDrawer" />
 </Div>
+
+@code {
+    [CascadingParameter(Name = "DisplayTimeZone")] public string DisplayTimeZone { get; set; } = "UTC";
+}

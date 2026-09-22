@@ -1,3 +1,4 @@
+@inject DashboardTimeZone TimeZone
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
 
@@ -5,20 +6,20 @@
 {
     @if (StartsAt)
     {
-        <DateUntil Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" ExpiredText="Starts now" title="@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'")" />
+        <DateUntil Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" ExpiredText="Starts now" title="@TimeZone.Format(Value, "yyyy-MM-dd HH:mm:ss.fff")" />
     }
     else
     {
-    <DateRelative Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" title="@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss.fff 'UTC'")" />
+    <DateRelative Value="@DateTimeOffset.FromUnixTimeMilliseconds(Value)" title="@TimeZone.Format(Value, "yyyy-MM-dd HH:mm:ss.fff")" />
     }
     @if (ShowAbsolute)
     {
-        <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">@DateTimeOffset.FromUnixTimeMilliseconds(Value).ToString("yyyy-MM-dd HH:mm:ss 'UTC'")</Span>
+        <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">@TimeZone.Format(Value)</Span>
     }
 }
 else
 {
-    <span>—</span>
+    <Span>—</Span>
 }
 
 @code {
@@ -26,11 +27,15 @@ else
     [Parameter]
     public long Value { get; set; }
 
-    /// <summary>Shows the exact UTC time beneath the relative time, including on touch devices.</summary>
+    /// <summary>Shows the exact time in the selected timezone beneath the relative time, including on touch devices.</summary>
     [Parameter]
     public bool ShowAbsolute { get; set; }
 
     /// <summary>Counts down to a scheduled start and displays Starts now once due.</summary>
     [Parameter]
     public bool StartsAt { get; set; }
+}
+
+@code {
+    [CascadingParameter(Name = "DisplayTimeZone")] public string DisplayTimeZone { get; set; } = "UTC";
 }

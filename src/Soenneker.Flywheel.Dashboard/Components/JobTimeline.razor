@@ -1,5 +1,7 @@
+@inject DashboardTimeZone TimeZone
 @namespace Soenneker.Flywheel.Dashboard
 @using Soenneker.Quark
+@using Soenneker.Lucide.Enums.Icons
 @using Soenneker.Flywheel.Communication.Responses
 
 <Section aria-label="Execution activity" Style="min-width: 0; padding-top: .75rem;">
@@ -13,23 +15,42 @@
             }
         </Span>
     </Div>
-    <Div Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem 1.5rem;">
-        @foreach (var (title, timestamp, pending, step) in Milestones)
-        {
-            <Div @key="step" Style="min-width: 0; overflow-wrap: anywhere;">
-                <Span Display="Display.Block" TextSize="TextSize.Sm" FontWeight="FontWeight.Semibold" Margin="Margin.FromBottom.Is1">@title</Span>
-                <Div TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground" Style="line-height: 1.6;">
-                    <JobTimestamp StartsAt="@pending" ShowAbsolute="true" Value="@timestamp" />
-                </Div>
-            </Div>
-        }
-    </Div>
+    <EventTimeline Items="@TimelineEvents" AriaLabel="Execution events"
+                   FormatTimestamp="@(when => TimeZone.Format(when))" />
 </Section>
 @code {
     private bool IsTerminal => Job.State is "Succeeded" or "DeadLettered" or "Cancelled";
     private string DurationLabel => TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).TotalSeconds < 60
         ? $"{(Job.CompletedAt - Job.StartedAt) / 1000d:0.#} seconds"
         : TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).ToString(@"h\:mm\:ss");
+
+    private IReadOnlyList<EventTimelineItem> TimelineEvents => Milestones
+        .Where(milestone => milestone.Timestamp > 0)
+        .Select(milestone => new EventTimelineItem
+        {
+            Key = milestone.Step.ToString(),
+            Label = milestone.Title,
+            When = DateTimeOffset.FromUnixTimeMilliseconds(milestone.Timestamp),
+            Icon = milestone.Title switch
+            {
+                "Created" => LucideIcon.FilePlus,
+                "Succeeded" => LucideIcon.Check,
+                "Failed" => LucideIcon.X,
+                "Cancelled" => LucideIcon.Ban,
+                "Queued" => LucideIcon.ListOrdered,
+                "Retry due" => LucideIcon.RotateCcw,
+                "Scheduled for" => LucideIcon.CalendarClock,
+                _ => LucideIcon.Play
+            },
+            Tone = milestone.Pending ? SemanticTone.Warning : milestone.Title switch
+            {
+                "Succeeded" => SemanticTone.Success,
+                "Failed" => SemanticTone.Danger,
+                "Cancelled" => SemanticTone.Warning,
+                "Created" => SemanticTone.Neutral,
+                _ => SemanticTone.Info
+            }
+        }).ToArray();
 
     private IEnumerable<(string Title, long Timestamp, bool Pending, int Step)> Milestones
     {
@@ -53,4 +74,8 @@
     /// <summary>The current execution snapshot displayed in the timeline.</summary>
     [Parameter, EditorRequired]
     public JobView Job { get; set; } = null!;
+}
+
+@code {
+    [CascadingParameter(Name = "DisplayTimeZone")] public string DisplayTimeZone { get; set; } = "UTC";
 }
