@@ -24,7 +24,8 @@ public sealed class DashboardBoardReaderTests
           "liveActivity": [{ "timestamp": 61000, "scheduled": 2, "running": 1, "succeeded": 3,
             "deadLettered": 0, "runningCount": 4, "scheduledCount": 5, "queuedCount": 6 }],
           "schedules": { "recurring": [], "scheduled": [] },
-          "runningCount": 4, "serverCount": 2, "totalWorkers": 8, "recurringCount": 3
+          "runningCount": 4, "serverCount": 2, "totalWorkers": 8, "recurringCount": 3,
+          "failedCount": 12, "succeededCount": 9876543210
         }
         """);
         var expected = document.RootElement.Deserialize<LiveBoard>(JsonSerializerOptions.Web)!;
@@ -38,7 +39,8 @@ public sealed class DashboardBoardReaderTests
     {
         using var document = JsonDocument.Parse("""{"version":1,"items":[],"totalCount":0}""");
         var board = await DashboardBoardReader.Read(document.RootElement, CancellationToken.None);
-        if (board.History is not null || board.LiveActivity is not null || board.Schedules is not null || board.RunningCount is not null)
+        if (board.History is not null || board.LiveActivity is not null || board.Schedules is not null || board.RunningCount is not null ||
+            board.FailedCount is not null || board.SucceededCount is not null)
             throw new Exception("Missing optional summaries were invented.");
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
@@ -48,6 +50,20 @@ public sealed class DashboardBoardReaderTests
             throw new Exception("A cancelled subscription received a board.");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+    }
+
+    [Test]
+    public async Task RetainedTotalsRefreshFromTheWireIncludingZeroAndNull()
+    {
+        var totals = new ActivityTotalsState();
+        foreach (long? count in new long?[] { 42, 0, null })
+        {
+            var expected = new LiveBoard(1, [], 0, null, null, FailedCount: count, SucceededCount: count);
+            JsonElement element = JsonSerializer.SerializeToElement(expected);
+            totals.UpdateSnapshot(await DashboardBoardReader.Read(element, CancellationToken.None));
+            if (totals.FailedCount != count || totals.SucceededCount != count)
+                throw new Exception("Retained totals did not reach the header state from the live payload.");
+        }
     }
 
     [Test]

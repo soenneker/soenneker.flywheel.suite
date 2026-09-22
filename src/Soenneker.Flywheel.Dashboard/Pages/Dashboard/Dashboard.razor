@@ -74,7 +74,7 @@
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
 
                 <Div>
-                <DataTable AdaptiveLayout="true" @key="_tableGeneration" @ref="_jobsTable" IsLoading="@_loading" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
+                <DataTable AdaptiveLayout="true" LoadingAtTop="true" @key="_tableGeneration" @ref="_jobsTable" IsLoading="@_loading" Options="@_tableOptions" TotalRecords="@_totalCount" OnInteraction="SearchJobs" >
                     <TopContent>
                         <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Justify="Justify.Between" Margin="Margin.FromBottom.Is4">
                             <DataTableSearch Placeholder="Search" AriaLabel="Search jobs" />

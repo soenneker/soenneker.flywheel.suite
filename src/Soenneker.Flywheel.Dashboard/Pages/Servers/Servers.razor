@@ -17,7 +17,7 @@
     else if (_servers is null) { <Spinner Size="Size.Is5" aria-label="Loading servers…" /> }
     else
     {
-        <DataTable AdaptiveLayout="true" Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">
+        <DataTable AdaptiveLayout="true" LoadingAtTop="true" Options="@_tableOptions" TotalRecords="@FilteredServers.Count" OnInteraction="SearchServers">
             <TopContent>
                 <Div Margin="Margin.FromBottom.Is4">
                     <DataTableSearch Placeholder="Search" AriaLabel="Search servers" />

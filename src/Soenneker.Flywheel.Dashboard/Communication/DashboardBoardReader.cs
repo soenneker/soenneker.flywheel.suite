@@ -27,7 +27,8 @@ internal static class DashboardBoardReader
         cancellationToken.ThrowIfCancellationRequested();
         return new LiveBoard(element.GetProperty("version").GetInt32(), items, element.GetProperty("totalCount").GetInt32(),
             history, schedules, Property(element, "runningCount")?.GetInt64(), Property(element, "serverCount")?.GetInt32(),
-            Property(element, "totalWorkers")?.GetInt32(), activity, Property(element, "recurringCount")?.GetInt64());
+            Property(element, "totalWorkers")?.GetInt32(), activity, Property(element, "recurringCount")?.GetInt64(),
+            Property(element, "failedCount")?.GetInt64(), Property(element, "succeededCount")?.GetInt64());
     }
 
     private static JsonElement? Property(JsonElement element, string name) =>

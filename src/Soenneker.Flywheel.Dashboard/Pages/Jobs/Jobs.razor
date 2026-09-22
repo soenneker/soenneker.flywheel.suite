@@ -10,7 +10,7 @@
 <Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
     <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
         <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Scheduled jobs</H3></Div>
-        <DataTable AdaptiveLayout="true" Options="@_scheduledTableOptions" TotalRecords="@FilteredScheduled.Count" OnInteraction="SearchScheduled">
+        <DataTable AdaptiveLayout="true" LoadingAtTop="true" Options="@_scheduledTableOptions" TotalRecords="@FilteredScheduled.Count" OnInteraction="SearchScheduled">
             <TopContent>
                 <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
                     <DataTableSearch Placeholder="Search" AriaLabel="Search scheduled jobs" />
