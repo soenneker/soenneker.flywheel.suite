@@ -22,6 +22,7 @@ public sealed class FlywheelServersController(IServerStore nodes, IDashboardSnap
 
     /// <summary>Returns one live server and the jobs currently leased to it.</summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(Communication.Responses.ServerView), 200)]
     public async Task<IActionResult> Get(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();

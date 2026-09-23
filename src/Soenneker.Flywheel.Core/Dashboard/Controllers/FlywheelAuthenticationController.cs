@@ -27,6 +27,7 @@ public sealed class FlywheelAuthenticationController(DashboardOptions options, I
     /// <summary>Issues an antiforgery token for the current dashboard identity.</summary>
     [HttpGet("csrf")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(Csrf), 200)]
     public async Task<IActionResult> GetCsrf()
     {
         AuthenticateResult auth = await HttpContext.AuthenticateAsync("Flywheel");
@@ -39,6 +40,7 @@ public sealed class FlywheelAuthenticationController(DashboardOptions options, I
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("FlywheelLogin")]
+    [ProducesResponseType(204)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (request.Username is null || request.Password is null || request.Username.Length > 128 || request.Password.Length > 1024)
@@ -53,6 +55,7 @@ public sealed class FlywheelAuthenticationController(DashboardOptions options, I
 
     /// <summary>Removes the current dashboard authentication cookie.</summary>
     [HttpPost("logout")]
+    [ProducesResponseType(204)]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync("Flywheel");

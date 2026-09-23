@@ -18,6 +18,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 {
     /// <summary>Queues an immediate execution without changing the recurring schedule.</summary>
     [HttpPost("schedules/{id}/run")]
+    [ProducesResponseType(typeof(StartedJob), 200)]
     public async Task<IActionResult> RunRecurring(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
@@ -28,6 +29,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns durable activity across all jobs for a requested UTC range.</summary>
     [HttpGet("history")]
+    [ProducesResponseType(typeof(List<Communication.Responses.JobHistoryPoint>), 200)]
     public async Task<IActionResult> History(CancellationToken cancellationToken, [FromQuery] DateTimeOffset? startAt = null,
         [FromQuery] DateTimeOffset? endAt = null)
     {
@@ -42,6 +44,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns matching retained job counts by current state and update time, independent of pagination.</summary>
     [HttpGet("history/search")]
+    [ProducesResponseType(typeof(IReadOnlyList<Communication.Responses.JobHistoryPoint>), 200)]
     public async Task<IActionResult> SearchHistory(CancellationToken cancellationToken, [FromQuery] string? q = null,
         [FromQuery] DateTimeOffset? startAt = null, [FromQuery] DateTimeOffset? endAt = null)
     {
@@ -52,12 +55,14 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns the configured aggregate activity retention.</summary>
     [HttpGet("history/options")]
+    [ProducesResponseType(typeof(HistoryOptions), 200)]
     public IActionResult HistoryOptions() => store is IJobHistoryStore history
         ? Ok(new HistoryOptions((long)history.HistoryRetention.TotalSeconds))
         : StatusCode(501);
 
     /// <summary>Returns the next 200 recurring schedules and pending executions independently of activity search.</summary>
     [HttpGet("schedules")]
+    [ProducesResponseType(typeof(ScheduleView), 200)]
     public async Task<IActionResult> Schedules(CancellationToken cancellationToken)
     {
         if (store is not IJobScheduleStore schedules) return StatusCode(501);
@@ -68,6 +73,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns a page of jobs without payloads or lease tokens.</summary>
     [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<JobView>), 200)]
     public async Task<IActionResult> List(CancellationToken cancellationToken, [FromQuery] int offset = 0, [FromQuery] int count = 50)
     {
         if (offset < 0 || count is < 1 or > 200) return BadRequest();
@@ -76,6 +82,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Searches jobs and returns the page and total match count.</summary>
     [HttpGet("search")]
+    [ProducesResponseType(typeof(SearchResult), 200)]
     public async Task<IActionResult> Search(CancellationToken cancellationToken, [FromQuery] string? q = null,
         [FromQuery] int offset = 0, [FromQuery] int count = 50, [FromQuery] DateTimeOffset? startAt = null,
         [FromQuery] DateTimeOffset? endAt = null, [FromQuery] string? excludedStates = null)
@@ -88,6 +95,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns a bounded page of execution logs for an existing job.</summary>
     [HttpGet("{id}/logs")]
+    [ProducesResponseType(typeof(List<LogEntry>), 200)]
     public async Task<IActionResult> GetLogs(string id, [FromServices] IJobLogStore logs, CancellationToken cancellationToken,
         [FromQuery] int count = 200)
     {
@@ -98,6 +106,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Returns a job snapshot without its payload or lease token.</summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(JobView), 200)]
     public async Task<IActionResult> Get(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
@@ -107,6 +116,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Queues a fresh standalone execution from a finished job without changing the original execution or schedule.</summary>
     [HttpPost("{id}/run")]
+    [ProducesResponseType(typeof(StartedJob), 200)]
     public async Task<IActionResult> RunAgain(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
@@ -124,6 +134,7 @@ public sealed class FlywheelJobsController(IJobStore store, IDashboardSnapshotFa
 
     /// <summary>Requests cancellation of pending or running work.</summary>
     [HttpPost("{id}/cancel")]
+    [ProducesResponseType(204)]
     public async Task<IActionResult> Cancel(string id, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return BadRequest();
