@@ -69,12 +69,16 @@ else
         {
             <Paragraph TextColor="TextColor.MutedForeground" TextBreak="TextBreak.Words" Margin="Margin.FromBottom.Is5">@_job.Description</Paragraph>
         }
-        <Grid aria-label="Job overview" Columns="GridCols.Is1" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6" Style="padding: .5rem 0;">
-            <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
+        <Grid aria-label="Job overview" Columns="GridCols.Is1" Gap="Gap.Is3" Margin="Margin.FromBottom.Is3" Style="padding: .5rem 0;">
+            <Div MinWidth="MinWidth.Is0" Display="Display.Flex" ItemsAlign="Items.End" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5">
                 <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is2" Style="width: 24rem; max-width: 100%;">
                     <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" id="job-id-label" >Job ID</Span>
                     <CopyField Value="@JobId" AriaLabelledBy="job-id-label" CopyLabel="Copy job ID" CopyButtonVariant="ButtonVariant.Secondary" />
                 </Div>
+                @if (_job is not null)
+                {
+                    <Span TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">@(_job.MaxAttempts is { } max ? $"Attempt {_job.Attempt} of {max}" : $"Attempt {_job.Attempt}")</Span>
+                }
             </Div>
             @if (_job is not null)
             {
@@ -83,7 +87,17 @@ else
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
                     @if (_job.State == "Running")
                     {
-                        <Div MinWidth="MinWidth.Is0"><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Worker</Span><Span TextBreak="TextBreak.All">@(_job.Owner ?? "Not assigned")</Span></Div>
+                        <Div MinWidth="MinWidth.Is0">
+                            <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Worker</Span>
+                            @if (!string.IsNullOrWhiteSpace(_job.Owner))
+                            {
+                                <Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(_job.Owner)}"))" TextBreak="TextBreak.All">@_job.Owner</Anchor>
+                            }
+                            else
+                            {
+                                <Span>Not assigned</Span>
+                            }
+                        </Div>
                     }
                     @if (_job.ParentJobId is { } parentId)
                     {

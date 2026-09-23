@@ -4,21 +4,27 @@
 @using Soenneker.Lucide.Enums.Icons
 @using Soenneker.Flywheel.Communication.Responses
 
-<Section aria-label="Execution activity" Style="min-width: 0; padding-top: .75rem;">
-    <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
-        <H3 TextSize="TextSize.Sm" FontWeight="FontWeight.Semibold" Margin="Margin.Is0">Activity</H3>
-        <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">
-            @(Job.MaxAttempts is { } max ? $"Attempt {Job.Attempt} of {max}" : $"Attempt {Job.Attempt}")
-            @if (Job.StartedAt > 0 && Job.CompletedAt >= Job.StartedAt)
-            {
-                <Span> · Completed in @DurationLabel</Span>
-            }
-        </Span>
-    </Div>
-    <EventTimeline Items="@TimelineEvents" AriaLabel="Execution events"
-                   FormatTimestamp="@(when => TimeZone.Format(when))" />
+<Section aria-label="Execution activity" MinWidth="MinWidth.Is0">
+    <EventTimeline Items="@TimelineEvents" AriaLabel="Execution events" Appearance="@CompactAppearance"
+                   FormatTimestamp="@(when => TimeZone.Convert(when).ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture))" />
+    @if (Job.StartedAt > 0 && Job.CompletedAt >= Job.StartedAt)
+    {
+        <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Completed in @DurationLabel</Span>
+    }
 </Section>
 @code {
+    private static readonly EventTimelineAppearance CompactAppearance = new()
+    {
+        SurfacePreset = new QuarkPresetToken("job-timeline-surface", static context =>
+        {
+            context.Position = Position.Relative;
+            context.OverflowX = Overflow.X.Auto;
+            context.OverflowY = Overflow.Y.Hidden;
+            context.BackgroundColor = BackgroundColor.Transparent;
+            context.Padding = Padding.OnX.Is2.OnY.Is3;
+        })
+    };
+
     private bool IsTerminal => Job.State is "Succeeded" or "DeadLettered" or "Cancelled";
     private string DurationLabel => TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).TotalSeconds < 60
         ? $"{(Job.CompletedAt - Job.StartedAt) / 1000d:0.#} seconds"

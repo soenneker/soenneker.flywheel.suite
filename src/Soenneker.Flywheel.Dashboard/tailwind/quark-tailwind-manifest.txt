@@ -6,6 +6,7 @@ absolute
 bg-amber-600
 bg-green-600
 bg-secondary
+bg-transparent
 block
 border
 border-b
@@ -37,6 +38,7 @@ in-data-[slot=button-group]:rounded-lg
 inline-block
 inline-flex
 items-center
+items-end
 items-start
 justify-between
 justify-center
@@ -63,6 +65,8 @@ mt-6
 mx-auto
 my-4
 opacity-100
+overflow-x-auto
+overflow-y-hidden
 p-0
 p-4
 p-6
@@ -70,10 +74,12 @@ p-8
 pb-3
 pb-6
 pointer-events-auto
+px-2
 px-2.5
 px-3
 py-1
 py-2
+py-3
 relative
 rounded-[min(var(--radius-md),12px)]
 rounded-full
