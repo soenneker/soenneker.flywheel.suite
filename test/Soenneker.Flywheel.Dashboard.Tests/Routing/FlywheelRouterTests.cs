@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Web.HtmlRendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
+using Soenneker.Blazor.Utils.LocalStorage.Abstract;
 using Soenneker.Flywheel.Dashboard.Registrars;
 using Soenneker.Flywheel.Dashboard.Communication.Abstract;
 using Soenneker.Flywheel.Communication.Responses;
@@ -295,6 +296,9 @@ public sealed class FlywheelRouterTests
         services.AddSingleton<INavigationInterception, RouterTestNavigationInterception>();
         services.AddSingleton<IScrollToLocationHash, RouterTestScrollToLocationHash>();
         services.AddSingleton<IJSRuntime, RouterTestJsRuntime>();
+        services.AddSingleton<ILocalStorageUtil, RouterTestLocalStorage>();
+        var activator = new RouterTestComponentActivator();
+        services.AddSingleton<IComponentActivator>(activator);
         await using ServiceProvider provider = services.BuildServiceProvider();
         await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
         await renderer.Dispatcher.InvokeAsync(async () =>
@@ -304,6 +308,13 @@ public sealed class FlywheelRouterTests
                 [nameof(FlywheelRouter.NotFound)] = (RenderFragment<string>)(path => builder => builder.AddContent(0, "host:" + path))
             });
             HtmlRootComponent component = await renderer.RenderComponentAsync<FlywheelRouter>(parameters);
+            // Static HTML rendering omits after-render callbacks. Complete the layout's
+            // browser preference initialization before asserting its protected content.
+            if (activator.Layout is not null)
+            {
+                await ((IHandleAfterRender)activator.Layout).OnAfterRenderAsync();
+                await component.QuiescenceTask;
+            }
             await verify(component, navigation, handler);
         });
     }
