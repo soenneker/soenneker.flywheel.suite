@@ -1,0 +1,83 @@
+name: publish-openapi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/Soenneker.Flywheel.Core/**'
+      - 'src/Soenneker.Flywheel.Communication/**'
+      - 'tools/Soenneker.Flywheel.OpenApi.Export/**'
+      - 'Directory.Build.*'
+      - 'global.json'
+      - '.github/workflows/publish-openapi.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/Soenneker.Flywheel.Core/**'
+      - 'src/Soenneker.Flywheel.Communication/**'
+      - 'tools/Soenneker.Flywheel.OpenApi.Export/**'
+      - 'Directory.Build.*'
+      - 'global.json'
+      - '.github/workflows/publish-openapi.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flywheel-openapi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.401
+      - name: Generate OpenAPI document
+        run: dotnet build tools/Soenneker.Flywheel.OpenApi.Export -c Release
+      - name: Validate generated document
+        run: |
+          jq --exit-status '.openapi and (.paths | length > 0) and (.components.schemas | length > 0)' \
+            tools/Soenneker.Flywheel.OpenApi.Export/obj/openapi/openapi.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flywheel-openapi
+          path: tools/Soenneker.Flywheel.OpenApi.Export/obj/openapi/openapi.json
+          if-no-files-found: error
+
+  publish:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: soenneker/soenneker.flywheel.openapi
+          ref: main
+          token: ${{ secrets.GH__TOKEN }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: flywheel-openapi
+          path: generated
+      - name: Publish changed specification
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cp generated/openapi.json openapi.json
+          git add openapi.json
+          if git diff --cached --quiet; then
+            echo 'OpenAPI specification is unchanged.'
+            exit 0
+          fi
+          git config user.name 'Jake Soenneker'
+          git config user.email '4441470+soenneker@users.noreply.github.com'
+          git commit -m "Update Flywheel OpenAPI specification from $SOURCE_SHA"
+          git push origin HEAD:main
