@@ -1,3 +1,5 @@
+using Soenneker.Utils.MemoryStream;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Soenneker.Utils.MemoryStream.Abstract;
@@ -15,6 +17,8 @@ namespace Soenneker.Flywheel.Filesystem.Tests;
 
 public sealed class FilesystemJobStoreTests
 {
+    private static readonly IFileUtil _fileUtil = new Soenneker.Utils.File.FileUtil(NullLogger<Soenneker.Utils.File.FileUtil>.Instance, new MemoryStreamUtil());
+
     private sealed class Clock : TimeProvider
     {
         private DateTimeOffset _now = new(2026, 9, 13, 12, 0, 0, TimeSpan.Zero);
@@ -80,7 +84,7 @@ public sealed class FilesystemJobStoreTests
             await store.SetProgress(lease, 25, "progress");
             await store.AppendLogs(lease, [new JobLogMessage("Info", "test", "persist me")]);
             await store.Heartbeat("node", 2, TimeSpan.FromMinutes(1));
-            Check(await services.GetRequiredService<IFileUtil>().Exists(files.Path) && (await File.ReadAllTextAsync(files.Path)).Contains(id), "Enqueue was not persisted before returning.");
+            Check(await services.GetRequiredService<IFileUtil>().Exists(files.Path) && (await _fileUtil.Read(files.Path)).Contains(id), "Enqueue was not persisted before returning.");
         }
         await using (ServiceProvider services = Open(files.Path, clock))
         {
@@ -161,11 +165,11 @@ public sealed class FilesystemJobStoreTests
         await using var store = new FilesystemJobStore(new FlywheelFilesystemOptions { FilePath = files.Path }, proxy,
             services.GetRequiredService<IMemoryStreamUtil>(), services.GetRequiredService<ILogger<FilesystemJobStore>>());
         string id = await store.Enqueue(Request("committed"));
-        string original = await File.ReadAllTextAsync(files.Path);
+        string original = await _fileUtil.Read(files.Path);
         failure.PartialWrite = true;
         try { await store.Enqueue(Request("uncommitted")); throw new InvalidOperationException("Failed write reported success."); }
         catch (IOException) { }
-        Check(await File.ReadAllTextAsync(files.Path) == original && (await store.List()).Single().Id == id,
+        Check(await _fileUtil.Read(files.Path) == original && (await store.List()).Single().Id == id,
             "Failed atomic replacement published partial state.");
         failure.PartialWrite = false;
         await store.Enqueue(Request("retried"));
@@ -222,7 +226,7 @@ public sealed class FilesystemJobStoreTests
         try { await store.Enqueue(Request() with { Payload = "invalid" }); throw new InvalidOperationException("Invalid JSON accepted."); }
         catch (System.Text.Json.JsonException) { }
         string id = await store.Enqueue(Request());
-        Check(await changes.MoveNextAsync() && (await File.ReadAllTextAsync(files.Path)).Contains(id), "Notification preceded persisted state.");
+        Check(await changes.MoveNextAsync() && (await _fileUtil.Read(files.Path)).Contains(id), "Notification preceded persisted state.");
     }
     private static FileSystemLibrarianDatabase OpenLibrarian(string path, ServiceProvider services) =>
         new(path, services.GetRequiredService<IFileUtil>(), services.GetRequiredService<IMemoryStreamUtil>(),
@@ -251,7 +255,7 @@ public sealed class FilesystemJobStoreTests
             Check(await format.GetItem("format") == "4" && await format.GetItem("state") is null, "Wrong storage format.");
         }
         Check((await dependencies.GetRequiredService<FilesystemJobStore>().Get(first))!.Name == "original", "Reopen lost a document.");
-        Check(!File.Exists(files.Path + ".working"), "Old working-database engine is still in use.");
+        Check(!(await _fileUtil.Exists(files.Path + ".working")), "Old working-database engine is still in use.");
     }
 
     [Test]
@@ -261,9 +265,9 @@ public sealed class FilesystemJobStoreTests
         string id;
         await using (ServiceProvider services = Open(files.Path))
             id = await services.GetRequiredService<FilesystemJobStore>().Enqueue(Request("original"));
-        string original = await File.ReadAllTextAsync(files.Path);
-        await File.WriteAllTextAsync(files.Path + ".working", "partial write");
-        await File.WriteAllTextAsync(files.Path + ".commit", original.Replace("original", "uncommitted"));
+        string original = await _fileUtil.Read(files.Path);
+        await _fileUtil.Write(files.Path + ".working", "partial write");
+        await _fileUtil.Write(files.Path + ".commit", original.Replace("original", "uncommitted"));
         await using ServiceProvider reopened = Open(files.Path);
         var store = reopened.GetRequiredService<FilesystemJobStore>();
         Check((await store.Get(id))!.Name == "original", "Abandoned files replaced committed state.");
@@ -283,13 +287,13 @@ public sealed class FilesystemJobStoreTests
             services.GetRequiredService<IMemoryStreamUtil>(), services.GetRequiredService<ILogger<FilesystemJobStore>>()))
         {
             await store.Enqueue(Request("committed"));
-            string original = await File.ReadAllTextAsync(files.Path);
+            string original = await _fileUtil.Read(files.Path);
             failure.FailWrites = true;
             bool rejected = false;
             try { await store.Enqueue(Request("discarded")); }
             catch (IOException) { rejected = true; }
             Check(rejected && failure.RejectedWrites > 0, "Librarian save failure was reported as success.");
-            Check(await File.ReadAllTextAsync(files.Path) == original, "Failed Librarian save changed committed data.");
+            Check(await _fileUtil.Read(files.Path) == original, "Failed Librarian save changed committed data.");
             Check((await store.List()).Single().Name == "committed", "Failed commit exposed staged documents.");
         }
         Check((await services.GetRequiredService<FilesystemJobStore>().List()).Single().Name == "committed", "Failed save escaped into reopened state.");
@@ -303,7 +307,7 @@ public sealed class FilesystemJobStoreTests
         string id;
         await using (ServiceProvider initial = Open(files.Path, clock))
             id = await initial.GetRequiredService<FilesystemJobStore>().Enqueue(Request("committed"));
-        string original = await File.ReadAllTextAsync(files.Path);
+        string original = await _fileUtil.Read(files.Path);
         await using (ServiceProvider dependencies = Open(files.Path, clock))
         await using (FileSystemLibrarianDatabase database = OpenLibrarian(files.Path, dependencies))
         {
@@ -311,15 +315,15 @@ public sealed class FilesystemJobStoreTests
             await history.UpdateItemStrict((await history.GetAllIds()).Single(), "not valid json");
             await database.Save();
         }
-        string corrupted = await File.ReadAllTextAsync(files.Path);
+        string corrupted = await _fileUtil.Read(files.Path);
         await using (ServiceProvider failed = Open(files.Path, clock))
         {
             bool rejected = false;
             try { await failed.GetRequiredService<FilesystemJobStore>().Enqueue(Request("discarded", "retry")); }
             catch (System.Text.Json.JsonException) { rejected = true; }
-            Check(rejected && await File.ReadAllTextAsync(files.Path) == corrupted, "Partial mutation changed committed data.");
+            Check(rejected && await _fileUtil.Read(files.Path) == corrupted, "Partial mutation changed committed data.");
         }
-        await File.WriteAllTextAsync(files.Path, original);
+        await _fileUtil.Write(files.Path, original);
         await using ServiceProvider reopened = Open(files.Path, clock);
         var store = reopened.GetRequiredService<FilesystemJobStore>();
         Check((await store.List()).Single().Id == id, "Failed mutation escaped after reopen.");
@@ -334,11 +338,11 @@ public sealed class FilesystemJobStoreTests
         await using ServiceProvider services = Open(files.Path);
         var store = services.GetRequiredService<FilesystemJobStore>();
         string id = await store.Enqueue(Request());
-        File.SetLastWriteTimeUtc(files.Path, DateTime.UtcNow.AddDays(-1));
-        DateTime modified = File.GetLastWriteTimeUtc(files.Path);
-        string original = await File.ReadAllTextAsync(files.Path);
+        await _fileUtil.SetLastWriteTimeUtc(files.Path, DateTime.UtcNow.AddDays(-1));
+        DateTime modified = (await _fileUtil.GetLastModified(files.Path))!.Value.UtcDateTime;
+        string original = await _fileUtil.Read(files.Path);
         Check((await store.Get(id))!.Id == id && (await store.List()).Count == 1, "Read failed.");
-        Check(File.GetLastWriteTimeUtc(files.Path) == modified && await File.ReadAllTextAsync(files.Path) == original, "Read rewrote the committed database.");
+        Check((await _fileUtil.GetLastModified(files.Path))!.Value.UtcDateTime == modified && await _fileUtil.Read(files.Path) == original, "Read rewrote the committed database.");
     }
     [Test]
     public async Task SearchPaginationPreservesOrderingAndTotalCount()
@@ -368,12 +372,12 @@ public sealed class FilesystemJobStoreTests
         await using var store = new FilesystemJobStore(new FlywheelFilesystemOptions { FilePath = files.Path }, proxy,
             services.GetRequiredService<IMemoryStreamUtil>(), services.GetRequiredService<ILogger<FilesystemJobStore>>());
         await store.Enqueue(Request("committed"));
-        string original = await File.ReadAllTextAsync(files.Path);
+        string original = await _fileUtil.Read(files.Path);
         failure.FailReads = true;
         bool rejected = false;
         try { await store.Enqueue(Request("discarded")); }
         catch (IOException) { rejected = true; }
-        Check(rejected && await File.ReadAllTextAsync(files.Path) == original, "Librarian load failure lost existing items.");
+        Check(rejected && await _fileUtil.Read(files.Path) == original, "Librarian load failure lost existing items.");
         failure.FailReads = false;
         Check((await store.List()).Single().Name == "committed", "Load failure exposed an empty container.");
     }
