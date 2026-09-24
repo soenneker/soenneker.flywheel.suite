@@ -22,6 +22,5 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2713" />
-        <PackageReference Include="Soenneker.Gen.EnumValues" Version="4.0.51" PrivateAssets="all" />
     </ItemGroup>
 </Project>

@@ -8,7 +8,6 @@
     <FlywheelSourceRoot Condition="'$(FlywheelSourceRoot)' == ''">$(MSBuildThisFileDirectory)../..</FlywheelSourceRoot>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Soenneker.Utils.File" Version="4.0.2280" />
     <ProjectReference Include="$(FlywheelSourceRoot)/src/Soenneker.Flywheel.Redis/Soenneker.Flywheel.Redis.csproj" />
     <ProjectReference Include="$(FlywheelSourceRoot)/src/Soenneker.Flywheel.Memory/Soenneker.Flywheel.Memory.csproj" />
   </ItemGroup>
