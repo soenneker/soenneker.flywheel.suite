@@ -21,6 +21,6 @@
         <None Include="../../icon.png" Pack="true" PackagePath="/" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2713" />
+        <PackageReference Include="Soenneker.Utils.Json" Version="4.0.2714" />
     </ItemGroup>
 </Project>
