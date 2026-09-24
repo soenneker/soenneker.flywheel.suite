@@ -27,4 +27,7 @@
     <Target Name="IncludeDashboardTailwindManifest" BeforeTargets="RunTailwindGeneratorBuildTasks">
         <Copy SourceFiles="$(MSBuildProjectDirectory)/../../src/Soenneker.Flywheel.Dashboard/tailwind/quark-tailwind-manifest.txt" DestinationFiles="$(MSBuildProjectDirectory)/tailwind/quark-tailwind-manifest.txt" SkipUnchangedFiles="true" />
     </Target>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components" Version="10.0.12" />
+    </ItemGroup>
 </Project>

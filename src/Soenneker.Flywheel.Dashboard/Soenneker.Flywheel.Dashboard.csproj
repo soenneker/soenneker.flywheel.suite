@@ -54,4 +54,12 @@
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.256" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+        <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.12" />
+        <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.461" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.63" />
+    </ItemGroup>
 </Project>
