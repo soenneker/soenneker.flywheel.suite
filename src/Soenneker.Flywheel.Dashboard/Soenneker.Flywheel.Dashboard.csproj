@@ -42,7 +42,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.13" />
+        <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.14" />
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1446" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
