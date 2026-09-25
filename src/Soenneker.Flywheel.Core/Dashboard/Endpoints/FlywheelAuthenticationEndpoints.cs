@@ -22,7 +22,7 @@ public static class FlywheelAuthenticationEndpoints
             .WithTags("Flywheel authentication")
             .WithSummary("Returns the authenticated dashboard user.")
             .WithDescription("Returns the username associated with the authenticated dashboard cookie.")
-            .Produces<DashboardUser>(StatusCodes.Status200OK)
+            .Produces<DashboardUser>()
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden);
         group.MapGet("/csrf", GetCsrf)
@@ -30,7 +30,7 @@ public static class FlywheelAuthenticationEndpoints
             .WithTags("Flywheel authentication")
             .WithSummary("Issues an antiforgery token for the current dashboard identity.")
             .WithDescription("Available anonymously. Issues an antiforgery cookie and request token for the current dashboard identity. Use the request token for dashboard POST requests.")
-            .Produces<Csrf>(StatusCodes.Status200OK)
+            .Produces<Csrf>()
             .AllowAnonymous();
         group.MapPost("/login", Login)
             .WithName("FlywheelAuthentication_Login")

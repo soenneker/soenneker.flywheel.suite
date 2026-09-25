@@ -25,7 +25,7 @@ public static class RedisOperationsBenchmark
         IServer server = connection.GetServer((await db.IdentifyEndpointAsync("performance"))!);
         var results = new List<object>();
         string payload = JsonSerializer.Serialize(new { Value = new string('x', 4096) });
-        EnqueueRequest Request(string name = "work") => new(name, payload, new JobPolicy(), TimeSpan.Zero, null);
+        EnqueueRequest Request(string name = "work") => new(name, payload, new JobPolicy(), TimeSpan.Zero);
 
         await Scenario("idle", async (store, measure) => await measure(() => store.Claim("idle", TimeSpan.FromMinutes(10)), 100));
         await Scenario("idle-maintenance", async (store, measure) => await measure(() => store.Maintain(100), 100));

@@ -297,7 +297,7 @@ public sealed class MemoryJobStoreTests
         await store.SetProgress(lease, 42, "working");
         for (int i = 0; i < 21; i++)
             await store.AppendLogs(lease, Enumerable.Range(0, 50).Select(n => new JobLogMessage("Info", "test", $"{i * 50 + n}")).ToArray());
-        IReadOnlyList<JobLogEntry> logs = await store.GetLogs(id, 200);
+        IReadOnlyList<JobLogEntry> logs = await store.GetLogs(id);
         Check(logs.Count == 200 && logs[0].Message == "850" && logs[^1].Message == "1049", "Logs were not latest-first selection in chronological order.");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.Get(id))!.Progress == 100 && await store.GetRunningCount() == 0, "Completion diagnostics mismatch.");

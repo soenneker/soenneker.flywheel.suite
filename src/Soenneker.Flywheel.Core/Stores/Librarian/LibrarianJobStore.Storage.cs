@@ -111,8 +111,8 @@ public abstract partial class LibrarianJobStore
                 using var json = System.Text.Json.JsonDocument.Parse(write.Value);
                 changes.Add(new JobChange(write.Container == "flywheel.jobs" ? "Job" : "Logs", json.RootElement.GetProperty("key").GetString()!));
             }
-            else if (write.Container == "flywheel.schedules") changes.Add(new JobChange("Schedules", null));
-            else if (write.Container == "flywheel.nodes" && _notifyServers) changes.Add(new JobChange("Servers", null));
+            else if (write.Container == "flywheel.schedules") changes.Add(new JobChange("Schedules"));
+            else if (write.Container == "flywheel.nodes" && _notifyServers) changes.Add(new JobChange("Servers"));
         }
         return changes.ToArray();
     }

@@ -18,7 +18,7 @@ public static class FlywheelServersEndpoints
             .WithTags("Flywheel servers")
             .WithSummary("Returns up to 200 servers with unexpired heartbeats.")
             .WithDescription("Returns at most 200 workers whose heartbeats have not expired, including their public execution snapshots.")
-            .Produces<IReadOnlyList<Communication.Responses.ServerView>>(StatusCodes.Status200OK)
+            .Produces<IReadOnlyList<Communication.Responses.ServerView>>()
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden);
         group.MapGet("/servers/{id}", Get)
@@ -26,7 +26,7 @@ public static class FlywheelServersEndpoints
             .WithTags("Flywheel servers")
             .WithSummary("Returns one live server and the jobs currently leased to it.")
             .WithDescription("Returns a live worker and its leased jobs. The identifier must be nonblank and at most 200 characters.")
-            .Produces<Communication.Responses.ServerView>(StatusCodes.Status200OK)
+            .Produces<Communication.Responses.ServerView>()
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status401Unauthorized)
