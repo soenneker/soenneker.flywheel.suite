@@ -5,14 +5,15 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Soenneker.Flywheel.Core.Dashboard;
 using Soenneker.Flywheel.Core.Dashboard.Abstract;
-using Soenneker.Flywheel.Core.Dashboard.Controllers;
+using Soenneker.Flywheel.Core.Dashboard.Endpoints;
+using Microsoft.AspNetCore.Antiforgery;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Hashing.Pbkdf2;
 using Soenneker.Flywheel.Communication;
 
 namespace Soenneker.Flywheel.Core.Registrars;
 
-/// <summary>Registers dashboard controllers, authentication, and live notifications.</summary>
+/// <summary>Registers dashboard endpoints, authentication, and live notifications.</summary>
 public static class FlywheelDashboardRegistrar
 {
     private const string Scheme = "Flywheel";
@@ -79,20 +80,45 @@ public static class FlywheelDashboardRegistrar
                 x.QueueLimit = 0;
             });
         });
-        builder.Services.AddControllers(mvc => mvc.Conventions.Add(new DashboardRouteConvention(options.EnginePath)))
-            .AddApplicationPart(typeof(FlywheelAuthenticationController).Assembly);
-        builder.Services.AddSignalR();
+
+        builder.Services.ConfigureHttpJsonOptions(json => FlywheelJsonContext.Configure(json.SerializerOptions));
+        builder.Services.AddSignalR().AddJsonProtocol(json =>
+            FlywheelJsonContext.Configure(json.PayloadSerializerOptions));
         builder.Services.AddSingleton<DashboardSubscriptions>();
         builder.Services.AddSingleton<IDashboardSnapshotFactory, DashboardSnapshotFactory>();
         builder.Services.AddHostedService<DashboardNotifications>();
         return builder;
     }
 
-    /// <summary>Maps the authenticated Flywheel dashboard real-time endpoint.</summary>
+    /// <summary>Maps the Flywheel dashboard HTTP API and authenticated real-time endpoint.</summary>
     public static IEndpointConventionBuilder MapFlywheelDashboard(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         DashboardOptions dashboard = endpoints.ServiceProvider.GetRequiredService<DashboardOptions>();
+
+        RouteGroupBuilder group = endpoints.MapGroup(dashboard.EnginePath.TrimEnd('/'))
+            .RequireAuthorization(Policy);
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            HttpContext http = context.HttpContext;
+            http.Response.Headers.CacheControl = "no-store, no-cache";
+            http.Response.Headers.Pragma = "no-cache";
+            if (HttpMethods.IsPost(http.Request.Method))
+            {
+                try
+                {
+                    await http.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(http);
+                }
+                catch (AntiforgeryValidationException)
+                {
+                    return TypedResults.BadRequest();
+                }
+            }
+            return await next(context);
+        });
+        FlywheelAuthenticationEndpoints.Map(group);
+        FlywheelJobsEndpoints.Map(group);
+        FlywheelServersEndpoints.Map(group);
 
         return endpoints.MapHub<FlywheelHub>($"{dashboard.EnginePath.TrimEnd('/')}/hub", options => options.CloseOnAuthenticationExpiration = true)
             .RequireAuthorization(Policy);

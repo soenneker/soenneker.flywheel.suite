@@ -32,7 +32,7 @@ public sealed partial class FlywheelDashboardTests
         builder.Services.AddSingleton<IJobLogStore>(store);
         builder.Services.AddSingleton<INodeStore>(store);
         await using WebApplication app = builder.Build();
-        app.UseRouting(); app.UseFlywheelDashboard(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
+        app.UseRouting(); app.UseFlywheelDashboard(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
         app.MapFlywheelDashboard();
         await app.StartAsync();
         using HttpClient client = app.GetTestClient();
@@ -89,6 +89,8 @@ public sealed partial class FlywheelDashboardTests
         Check(projection is { MaxAttempts: 1, TimeoutSeconds: 300, Priority: "Normal" }, "Execution policy is missing from the public detail projection");
         Check((await client.GetAsync($"{prefix}/jobs/missing")).StatusCode == HttpStatusCode.NotFound, "Missing job detail should return 404");
         Check((await client.GetAsync($"{prefix}/jobs/search?q=" + new string('x', 201))).StatusCode == HttpStatusCode.BadRequest, "Oversized query accepted");
+        Check((await client.GetAsync($"{prefix}/jobs/search?offset=invalid")).StatusCode == HttpStatusCode.BadRequest, "Malformed offset accepted");
+        Check((await client.GetAsync($"{prefix}/jobs/history?startAt=invalid")).StatusCode == HttpStatusCode.BadRequest, "Malformed date accepted");
         Check((await client.GetAsync($"{prefix}/jobs/search?offset=-1")).StatusCode == HttpStatusCode.BadRequest, "Invalid offset accepted");
         Check((await client.GetAsync($"{prefix}/jobs/search?count=201")).StatusCode == HttpStatusCode.BadRequest, "Invalid page size accepted");
         Check((await client.GetAsync($"{prefix}/jobs/one/logs")).IsSuccessStatusCode, "Authenticated logs unavailable");

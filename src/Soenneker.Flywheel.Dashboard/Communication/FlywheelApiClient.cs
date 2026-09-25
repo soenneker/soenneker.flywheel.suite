@@ -63,7 +63,7 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
         {
             using HttpResponseMessage response = await Get(dashboard.EngineEndpoint("csrf"), cancellationToken: cancellationToken);
             response.EnsureSuccessStatusCode();
-            Csrf csrf = await JsonUtil.Deserialize<Csrf>(response, LibraryJsonContext.Get<Csrf>(), cancellationToken: cancellationToken)
+            Csrf csrf = await JsonUtil.Deserialize<Csrf>(response, Soenneker.Flywheel.Communication.FlywheelJsonContext.Get<Csrf>(), cancellationToken: cancellationToken)
                         ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");
             request.Headers.Add("X-Flywheel-CSRF", csrf.Token);
         }
@@ -71,5 +71,5 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
     }
 
     private static StringContent CreateJsonContent(object value) =>
-        new(JsonUtil.Serialize(value, LibraryJsonContext.Get<object>()) ?? "null", Encoding.UTF8, "application/json");
+        new(JsonUtil.Serialize(value, Soenneker.Flywheel.Communication.FlywheelJsonContext.Get<object>()) ?? "null", Encoding.UTF8, "application/json");
 }

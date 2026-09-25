@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-// Enum-value converters in referenced assemblies are file-local; explicit metadata below handles them.
+// Explicit enum metadata keeps generated contracts compatible with numeric persisted values.
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Communication.Responses;
 using System.Text.Json.Serialization.Metadata;
@@ -7,9 +7,21 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using System;
 
-namespace Soenneker.Flywheel.Dashboard.Communication;
+namespace Soenneker.Flywheel.Communication;
 
+/// <summary>Generated JSON contracts shared by Flywheel HTTP and live dashboard messages.</summary>
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, ReadCommentHandling = JsonCommentHandling.Skip, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(LiveBoard))]
+[JsonSerializable(typeof(LiveJob))]
+[JsonSerializable(typeof(LiveLogs))]
+[JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(DateTimeOffset?))]
+[JsonSerializable(typeof(List<JobView>))]
+[JsonSerializable(typeof(IReadOnlyList<ServerView>))]
+[JsonSerializable(typeof(List<LogEntry>))]
 [JsonSerializable(typeof(Csrf))]
 [JsonSerializable(typeof(EnqueueRequest))]
 [JsonSerializable(typeof(LoginRequest))]
@@ -18,15 +30,25 @@ namespace Soenneker.Flywheel.Dashboard.Communication;
 [JsonSerializable(typeof(HistoryOptions))]
 [JsonSerializable(typeof(JobView))]
 [JsonSerializable(typeof(List<JobHistoryPoint>))]
+[JsonSerializable(typeof(IReadOnlyList<JobHistoryPoint>))]
 [JsonSerializable(typeof(List<ServerView>))]
 [JsonSerializable(typeof(ScheduleView))]
 [JsonSerializable(typeof(SearchResult))]
 [JsonSerializable(typeof(ServerView))]
 [JsonSerializable(typeof(StartedJob))]
-internal partial class LibraryJsonContext : JsonSerializerContext
+public partial class FlywheelJsonContext : JsonSerializerContext
 {
-    internal static JsonTypeInfo<T> Get<T>() =>
+    /// <summary>Gets generated metadata with the Flywheel wire-format converters.</summary>
+    public static JsonTypeInfo<T> Get<T>() =>
         (JsonTypeInfo<T>)MetadataOptionsHolder.Value.GetTypeInfo(typeof(T));
+
+    /// <summary>Adds generated Flywheel contracts and numeric enum converters to serializer options.</summary>
+    public static void Configure(JsonSerializerOptions options)
+    {
+        options.Converters.Add(new JobPriorityMetadataConverter());
+        options.Converters.Add(new JobStateMetadataConverter());
+        options.TypeInfoResolverChain.Insert(0, new MetadataResolver());
+    }
 
     private static class MetadataOptionsHolder
     {

@@ -39,7 +39,7 @@ public sealed partial class FlywheelDashboardTests
         builder.Services.AddSingleton<INodeStore>(store);
         builder.Services.AddSingleton<IServerStore>(store);
         await using WebApplication app = builder.Build();
-        app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
+        app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
         app.MapFlywheelDashboard();
         await app.StartAsync();
 

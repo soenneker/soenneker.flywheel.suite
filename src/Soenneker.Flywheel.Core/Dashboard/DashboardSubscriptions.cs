@@ -15,7 +15,7 @@ namespace Soenneker.Flywheel.Core.Dashboard;
 /// <summary>Per-connection snapshot subscriptions. Work is coalesced and triggered only by changes or explicit subscriptions.</summary>
 public sealed partial class DashboardSubscriptions(
     IJobStore store,
-    IHubContext<FlywheelHub, IFlywheelDashboardClient> hub,
+    IHubContext<FlywheelHub> hub,
     IHostApplicationLifetime lifetime,
     ILogger<DashboardSubscriptions> logger,
     IDashboardSnapshotFactory snapshots,
@@ -67,7 +67,7 @@ public sealed partial class DashboardSubscriptions(
     private async Task Send(string connectionId, string kind, int version, string? query, int offset, int count,
         bool summary, string? jobId, DateTimeOffset? startAt, DateTimeOffset? endAt, string? excludedStates, CancellationToken ct)
     {
-        IFlywheelDashboardClient client = hub.Clients.Client(connectionId);
+        IClientProxy client = hub.Clients.Client(connectionId);
         if (kind == "Board")
         {
             JobSearchResult result = await DashboardJobSearch.Search(store, query, offset, count, startAt, endAt, excludedStates, ct);
@@ -101,20 +101,20 @@ public sealed partial class DashboardSubscriptions(
                 : null;
             if (summary && store is IJobScheduleStore scheduleStore)
                 schedules = snapshots.Schedules(await scheduleStore.ListRecurring(200, ct), await scheduleStore.ListScheduled(200, ct));
-            await client.BoardSnapshot(new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
+            await client.SendAsync(nameof(IFlywheelDashboardClient.BoardSnapshot), new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
                 result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
-                liveActivity?.ToList(), recurringCount, failedCount, succeededCount)).WaitAsync(ct);
+                liveActivity?.ToList(), recurringCount, failedCount, succeededCount), ct);
         }
         else if (kind == "Job")
         {
             JobRecord? job = await store.Get(jobId!, ct);
-            await client.JobSnapshot(new LiveJob(version, jobId!, job is null ? null : snapshots.Job(job))).WaitAsync(ct);
+            await client.SendAsync(nameof(IFlywheelDashboardClient.JobSnapshot), new LiveJob(version, jobId!, job is null ? null : snapshots.Job(job)), ct);
         }
         else if (kind == "Logs")
         {
             IJobLogStore? logs = logStore ?? store as IJobLogStore;
             IReadOnlyList<JobLogEntry>? entries = logs is not null ? await logs.GetLogs(jobId!, 200, ct) : null;
-            await client.LogSnapshot(new LiveLogs(version, jobId!, entries is null ? null : snapshots.Logs(entries))).WaitAsync(ct);
+            await client.SendAsync(nameof(IFlywheelDashboardClient.LogSnapshot), new LiveLogs(version, jobId!, entries is null ? null : snapshots.Logs(entries)), ct);
         }
     }
 

@@ -5,7 +5,7 @@ using Soenneker.Flywheel.Communication.Abstract;
 namespace Soenneker.Flywheel.Core.Dashboard;
 
 [Authorize(Policy = "FlywheelDashboard")]
-public sealed class FlywheelHub(DashboardSubscriptions subscriptions) : Hub<IFlywheelDashboardClient>, IFlywheelDashboardHub
+public sealed class FlywheelHub(DashboardSubscriptions subscriptions) : Hub, IFlywheelDashboardHub
 {
     public Task SubscribeBoard(int version, string? query, int offset, int count, bool summary, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null) =>
         subscriptions.Subscribe(Context.ConnectionId, "Board", version, query, offset, count, summary, null, Context.ConnectionAborted, startAt, endAt);

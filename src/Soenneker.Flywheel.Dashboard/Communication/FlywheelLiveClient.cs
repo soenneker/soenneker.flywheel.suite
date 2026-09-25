@@ -23,8 +23,12 @@ public sealed class FlywheelLiveClient(IFlywheelApiClient api, ISignalRWebClient
             if (revision == Volatile.Read(ref received)) await snapshot(board);
         }, restored, disconnected, cancellationToken);
     }
-    public ValueTask<IFlywheelLiveSubscription> Job(string id, Func<LiveJob, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create(id, nameof(IFlywheelDashboardClient.JobSnapshot), snapshot, restored, disconnected, cancellationToken);
-    public ValueTask<IFlywheelLiveSubscription> Logs(string id, Func<LiveLogs, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create(id, nameof(IFlywheelDashboardClient.LogSnapshot), snapshot, restored, disconnected, cancellationToken);
+    public ValueTask<IFlywheelLiveSubscription> Job(string id, Func<LiveJob, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create<JsonElement>(id, nameof(IFlywheelDashboardClient.JobSnapshot), element =>
+        snapshot(element.Deserialize(Soenneker.Flywheel.Communication.FlywheelJsonContext.Get<LiveJob>())
+            ?? throw new JsonException("A live snapshot cannot be null.")), restored, disconnected, cancellationToken);
+    public ValueTask<IFlywheelLiveSubscription> Logs(string id, Func<LiveLogs, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken = default) => Create<JsonElement>(id, nameof(IFlywheelDashboardClient.LogSnapshot), element =>
+        snapshot(element.Deserialize(Soenneker.Flywheel.Communication.FlywheelJsonContext.Get<LiveLogs>())
+            ?? throw new JsonException("A live snapshot cannot be null.")), restored, disconnected, cancellationToken);
 
     private async ValueTask<IFlywheelLiveSubscription> Create<T>(string id, string message, Func<T, Task> snapshot, Func<Task> restored, Func<Task> disconnected, CancellationToken cancellationToken)
     {

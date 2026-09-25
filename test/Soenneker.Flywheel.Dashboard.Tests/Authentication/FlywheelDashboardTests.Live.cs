@@ -37,7 +37,7 @@ public sealed partial class FlywheelDashboardTests
         builder.Services.AddSingleton<IJobLogStore>(store);
         builder.Services.AddSingleton<INodeStore>(store);
         await using WebApplication app = builder.Build();
-        app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
+        app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
         app.MapFlywheelDashboard();
         await app.StartAsync();
         using HttpClient http = app.GetTestClient();
@@ -64,7 +64,9 @@ public sealed partial class FlywheelDashboardTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var boards = Channel.CreateUnbounded<JsonElement>();
         var logs = Channel.CreateUnbounded<JsonElement>();
+        var jobs = Channel.CreateUnbounded<JsonElement>();
         using IDisposable boardHandler = connection.On<JsonElement>("BoardSnapshot", value => boards.Writer.TryWrite(value));
+        using IDisposable jobHandler = connection.On<JsonElement>("JobSnapshot", value => jobs.Writer.TryWrite(value));
         using IDisposable logHandler = connection.On<JsonElement>("LogSnapshot", value => logs.Writer.TryWrite(value));
         await store.Subscribed.Task.WaitAsync(timeout.Token);
         await connection.StartAsync(timeout.Token);
@@ -83,6 +85,10 @@ public sealed partial class FlywheelDashboardTests
         await connection.InvokeAsync("SubscribeBoard", 2, "new-query", 50, 10, false, null, null, timeout.Token);
         Check((await boards.Reader.ReadAsync(timeout.Token)).GetProperty("version").GetInt32() == 2 &&
             store.Searches.Contains(("new-query", 50, 10)), "Search subscription was not replaced");
+        await connection.InvokeAsync("SubscribeJob", 3, "one", timeout.Token);
+        JsonElement job = await jobs.Reader.ReadAsync(timeout.Token);
+        Check(job.GetProperty("version").GetInt32() == 3 && job.GetProperty("jobId").GetString() == "one",
+            "Job snapshot method or argument changed");
         await connection.InvokeAsync("SubscribeLogs", 3, "one", timeout.Token);
         Check((await logs.Reader.ReadAsync(timeout.Token)).GetProperty("entries").GetArrayLength() == 1, "Initial logs missing");
         store.Changes.Writer.TryWrite(new JobChange("Logs", "one"));

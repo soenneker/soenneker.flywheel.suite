@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.OpenApi;
 using Soenneker.Flywheel.Core.Dashboard;
 using Soenneker.Flywheel.Core.Registrars;
@@ -12,6 +11,7 @@ new FlywheelBuilder(builder.Services).AddDashboard(options =>
     options.PasswordPhc = Pbkdf2HashingUtil.Hash(Guid.NewGuid().ToString());
 });
 builder.Services.Remove(builder.Services.Single(service => service.ImplementationType == typeof(DashboardNotifications)));
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi("v1", options =>
 {
     options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0;
@@ -43,8 +43,6 @@ builder.Services.AddOpenApi("v1", options =>
     });
     options.AddOperationTransformer((operation, context, _) =>
     {
-        if (context.Description.ActionDescriptor is ControllerActionDescriptor action)
-            operation.OperationId = $"{action.ControllerName}_{action.ActionName}";
         if (context.Description.ActionDescriptor.EndpointMetadata.OfType<IAllowAnonymous>().Any())
             operation.Security = [];
         if (context.Description.HttpMethod == "POST")
@@ -64,5 +62,5 @@ builder.Services.AddOpenApi("v1", options =>
 });
 
 WebApplication app = builder.Build();
-app.MapControllers();
+app.MapFlywheelDashboard();
 app.Run();

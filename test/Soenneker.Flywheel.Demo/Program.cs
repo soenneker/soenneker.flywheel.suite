@@ -30,6 +30,7 @@ builder.Services.AddFlywheel(options => options.Workers = 4)
         options.AllowedOrigins = ["https://localhost:7039"];
     })
     .AddGeneratedJobs();
+builder.Services.AddControllers();
 builder.Services.AddScoped<IDemoDeliveryGateway, DemoDeliveryGateway>();
 builder.Services.AddSingleton<DemoTour>();
 builder.Services.AddRateLimiter(options => options.AddFixedWindowLimiter("DemoTour", limiter =>
