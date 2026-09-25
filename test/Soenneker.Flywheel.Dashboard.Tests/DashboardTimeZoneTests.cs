@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using Soenneker.Blazor.Utils.LocalStorage.Abstract;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -128,7 +129,9 @@ public sealed class DashboardTimeZoneTests
             return ValueTask.CompletedTask;
         }
         public ValueTask<T?> Get<T>(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<T?> Get<T>(string key, JsonTypeInfo<T> jsonTypeInfo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask Set<T>(string key, T value, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask Set<T>(string key, T value, JsonTypeInfo<T> jsonTypeInfo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask Remove(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask Clear(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<bool> ContainsKey(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
