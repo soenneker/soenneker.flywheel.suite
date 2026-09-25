@@ -30,6 +30,7 @@ public sealed partial class FlywheelDashboardTests
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Host.UseDefaultServiceProvider(options => { options.ValidateOnBuild = true; options.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         builder.Services.AddFlywheel().AddDashboard(o => { o.EnginePath = enginePath; o.PasswordPhc = Pbkdf2HashingUtil.Hash(password); });
         builder.Services.RemoveAll<IHostedService>();
         var store = new SearchStore();
