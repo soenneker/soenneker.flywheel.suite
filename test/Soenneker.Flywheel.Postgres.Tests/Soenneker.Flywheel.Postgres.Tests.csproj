@@ -7,7 +7,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="TUnit" Version="1.69.0" />
+    <PackageReference Include="TUnit" Version="1.69.16" />
     <ProjectReference Include="../../src/Soenneker.Flywheel.Postgres/Soenneker.Flywheel.Postgres.csproj" />
   </ItemGroup>
 </Project>
