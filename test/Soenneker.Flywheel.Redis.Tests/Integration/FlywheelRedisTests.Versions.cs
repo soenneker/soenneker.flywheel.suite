@@ -73,6 +73,7 @@ public sealed partial class FlywheelRedisTests
         ServiceProvider Host(string version)
         {
             var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
             services.AddLogging();
             services.AddFlywheel(o => o.ApplicationVersion = version).AddGeneratedJobs();
             services.AddSingleton<IJobStore>(store);

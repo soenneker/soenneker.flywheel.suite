@@ -18,6 +18,7 @@ public sealed partial class FlywheelRedisTests
     public Task PayloadSerializationPreservesJsonNullForEnqueuesAndChains() => WithStore(async store =>
     {
         var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         services.AddLogging();
         services.AddFlywheel().AddGeneratedJobs();
         services.AddSingleton<IJobStore>(store);
@@ -25,7 +26,7 @@ public sealed partial class FlywheelRedisTests
         var client = provider.GetRequiredService<IJobClient>();
         string id = await client.Enqueue(FlywheelJobs.IntegrationJobs_Run, (TestPayload)null!);
         Check((await store.Get(id))!.Payload == "null", "Null enqueue payload did not produce valid JSON");
-        IReadOnlyList<string> chain = await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(null!)]);
+        IReadOnlyList<string> chain = await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(null!, TestJsonContext.Get<TestPayload>())]);
         Check((await store.Get(chain[0]))!.Payload == "null", "Null chain payload did not produce valid JSON");
         string valueId = await client.Enqueue(FlywheelJobs.IntegrationJobs_Run, new TestPayload("camelCase"));
         JsonNode payload = JsonNode.Parse((await store.Get(valueId))!.Payload)!;

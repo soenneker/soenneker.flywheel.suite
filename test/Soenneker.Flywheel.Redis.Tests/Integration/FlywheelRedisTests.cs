@@ -281,6 +281,7 @@ public sealed partial class FlywheelRedisTests
     public Task RuntimeClientSchedulesAndConfiguresRegisteredJobs() => WithStore(async store =>
     {
         var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         services.AddLogging();
         services.AddFlywheel().AddGeneratedJobs();
         services.AddSingleton<IJobStore>(store);
@@ -452,6 +453,7 @@ public sealed partial class FlywheelRedisTests
     public Task GeneratedJobExecutesInScope() => WithStore(async store =>
     {
         var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         services.AddLogging();
         services.AddFlywheel().AddGeneratedJobs();
         services.AddSingleton<IJobStore>(store);

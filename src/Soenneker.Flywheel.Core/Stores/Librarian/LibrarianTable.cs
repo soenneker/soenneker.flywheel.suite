@@ -30,7 +30,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     private string Id(TKey key)
     {
         if (_ids.TryGetValue(key, out string? id)) return id;
-        id = Hash.Hash(JsonUtil.Serialize(key)!);
+        id = Hash.Hash(JsonUtil.Serialize(key, LibraryJsonContext.Get<TKey>())!);
         _ids.Add(key, id);
         return id;
     }
@@ -64,7 +64,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         string? scheduled = value is JobRecord { State: var state } pending && state == JobState.Scheduled ? SortKey(pending.DueAt, pending.Id) : null;
         long? completedAt = value is JobRecord completed && (completed.State == JobState.Succeeded || completed.State == JobState.Cancelled || completed.State == JobState.DeadLettered)
             ? completed.CompletedAt : null;
-        string serialized = JsonUtil.Serialize(new LibrarianEntry<TKey, TValue>(key, value, order, scheduled, CompletedAt: completedAt, Active: active))!;
+        string serialized = JsonUtil.Serialize(new LibrarianEntry<TKey, TValue>(key, value, order, scheduled, CompletedAt: completedAt, Active: active), LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>())!;
         if (await Read(id).NoSync() != serialized)
         {
             if (_reads.TryGetValue(id, out string? original) && original == serialized) _writes.Remove(id);
@@ -83,7 +83,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     }
 
     private static LibrarianEntry<TKey, TValue> Decode(string raw) =>
-        JsonUtil.Deserialize<LibrarianEntry<TKey, TValue>>(raw) ?? throw new InvalidDataException("Invalid Flywheel document.");
+        JsonUtil.Deserialize<LibrarianEntry<TKey, TValue>>(raw, LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>()) ?? throw new InvalidDataException("Invalid Flywheel document.");
 
     public async ValueTask<TValue?> Get(TKey key) => await GetEntry(key).NoSync() is { } entry ? entry.Value : default;
 
@@ -151,7 +151,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
             var entry = Decode(item.GetRawText());
             if (!_writes.ContainsKey(Id(entry.Key))) result.Add(entry);
         }
-        using var expected = System.Text.Json.JsonDocument.Parse(JsonUtil.Serialize(value)!);
+        using var expected = System.Text.Json.JsonDocument.Parse(JsonUtil.Serialize(value, LibraryJsonContext.Get<object?>())!);
         string[] segments = path.Split('.');
         foreach (string? raw in _writes.Values)
             if (raw is not null)

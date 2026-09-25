@@ -10,7 +10,7 @@ namespace Soenneker.Flywheel.Memory.Tests;
 public sealed class DebouncedJobTests
 {
     private static readonly JobDefinition<string> Job = new("debounce-test");
-    private static JobClient Client(IJobStore store) => new(store, [new DebounceTestInvoker()]);
+    private static JobClient Client(IJobStore store) => new(TestJsonContext.Default, store, [new DebounceTestInvoker()]);
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);

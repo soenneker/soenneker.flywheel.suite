@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Serialization;
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Utils.Json;
@@ -12,7 +13,11 @@ public sealed record JobDefinition<T>(
     [property: JsonPropertyName("description")] string? Description = null)
 {
     /// <summary>Prepares a typed chain step. Delay starts at submission for the first step, or after predecessor success for later steps.</summary>
-    public JobStep With(T payload, JobPolicy? policy = null, TimeSpan? delay = null) =>
-        new(new EnqueueRequest(Name, JsonUtil.Serialize(payload) ?? "null", policy ?? new JobPolicy(), delay ?? TimeSpan.Zero,
+    /// <param name="typeInfo">Source-generated JSON metadata and serialization options for the value.</param>
+    /// <param name="payload">The job payload.</param>
+    /// <param name="policy">Optional execution policy.</param>
+    /// <param name="delay">Optional delay before this step becomes eligible.</param>
+    public JobStep With(T payload, JsonTypeInfo<T> typeInfo, JobPolicy? policy = null, TimeSpan? delay = null) =>
+        new(new EnqueueRequest(Name, JsonUtil.Serialize(payload, typeInfo) ?? "null", policy ?? new JobPolicy(), delay ?? TimeSpan.Zero,
             Description: Description));
 }

@@ -156,10 +156,10 @@ public sealed class FlywheelTests
                 public Task Send(Payload value, CancellationToken token) => Task.CompletedTask;
             }
             public static class Producer {
-                public static async Task Submit(IJobClient client) {
-                    await client.RegisterGeneratedSchedules();
+                public static async Task Submit(IJobClient client, System.Text.Json.Serialization.JsonSerializerContext jsonContext, System.Text.Json.Serialization.Metadata.JsonTypeInfo<Payload> typeInfo) {
+                    await client.RegisterGeneratedSchedules(jsonContext);
                     await client.Schedule("runtime", FlywheelJobs.Jobs_Send, new Payload("runtime"), "*/5 * * * *");
-                    await client.Chain([FlywheelJobs.Jobs_Send.With(new Payload("first")), FlywheelJobs.Jobs_Send.With(new Payload("second"))]);
+                    await client.Chain([FlywheelJobs.Jobs_Send.With(new Payload("first"), typeInfo), FlywheelJobs.Jobs_Send.With(new Payload("second"), typeInfo)]);
                 }
             }
             """);

@@ -78,7 +78,7 @@ public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILog
     private static async ValueTask<OperationResult<T>> Convert<T>(HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        OperationResult<T> result = await response.ToResult<T>(cancellationToken: cancellationToken);
+        OperationResult<T> result = await response.ToResult<T>(Communication.LibraryJsonContext.Get<T>(), cancellationToken: cancellationToken);
         // Cookie challenges and unsupported store operations can have no response body.
         return !response.IsSuccessStatusCode && result.Succeeded
             ? OperationResult.Fail<T>("Dashboard request failed",

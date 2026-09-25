@@ -138,7 +138,9 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                                        .Append(seconds).Append(");\n").Append("var payload").Append(i)
                                        .Append(" = global::Soenneker.Utils.Json.JsonUtil.Deserialize<")
                                        .Append(payload).Append(">(").Append(SymbolDisplay.FormatLiteral(json, true))
-                                       .Append(");\n");
+                                       .Append(", (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<").Append(payload)
+                                       .Append(">)(jsonContext.GetTypeInfo(typeof(").Append(payload)
+                                       .Append(")) ?? throw new global::System.NotSupportedException(\"Missing job payload metadata.\")));\n");
                     scheduleRegistrations.Append("await client.Schedule(")
                                          .Append(SymbolDisplay.FormatLiteral(scheduleId, true)).Append(", @")
                                          .Append(symbol).Append(", payload").Append(i).Append("!, ")
@@ -164,7 +166,9 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                        "var handler = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<")
                    .Append(type).Append(">(services);\n")
                    .Append("var value = global::Soenneker.Utils.Json.JsonUtil.Deserialize<").Append(payload)
-                   .Append(">(payload);\n").Append("await handler.@").Append(m.Name)
+                   .Append(">(payload, (global::System.Text.Json.Serialization.Metadata.JsonTypeInfo<").Append(payload)
+                   .Append(">)(global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::System.Text.Json.Serialization.JsonSerializerContext>(services).GetTypeInfo(typeof(")
+                   .Append(payload).Append(")) ?? throw new global::System.NotSupportedException(\"Missing job payload metadata.\")));\n").Append("await handler.@").Append(m.Name)
                    .Append("(value!, ct);\n}}\n}\n}\n");
             context.AddSource("FlywheelJobs.Invoker" + i + ".g.cs", invoker.ToString());
             registrations
@@ -179,7 +183,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
             sb.Append(
                   "/// <summary>Registers declared cron schedules. Existing schedule IDs are unchanged. Call after building the host.</summary>\n")
               .Append(
-                  "public static async global::System.Threading.Tasks.Task RegisterGeneratedSchedules(this global::Soenneker.Flywheel.Core.Services.Abstract.IJobClient client, global::System.Threading.CancellationToken cancellationToken = default) {\n")
+                  "public static async global::System.Threading.Tasks.Task RegisterGeneratedSchedules(this global::Soenneker.Flywheel.Core.Services.Abstract.IJobClient client, global::System.Text.Json.Serialization.JsonSerializerContext jsonContext, global::System.Threading.CancellationToken cancellationToken = default) {\n")
               .Append(schedulePreparation).Append(scheduleRegistrations).Append("}\n");
         sb.Append(
               "public static global::Soenneker.Flywheel.Core.Registrars.FlywheelBuilder AddGeneratedJobs(this global::Soenneker.Flywheel.Core.Registrars.FlywheelBuilder builder) {\n")

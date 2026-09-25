@@ -326,6 +326,7 @@ public sealed class MemoryJobStoreTests
     public async Task RegistrationSharesStoreWithinProviderAndIsolatesProviders()
     {
         var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         services.AddLogging();
         services.AddFlywheel().AddMemory();
         await using ServiceProvider first = services.BuildServiceProvider();

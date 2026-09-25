@@ -82,8 +82,8 @@ public abstract partial class LibrarianJobStore
                         if (changes.Length != 0)
                         {
                             string? previous = await control.GetItem("feed", ct).NoSync();
-                            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous)!.Revision;
-                            writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes))!));
+                            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
+                            writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
                             conditions.Add(new LibrarianCondition(Control, "feed", previous));
                         }
                         if (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0)
@@ -139,8 +139,8 @@ public abstract partial class LibrarianJobStore
                 current = await control.GetItem("feed", cancellationToken).NoSync();
             }
             if (current == previous) continue;
-            StoreRevision? entry = current is null ? null : JsonUtil.Deserialize<StoreRevision>(current);
-            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous)!.Revision;
+            StoreRevision? entry = current is null ? null : JsonUtil.Deserialize<StoreRevision>(current, LibraryJsonContext.Get<StoreRevision>());
+            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
             previous = current;
             if (entry is null || entry.Previous != previousId) yield return JobChange.Resync;
             else foreach (JobChange change in entry.Changes) yield return change;

@@ -19,14 +19,15 @@ public sealed partial class FlywheelRedisTests
     public Task GeneratedCronAndTypedChainExecuteThroughJobClient() => WithStore(async store =>
     {
         var services = new ServiceCollection();
+        services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
         services.AddLogging();
         services.AddFlywheel().AddGeneratedJobs();
         services.AddSingleton<IJobStore>(store);
         services.AddSingleton<InvocationState>();
         await using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         var client = provider.GetRequiredService<IJobClient>();
-        await client.RegisterGeneratedSchedules();
-        await client.RegisterGeneratedSchedules();
+        await client.RegisterGeneratedSchedules(TestJsonContext.Default);
+        await client.RegisterGeneratedSchedules(TestJsonContext.Default);
         RecurringJobView schedule = (await store.ListRecurring()).Single();
         Check(schedule.Cron == "0 9 * * *" && schedule.TimeZoneId == "America/Chicago", "Generated cron registration failed");
         await store.RunRecurring(schedule.Id);
@@ -34,8 +35,8 @@ public sealed partial class FlywheelRedisTests
         await executor.RunOnce(default);
         Check(provider.GetRequiredService<InvocationState>().Value == "cron payload", "Attribute payload was not passed to handler");
         IReadOnlyList<string> ids = await client.Chain([
-            FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("first")),
-            FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("second"))], "generated-chain");
+            FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("first"), TestJsonContext.Get<TestPayload>()),
+            FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("second"), TestJsonContext.Get<TestPayload>())], "generated-chain");
         await executor.RunOnce(default);
         Check((await store.Get(ids[0]))!.State == JobState.Succeeded && (await store.Get(ids[1]))!.State == JobState.Scheduled, "Typed chain did not advance");
         await executor.RunOnce(default);
@@ -43,7 +44,7 @@ public sealed partial class FlywheelRedisTests
         int before = (await store.List()).Count;
         try
         {
-            await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("valid")), new JobDefinition<string>("unknown").With("invalid")]);
+            await client.Chain([FlywheelJobs.IntegrationJobs_Run.With(new TestPayload("valid"), TestJsonContext.Get<TestPayload>()), new JobDefinition<string>("unknown").With("invalid", TestJsonContext.Get<string>())]);
             throw new Exception("Unregistered step accepted");
         }
         catch (InvalidOperationException) { }
