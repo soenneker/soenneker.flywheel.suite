@@ -47,7 +47,7 @@
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.737" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2547" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2549" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.257" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1509" />
