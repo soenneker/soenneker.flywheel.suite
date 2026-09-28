@@ -48,7 +48,7 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.34" />
-        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.11" />
+        <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.12" />
         <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.43" />
     </ItemGroup>
 </Project>
