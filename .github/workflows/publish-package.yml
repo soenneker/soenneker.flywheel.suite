@@ -3,6 +3,8 @@ name: publish-package
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'test/Soenneker.Flywheel.Redis.Tests/Benchmarks/**'
   workflow_dispatch:
 
 # Finish a release before starting another; do not cancel partially published packages.
