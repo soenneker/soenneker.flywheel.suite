@@ -31,6 +31,12 @@ try {
     foreach ($asset in @('css/quark-tailwind.min.css','css/site.css','images/dashboard.png','images/execution.png','images/dashboard-dark.png','images/execution-dark.png','js/theme-images.js','_content/Soenneker.Quark.Suite/js/themeinterop.js','favicon.svg','js/code-examples.js','_content/Soenneker.Quark.Suite/js/monacointerop.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.js','_content/Soenneker.Quark.Suite/js/monaco-editor/monaco.editor.main.esm.css','_content/Soenneker.Quark.Suite/js/monaco-editor/workers/editor.worker.esm.js')) {
         if (-not (Test-Path (Join-Path $outputRoot $asset))) { throw "Missing public asset: $asset" }
     }
+    foreach ($image in @('dashboard', 'dashboard-dark', 'execution', 'execution-dark')) {
+        foreach ($suffix in @('', '-480', '-960', '-1440')) {
+            $asset = "images/$image$suffix.avif"
+            if (-not (Test-Path (Join-Path $outputRoot $asset))) { throw "Missing responsive screenshot: $asset" }
+        }
+    }
     Write-Output "Static website exported to $outputRoot"
 } finally {
     if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }

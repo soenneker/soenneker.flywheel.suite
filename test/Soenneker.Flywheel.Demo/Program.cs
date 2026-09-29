@@ -7,6 +7,7 @@ using Soenneker.Flywheel.Generated;
 using Soenneker.Flywheel.Redis;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(Soenneker.Flywheel.Demo.DemoJsonContext.Default);
 string username = builder.Configuration["Flywheel:Dashboard:Username"] ?? "admin";
 string? passwordPhc = builder.Configuration["Flywheel:Dashboard:PasswordPhc"];
 if (string.IsNullOrWhiteSpace(passwordPhc) && builder.Environment.IsDevelopment())
