@@ -46,6 +46,7 @@ public static class FlywheelDashboardRegistrar
         options.EnginePath = Soenneker.Flywheel.Communication.DashboardPaths.Normalize(options.EnginePath);
 
         return services.AddSingleton(options).AddScoped<ActivityTotalsState>().AddScoped<DashboardSessionState>().AddScoped<DashboardTimeZone>().AddScoped<DashboardBoardConnection>()
+            .AddScoped<DashboardLogOptions>()
             .AddScoped<IFlywheelApiClient, FlywheelApiClient>()
             .AddScoped<IFlywheelDashboardConsumer, FlywheelDashboardConsumer>()
             .AddScoped<IFlywheelLiveClient, FlywheelLiveClient>()

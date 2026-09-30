@@ -11,6 +11,7 @@ public partial class FlywheelLayout
     {
         if (!firstRender) return;
         await TimeZone.Initialize();
+        await LogOptions.Initialize();
         TimeZone.Changed += OnTimeZoneChanged;
         _timezoneReady = true;
         StateHasChanged();

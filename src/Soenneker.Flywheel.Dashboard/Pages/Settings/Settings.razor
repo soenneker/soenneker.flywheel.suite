@@ -2,6 +2,7 @@
 @namespace Soenneker.Flywheel.Dashboard.Pages.Settings
 @using Soenneker.Quark
 @layout FlywheelLayout
+@inject DashboardLogOptions LogOptions
 
 <PageTitle>Settings · Flywheel</PageTitle>
 <Main Padding="Padding.Is4" Width="Width.IsFull">
@@ -16,4 +17,18 @@
         <Paragraph TextColor="TextColor.MutedForeground" Margin="Margin.OnY.Is4">Choose how dates and times appear throughout Flywheel, including timestamps inside log messages. Changes are saved automatically in this browser.</Paragraph>
         <FlywheelTimeZoneSelector />
     </Section>
+    <Section Border="Border.Is1" BorderColor="BorderColor.Border" Rounded="Rounded.Lg" Padding="Padding.Is6" Margin="Margin.FromTop.Is6" Style="max-width: 40rem;" aria-labelledby="logs-heading">
+        <H3 Id="logs-heading" Margin="Margin.Is0" TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Execution logs</H3>
+        <Paragraph TextColor="TextColor.MutedForeground" Margin="Margin.OnY.Is4">Show exception stack traces as expandable details. When off, logs display as plain text. Your preference is saved in this browser.</Paragraph>
+        <Check Checked="@LogOptions.FormatExceptions" CheckedChanged="ToggleExceptionFormatting">Format exceptions</Check>
+        @if (_logsNotSaved)
+        {
+            <Paragraph role="status" TextColor="TextColor.MutedForeground">This preference applies for this session; browser storage is unavailable.</Paragraph>
+        }
+    </Section>
 </Main>
+
+@code {
+    private bool _logsNotSaved;
+    private async Task ToggleExceptionFormatting(bool enabled) => _logsNotSaved = !await LogOptions.SetFormatExceptions(enabled);
+}
