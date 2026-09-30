@@ -43,11 +43,11 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.16" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1482" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1484" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.745" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2557" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.746" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2558" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.260" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1513" />
@@ -61,6 +61,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.12" />
         <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.464" />
-        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.66" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.67" />
     </ItemGroup>
 </Project>
