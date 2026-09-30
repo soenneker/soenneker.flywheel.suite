@@ -4,10 +4,11 @@ namespace Soenneker.Flywheel.Core.Logging;
 
 public sealed partial class JobLogCapture
 {
-    private sealed class CaptureLogger(string category) : ILogger
+    private sealed class CaptureLogger(string category, LogLevel minimumLevel) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => Current.Value is not null && logLevel >= LogLevel.Information && logLevel != LogLevel.None;
+        public bool IsEnabled(LogLevel logLevel) => Current.Value is not null && minimumLevel != LogLevel.None &&
+            logLevel >= minimumLevel && logLevel < LogLevel.None;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             if (!IsEnabled(logLevel)) return;

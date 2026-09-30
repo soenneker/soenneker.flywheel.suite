@@ -43,6 +43,22 @@ Flywheel targets **.NET 10** and is **MIT licensed**. The job runtime works inde
 | **Controlled calls to external services** | Apply job concurrency and rate limits to manage how much work starts at once. |
 | **Visibility when a job needs attention** | Find executions, inspect their attempts and logs, follow progress, and cancel work from the dashboard. |
 
+### Configure job log capture
+
+Flywheel captures handler `ILogger` messages at `Information` and above by default. To include Debug messages in job execution logs:
+
+```csharp
+builder.Services.AddFlywheel(options => options.MinimumJobLogLevel = LogLevel.Debug);
+```
+
+Use `Microsoft.Extensions.Logging.LogLevel`. The application's logging filters must also allow the desired level for Flywheel's `JobLogCapture` provider. For example, with the standard Microsoft logging pipeline:
+
+```csharp
+builder.Logging.AddFilter<Soenneker.Flywheel.Core.Logging.JobLogCapture>(null, LogLevel.Debug);
+```
+
+`MinimumJobLogLevel` accepts `Trace` through `Critical`; `None` disables handler log capture. It does not disable Flywheel's own execution lifecycle messages. This applies to future executions; previously filtered messages cannot be recovered.
+
 ## Get started
 
 Run your first job with **.NET 10**, using in-memory storage so no external database is needed.
