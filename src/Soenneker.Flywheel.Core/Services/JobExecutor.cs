@@ -58,8 +58,8 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         JobOutcome outcome = Communication.Enums.JobOutcome.Succeeded;
         string? error = null;
         JobLogCapture.Session? logSession = logCapture is not null && logStore is not null ? logCapture.Begin(lease, logStore) : null;
-        logSession?.Write("Information", "Flywheel", $"Starting attempt {lease.Job.Attempt} on {options.NodeId}; timeout {lease.Job.Policy.Timeout}.");
-        if (lease.Job.Attempt > 1) logSession?.Write("Information", "Flywheel", $"Retrying with attempt {lease.Job.Attempt} on {options.NodeId}.");
+        logSession?.Write("Information", "Flywheel", $"Starting attempt {lease.Job.Attempt} on server {options.NodeId}; timeout {lease.Job.Policy.Timeout}.");
+        if (lease.Job.Attempt > 1) logSession?.Write("Information", "Flywheel", $"Retrying with attempt {lease.Job.Attempt} on server {options.NodeId}.");
         // The invocation owns its scope until it actually exits, even when cancellation is ignored.
         Task invocation = Task.Run(async () =>
         {
