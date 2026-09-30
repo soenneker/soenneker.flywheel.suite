@@ -19,7 +19,7 @@ public sealed class ResilienceTests
     { if (!condition) throw new InvalidOperationException(message); }
 
     [Test]
-    public async Task ClaimsSkipUnsupportedHandlersWithoutConsumingAttempts()
+    public async ValueTask ClaimsSkipUnsupportedHandlersWithoutConsumingAttempts()
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string unknown = await store.Enqueue(Request("new-handler"));
@@ -33,7 +33,7 @@ public sealed class ResilienceTests
     }
 
     [Test]
-    public async Task InterruptedLeasePreservesRetryBudgetAndFencesTheOldOwner()
+    public async ValueTask InterruptedLeasePreservesRetryBudgetAndFencesTheOldOwner()
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string id = await store.Enqueue(Request()); // Default MaxAttempts = 1.
@@ -47,7 +47,7 @@ public sealed class ResilienceTests
     }
 
     [Test]
-    public async Task DurableCancellationWinsOverShutdownRecovery()
+    public async ValueTask DurableCancellationWinsOverShutdownRecovery()
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string id = await store.Enqueue(Request());
@@ -61,7 +61,7 @@ public sealed class ResilienceTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task ShutdownDrainsThenRecoversUnfinishedWork(bool finishDuringDrain)
+    public async ValueTask ShutdownDrainsThenRecoversUnfinishedWork(bool finishDuringDrain)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -86,7 +86,7 @@ public sealed class ResilienceTests
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]
-    public async Task IgnoredCancellationQuarantinesWithoutRetryAndKeepsScopeAlive(bool throwingCallback, bool policyTimeout)
+    public async ValueTask IgnoredCancellationQuarantinesWithoutRetryAndKeepsScopeAlive(bool throwingCallback, bool policyTimeout)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         var resource = new ScopedResource();

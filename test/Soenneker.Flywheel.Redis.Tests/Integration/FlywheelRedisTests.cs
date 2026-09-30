@@ -23,7 +23,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task CrossNodeFeedPublishesCommittedChangesAndResyncs() => WithStore(async (store, db, ns) =>
+    public ValueTask CrossNodeFeedPublishesCommittedChangesAndResyncs() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using ConnectionMultiplexer secondConnection =
@@ -49,10 +49,10 @@ public sealed partial class FlywheelRedisTests
         Check(!next.IsCompleted, "Idle or rejected mutation emitted a notification");
         await store.AddRecurring("schedule", Request(), TimeSpan.FromHours(1));
         Check(await next && feed.Current.Kind == "Schedules", "Schedule event missing");
-    });
+    }));
 
     [Test]
-    public Task FeedResubscriptionCoversChangesWhileDisconnected() => WithStore(async (store, db, ns) =>
+    public ValueTask FeedResubscriptionCoversChangesWhileDisconnected() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var observer = new RedisJobStore(_ => Task.FromResult(db), ns);
@@ -63,10 +63,10 @@ public sealed partial class FlywheelRedisTests
         Check(await restored.MoveNextAsync() && restored.Current.Kind == "Resync",
             "Resubscription did not request authoritative state");
         Check(await observer.Get(id) is not null, "Disconnected change missing from recovered snapshot");
-    });
+    }));
 
     [Test]
-    public Task DispatchFindsHighestPriorityAcrossBatchesAndBlockedFunctions() => WithStore(async store =>
+    public ValueTask DispatchFindsHighestPriorityAcrossBatchesAndBlockedFunctions() => new ValueTask(WithStore(async store =>
     {
         await store.ConfigureMethod("blocked", new MethodPolicy { MaxConcurrency = 1 });
         await store.Enqueue(Request() with { Name = "blocked" });
@@ -90,10 +90,10 @@ public sealed partial class FlywheelRedisTests
         await store.Finish(running, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.Claim("released", TimeSpan.FromSeconds(30)))!.Job.Name == "blocked",
             "Released function was not admitted");
-    });
+    }));
 
     [Test]
-    public Task DispatchReadsPriorityAndEscapedNames() => WithStore(async store =>
+    public ValueTask DispatchReadsPriorityAndEscapedNames() => new ValueTask(WithStore(async store =>
     {
         string low = await store.Enqueue(Request() with
         {
@@ -107,10 +107,10 @@ public sealed partial class FlywheelRedisTests
         Check(claim.Job.Id == normal && claim.Job.Policy.Priority == JobPriority.Normal,
             "Priority or escaped name parsing changed");
         Check((await store.Get(low))!.State == JobState.Scheduled, "Low priority executed ahead of Normal");
-    });
+    }));
 
     [Test]
-    public Task LogAppendsDoNotInvalidateDispatchSnapshots() => WithStore(async (store, db, ns) =>
+    public ValueTask LogAppendsDoNotInvalidateDispatchSnapshots() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.Enqueue(Request());
         JobLease lease = (await store.Claim("logging", TimeSpan.FromSeconds(30)))!;
@@ -119,10 +119,10 @@ public sealed partial class FlywheelRedisTests
         Check(await ControlValue(db, ns, "revision") == before, "Diagnostic write changed dispatch revision");
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");
         Check(!await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "late")]), "Completed owner wrote logs");
-    });
+    }));
 
     [Test]
-    public Task SeparateStoresShareThrottleAndSemaphoreCapacity() => WithStore(async (store, db, ns) =>
+    public ValueTask SeparateStoresShareThrottleAndSemaphoreCapacity() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns);
         await store.ConfigureMethod("test.v1",
@@ -137,10 +137,10 @@ public sealed partial class FlywheelRedisTests
         foreach (JobLease? lease in claims.Where(c => c is not null))
             await other.Finish(lease!, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check(await store.Claim("later", TimeSpan.FromSeconds(30)) is null, "Releasing permits reset rate usage");
-    });
+    }));
 
     [Test]
-    public Task LoweringConcurrencyWaitsForExistingExecutions() => WithStore(async (store, db, ns) =>
+    public ValueTask LoweringConcurrencyWaitsForExistingExecutions() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns);
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 4 });
@@ -159,10 +159,10 @@ public sealed partial class FlywheelRedisTests
 
         await other.Finish(leases[3], JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check(await other.Claim("new", TimeSpan.FromSeconds(30)) is not null, "Drained function did not resume");
-    });
+    }));
 
     [Test]
-    public Task SemaphorePermitRenewsWithJobAcrossStoreInstances() => WithStore(async (store, db, ns) =>
+    public ValueTask SemaphorePermitRenewsWithJobAcrossStoreInstances() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns);
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1 });
@@ -177,10 +177,10 @@ public sealed partial class FlywheelRedisTests
         Check(await other.Finish(first, JobOutcome.Succeeded, null, TimeSpan.Zero),
             "Other store could not release permit");
         Check(await store.Claim("second", TimeSpan.FromSeconds(30)) is not null, "Completion did not free semaphore");
-    });
+    }));
 
     [Test]
-    public Task LostLeaseRejectsWritesWithoutDeletingSuccessor() => WithStore(async (store, db, ns) =>
+    public ValueTask LostLeaseRejectsWritesWithoutDeletingSuccessor() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1 });
         await store.Enqueue(Request());
@@ -190,10 +190,10 @@ public sealed partial class FlywheelRedisTests
         Check(!await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Lost owner committed outcome");
         Check(!await store.AppendLogs(lease, [new JobLogMessage("Information", "test", "stale")]), "Lost owner appended logs");
         Check((await store.Get(lease.Job.Id))!.Token == "successor", "Old owner removed successor lease");
-    });
+    }));
 
     [Test]
-    public Task PrioritiesRespectEligibilityAndRetryPolicy() => WithStore(async store =>
+    public ValueTask PrioritiesRespectEligibilityAndRetryPolicy() => new ValueTask(WithStore(async store =>
     {
         string low = await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Low } });
         string normal = await store.Enqueue(Request());
@@ -216,10 +216,10 @@ public sealed partial class FlywheelRedisTests
 
         Check((await store.Get(critical))!.State == JobState.DeadLettered, "Single-attempt policy retried");
         Check(await store.Claim("priority", TimeSpan.FromSeconds(30)) is null, "Future job ran early");
-    });
+    }));
 
     [Test]
-    public Task FunctionConcurrencyIsAtomicAndDoesNotBlockOtherFunctions() => WithStore(async store =>
+    public ValueTask FunctionConcurrencyIsAtomicAndDoesNotBlockOtherFunctions() => new ValueTask(WithStore(async store =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 2 });
         for (var i = 0; i < 8; i++)
@@ -243,10 +243,10 @@ public sealed partial class FlywheelRedisTests
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 3 });
         Check(await store.Claim("updated", TimeSpan.FromSeconds(30)) is not null,
             "Runtime policy did not affect queued jobs");
-    });
+    }));
 
     [Test]
-    public Task ThrottleCountsRetriesAndPreservesUnchangedConfiguration() => WithStore(async store =>
+    public ValueTask ThrottleCountsRetriesAndPreservesUnchangedConfiguration() => new ValueTask(WithStore(async store =>
     {
         var policy = new MethodPolicy { RateLimit = 1, RateWindow = TimeSpan.FromMilliseconds(400) };
         await store.ConfigureMethod("test.v1", policy);
@@ -263,10 +263,10 @@ public sealed partial class FlywheelRedisTests
         await store.ConfigureMethod("test.v1", new MethodPolicy());
         Check(await store.Claim("unlimited", TimeSpan.FromSeconds(30)) is not null,
             "Disabling throttling did not take effect");
-    });
+    }));
 
     [Test]
-    public Task ExpiredLeaseReleasesFunctionCapacity() => WithStore(async store =>
+    public ValueTask ExpiredLeaseReleasesFunctionCapacity() => new ValueTask(WithStore(async store =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1 });
         await store.Enqueue(Request());
@@ -275,10 +275,10 @@ public sealed partial class FlywheelRedisTests
         await Task.Delay(80);
         Check(await store.Claim("new", TimeSpan.FromSeconds(30)) is not null, "Expired lease held capacity");
         Check(!await store.Finish(expired, JobOutcome.Succeeded, null, TimeSpan.Zero), "Expired owner committed");
-    });
+    }));
 
     [Test]
-    public Task RuntimeClientSchedulesAndConfiguresRegisteredJobs() => WithStore(async store =>
+    public ValueTask RuntimeClientSchedulesAndConfiguresRegisteredJobs() => new ValueTask(WithStore(async store =>
     {
         var services = new ServiceCollection();
         services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
@@ -295,10 +295,10 @@ public sealed partial class FlywheelRedisTests
         Check((await store.Claim("now", TimeSpan.FromSeconds(30)))!.Job.Id == immediate,
             "Past schedule was not immediately eligible");
         Check((await store.Get(future))!.State == JobState.Scheduled, "Future job was changed");
-    });
+    }));
 
     [Test]
-    public Task ManualRecurringRunPreservesScheduleAndCreatesFreshExecution() => WithStore(async store =>
+    public ValueTask ManualRecurringRunPreservesScheduleAndCreatesFreshExecution() => new ValueTask(WithStore(async store =>
     {
         await store.AddRecurring("manual", Request() with { Payload = "{\"value\":42}" }, TimeSpan.FromHours(1));
         await store.Maintain(10);
@@ -316,10 +316,10 @@ public sealed partial class FlywheelRedisTests
         Check((await store.Claim("manual", TimeSpan.FromSeconds(30)))!.Job.Id == id,
             "Manual execution is not immediately eligible");
         Check(await store.RunRecurring("missing") is null, "Missing schedule queued a job");
-    });
+    }));
 
     [Test]
-    public Task HistoryRetainsTransitionsWithoutDashboardReads() => WithStore(async store =>
+    public ValueTask HistoryRetainsTransitionsWithoutDashboardReads() => new ValueTask(WithStore(async store =>
     {
         await store.Enqueue(Request());
         JobLease lease = (await store.Claim("history", TimeSpan.FromSeconds(30)))!;
@@ -335,10 +335,10 @@ public sealed partial class FlywheelRedisTests
             history.Sum(point => point.Scheduled) == 1 && history.Sum(point => point.Running) == 1 &&
             history.Sum(point => point.Succeeded) == 1, "Transitions were lost or lease renewal counted as activity");
         Check((await store.GetHistory()).Sum(point => point.Succeeded) == 1, "Reading history changed stored activity");
-    });
+    }));
 
     [Test]
-    public Task DashboardSchedulesSeparateDefinitionsFromPendingExecutions() => WithStore(async store =>
+    public ValueTask DashboardSchedulesSeparateDefinitionsFromPendingExecutions() => new ValueTask(WithStore(async store =>
     {
         await store.AddRecurring("hourly", Request() with { Name = "hourly.v1" }, TimeSpan.FromHours(1));
         string later = await store.Enqueue(Request() with { Delay = TimeSpan.FromHours(2) });
@@ -356,10 +356,10 @@ public sealed partial class FlywheelRedisTests
             "Running job still appears as scheduled");
         await store.Cancel(sooner);
         Check((await store.ListScheduled()).Single().Id == later, "Cancelled job still appears as scheduled");
-    });
+    }));
 
     [Test]
-    public Task LogsAreFencedRetainedAndOrdered() => WithStore(async store =>
+    public ValueTask LogsAreFencedRetainedAndOrdered() => new ValueTask(WithStore(async store =>
     {
         string id = await store.Enqueue(Request());
         JobLease lease = (await store.Claim("logs", TimeSpan.FromSeconds(30)))!;
@@ -388,10 +388,10 @@ public sealed partial class FlywheelRedisTests
         JobLease expired = (await store.Claim("old", TimeSpan.FromMilliseconds(40)))!;
         await Task.Delay(80);
         Check(!await store.AppendLogs(expired, [new JobLogMessage("Information", "test", "expired")]), "Expired lease wrote logs");
-    });
+    }));
 
     [Test]
-    public Task SearchFindsJobsBeyondFirstPageAndPaginatesMatches() => WithStore(async store =>
+    public ValueTask SearchFindsJobsBeyondFirstPageAndPaginatesMatches() => new ValueTask(WithStore(async store =>
     {
         string older = await store.Enqueue(Request() with
         {
@@ -447,10 +447,10 @@ public sealed partial class FlywheelRedisTests
         catch (OperationCanceledException)
         {
         }
-    });
+    }));
 
     [Test]
-    public Task GeneratedJobExecutesInScope() => WithStore(async store =>
+    public ValueTask GeneratedJobExecutesInScope() => new ValueTask(WithStore(async store =>
     {
         var services = new ServiceCollection();
         services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
@@ -472,7 +472,7 @@ public sealed partial class FlywheelRedisTests
             "Runtime logs were not persisted");
         Check((await store.GetLogs(id)).Any(x => x.Message == "Delivered delivered"),
             "Handler ILogger output was not captured");
-    });
+    }));
 
     private static EnqueueRequest Request(string? key = null, int attempts = 3) => new("test.v1", "{}",
         new JobPolicy { MaxAttempts = attempts, InitialBackoff = TimeSpan.FromMilliseconds(1) }, TimeSpan.Zero, key);
@@ -507,7 +507,7 @@ public sealed partial class FlywheelRedisTests
     }
 
     [Test]
-    public Task ConcurrentEnqueueAndClaim() => WithStore(async store =>
+    public ValueTask ConcurrentEnqueueAndClaim() => new ValueTask(WithStore(async store =>
     {
         string[] ids = await Task.WhenAll(Enumerable.Range(0, 30).Select(_ => store.Enqueue(Request("one"))));
         Check(ids.Distinct().Count() == 1, "Idempotent enqueue raced");
@@ -518,10 +518,10 @@ public sealed partial class FlywheelRedisTests
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");
         Check((await store.Get(ids[0]))!.State == JobState.Succeeded, "Success missing");
         Check(!await store.Finish(lease, JobOutcome.Failed, null, TimeSpan.Zero), "Old completion accepted");
-    });
+    }));
 
     [Test]
-    public Task ExpiredOwnerCannotRenewOrCompleteAfterRecovery() => WithStore(async store =>
+    public ValueTask ExpiredOwnerCannotRenewOrCompleteAfterRecovery() => new ValueTask(WithStore(async store =>
     {
         await store.Enqueue(Request());
         JobLease old = (await store.Claim("old", TimeSpan.FromMilliseconds(50)))!;
@@ -536,10 +536,10 @@ public sealed partial class FlywheelRedisTests
         Check(!await store.Finish(old, JobOutcome.Failed, null, TimeSpan.Zero), "Stale retry accepted");
         Check(await store.Renew(old, TimeSpan.FromSeconds(10)) == LeaseStatus.Lost, "Stale renewal accepted");
         Check(await store.Finish(current, JobOutcome.Succeeded, null, TimeSpan.Zero), "New owner failed");
-    });
+    }));
 
     [Test]
-    public Task RetryDeadLetterAndCancellation() => WithStore(async (store, db, ns) =>
+    public ValueTask RetryDeadLetterAndCancellation() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         string id = await store.Enqueue(Request(attempts: 2));
         JobLease first = (await store.Claim("a", TimeSpan.FromSeconds(10)))!;
@@ -565,10 +565,10 @@ public sealed partial class FlywheelRedisTests
             "Cancellation not observed");
         await store.Finish(claim, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.Get(running))!.State == JobState.Cancelled, "Cancellation lost to completion");
-    });
+    }));
 
     [Test]
-    public Task RecurrenceAndRecoveryAreBoundedAndAtomic() => WithStore(async store =>
+    public ValueTask RecurrenceAndRecoveryAreBoundedAndAtomic() => new ValueTask(WithStore(async store =>
     {
         bool[] results = await Task.WhenAll(Enumerable.Range(0, 15)
                                                       .Select(_ => store.AddRecurring("recurring", Request(),
@@ -583,5 +583,5 @@ public sealed partial class FlywheelRedisTests
         await Task.Delay(100);
         await store.Maintain(100);
         Check((await store.Get(id))!.State == JobState.DeadLettered, "Recovery ignored attempt budget");
-    });
+    }));
 }

@@ -12,7 +12,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task LiveActivityPrunesDocumentsOutsideItsVisibleWindow() => WithStore(async (store, db, ns) =>
+    public ValueTask LiveActivityPrunesDocumentsOutsideItsVisibleWindow() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         long old = (await store.GetLiveActivity())[^1].Timestamp - 62000;
         await SeedRecord(db, ns, "live", old, new JobHistoryPoint(old, 99, 0, 0, 0));
@@ -22,10 +22,10 @@ public sealed partial class FlywheelRedisTests
         await using var database = OpenLibrarian(db, ns);
         Check(await (await database.GetContainer("flywheel.live")).GetItem(DocumentId(old)) is null, "Expired transition was retained");
         Check(await (await database.GetContainer("flywheel.samples")).GetItem(DocumentId(old)) is null, "Expired gauge was retained");
-    });
+    }));
 
     [Test]
-    public Task LiveSamplesUseExactSecondsAndRejectMalformedDocuments() => WithStore(async (store, db, ns) =>
+    public ValueTask LiveSamplesUseExactSecondsAndRejectMalformedDocuments() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         long stamp = (await store.GetLiveActivity())[^1].Timestamp - 10000;
         await SeedRecord(db, ns, "samples", stamp - 61000, new { scheduled = 99L, running = 99L, queued = 99L });
@@ -38,10 +38,10 @@ public sealed partial class FlywheelRedisTests
         await SeedRecord(db, ns, "samples", stamp, "invalid");
         try { await store.GetLiveActivity(); throw new Exception("Malformed sample fabricated a gauge count"); }
         catch (System.Text.Json.JsonException) { }
-    });
+    }));
 
     [Test]
-    public Task LiveSamplesAreSharedAcrossStoresWithoutChangingDispatchRevision() => WithStore(async (store, db, ns) =>
+    public ValueTask LiveSamplesAreSharedAcrossStoresWithoutChangingDispatchRevision() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns);
         await store.Enqueue(Request());
@@ -54,12 +54,12 @@ public sealed partial class FlywheelRedisTests
         await using var database = OpenLibrarian(db, ns);
         Check((await (await database.GetContainer("flywheel.samples")).GetAllIds()).Count <= 61, "Sample window exceeded its capacity");
         Check((await store.GetLiveActivity()).Sum(p => p.Scheduled) == 1, "Sampler changed transition counts");
-    });
+    }));
 
     private static Func<CancellationToken, Task<bool>> Record(RedisJobStore store) => store.SampleLiveActivity;
 
     [Test]
-    public Task EmptySamplesExtendOnlyWhileTheLifecycleRevisionIsUnchanged() => WithStore(async (store, db, ns) =>
+    public ValueTask EmptySamplesExtendOnlyWhileTheLifecycleRevisionIsUnchanged() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         Func<CancellationToken, Task<bool>> record = Record(store);
         await record(default);
@@ -73,10 +73,10 @@ public sealed partial class FlywheelRedisTests
         await store.Enqueue(Request());
         await record(default);
         Check((await store.GetLiveActivity()).Any(p => p.QueuedCount == 1), "Idle sample suppressed a new job in the same second");
-    });
+    }));
 
     [Test]
-    public Task IdleRecorderSleepsAndWakesOnNewJobs() => WithStore(async (store, db, ns) =>
+    public ValueTask IdleRecorderSleepsAndWakesOnNewJobs() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await using var database = OpenLibrarian(db, ns);
         var samples = await database.GetContainer("flywheel.samples");
@@ -95,10 +95,10 @@ public sealed partial class FlywheelRedisTests
                 await Task.Delay(10, timeout.Token);
         }
         finally { await recorder.StopAsync(default); }
-    });
+    }));
 
     [Test]
-    public Task LiveConcurrencyIsRecordedWithoutDashboardConnections() => WithStore(async (store, db, ns) =>
+    public ValueTask LiveConcurrencyIsRecordedWithoutDashboardConnections() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.Enqueue(Request());
         await store.Enqueue(Request());
@@ -120,10 +120,10 @@ public sealed partial class FlywheelRedisTests
             Check(points.Sum(p => p.Running) == 1, "Sampling changed lifecycle event counts");
         }
         finally { await recorder.StopAsync(default); }
-    });
+    }));
 
     [Test]
-    public Task LiveActivityPreservesFastStartAndFinishTransitions() => WithStore(async store =>
+    public ValueTask LiveActivityPreservesFastStartAndFinishTransitions() => new ValueTask(WithStore(async store =>
     {
         await store.Enqueue(Request());
         JobLease lease = (await store.Claim("live-test", TimeSpan.FromSeconds(30)))!;
@@ -137,5 +137,5 @@ public sealed partial class FlywheelRedisTests
             "Fast jobs must retain both their start and completion, without counting rejected writes");
         IReadOnlyList<JobHistoryPoint> history = await store.GetHistory();
         Check(history.Sum(p => p.Running) == 1 && history.Sum(p => p.Succeeded) == 1, "Live activity changed historical counts");
-    });
+    }));
 }

@@ -28,7 +28,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task StatusSearchPreservesCountsPagingAndQueuedBoundaries()
+    public async ValueTask StatusSearchPreservesCountsPagingAndQueuedBoundaries()
     {
         var clock = new Clock();
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -55,7 +55,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task StartupSubmissionsAreOncePerInstance()
+    public async ValueTask StartupSubmissionsAreOncePerInstance()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string[] ids = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
@@ -73,7 +73,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task StartupVersionRestrictionSurvivesRetries()
+    public async ValueTask StartupVersionRestrictionSurvivesRetries()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string id = await store.EnqueueForCurrentInstance(Request("startup", policy: new JobPolicy { MaxAttempts = 2 }), "v2", "current");
@@ -86,7 +86,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task HeartbeatsRecordBoundedServerHistoryWithoutDashboardReads()
+    public async ValueTask HeartbeatsRecordBoundedServerHistoryWithoutDashboardReads()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -109,7 +109,7 @@ public sealed class MemoryJobStoreTests
         Check(server.WorkerHistory.Count <= 62 && server.WorkerHistory[^1].Timestamp == server.ObservedAt, "History must stay bounded and current.");
     }
     [Test]
-    public async Task SearchPlacesRunningJobsBeforeNewerJobsAcrossPages()
+    public async ValueTask SearchPlacesRunningJobsBeforeNewerJobsAcrossPages()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -123,7 +123,7 @@ public sealed class MemoryJobStoreTests
             "Time-filtered searches must also put running jobs first.");
     }
     [Test]
-    public async Task ConcurrentClaimsAndSubmissionsAreAtomic()
+    public async ValueTask ConcurrentClaimsAndSubmissionsAreAtomic()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string[] ids = await Task.WhenAll(Enumerable.Range(0, 100).Select(_ => Task.Run(() => store.Enqueue(Request(key: "same")))));
@@ -133,7 +133,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task ExpiredLeasesCannotMutateAndRecoveryFencesOldOwners()
+    public async ValueTask ExpiredLeasesCannotMutateAndRecoveryFencesOldOwners()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -155,7 +155,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task PriorityDelayVersionsAndLimitsControlDispatch()
+    public async ValueTask PriorityDelayVersionsAndLimitsControlDispatch()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -179,7 +179,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task ChainsReleaseAfterSuccessAndCancelSuffixOnFailure()
+    public async ValueTask ChainsReleaseAfterSuccessAndCancelSuffixOnFailure()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -198,7 +198,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task DefaultPolicyDoesNotRetryFailures()
+    public async ValueTask DefaultPolicyDoesNotRetryFailures()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         string id = await store.Enqueue(Request());
@@ -209,7 +209,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task CancellationRetriesAndAttemptLimitsArePreserved()
+    public async ValueTask CancellationRetriesAndAttemptLimitsArePreserved()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -232,7 +232,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task SchedulesCoalesceAndManualRunsPreserveNextDueTime()
+    public async ValueTask SchedulesCoalesceAndManualRunsPreserveNextDueTime()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions { RetainCompletedJobs = false }, clock);
@@ -258,7 +258,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task RetentionKeepsVersionMarkersAndHistoryButExpiresOrdinaryDedupe()
+    public async ValueTask RetentionKeepsVersionMarkersAndHistoryButExpiresOrdinaryDedupe()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions { HistoryRetention = TimeSpan.FromMinutes(5) }, clock);
@@ -281,7 +281,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task SearchDiagnosticsAndBoundedLogsUseCurrentState()
+    public async ValueTask SearchDiagnosticsAndBoundedLogsUseCurrentState()
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -307,7 +307,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task NotificationsBroadcastAndOverflowRequestsResync()
+    public async ValueTask NotificationsBroadcastAndOverflowRequestsResync()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -323,7 +323,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task RegistrationSharesStoreWithinProviderAndIsolatesProviders()
+    public async ValueTask RegistrationSharesStoreWithinProviderAndIsolatesProviders()
     {
         var services = new ServiceCollection();
         services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
@@ -348,7 +348,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async Task CancelledOperationsDoNotMutateStorage()
+    public async ValueTask CancelledOperationsDoNotMutateStorage()
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
         using var stop = new CancellationTokenSource();

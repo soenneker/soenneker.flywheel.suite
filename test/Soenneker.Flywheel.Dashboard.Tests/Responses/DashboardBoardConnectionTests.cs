@@ -25,7 +25,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async Task NavigationReusesTransportWithoutResettingStatusOrCancellingItsLifetime()
+    public async ValueTask NavigationReusesTransportWithoutResettingStatusOrCancellingItsLifetime()
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
@@ -45,7 +45,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async Task RealDisconnectsUpdateStatusAndRecoveryRestoresTheCurrentQuery()
+    public async ValueTask RealDisconnectsUpdateStatusAndRecoveryRestoresTheCurrentQuery()
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
@@ -65,7 +65,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async Task HeaderUpdatesWithoutAPageAndIgnoresStaleAndUnchangedSnapshots()
+    public async ValueTask HeaderUpdatesWithoutAPageAndIgnoresStaleAndUnchangedSnapshots()
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
@@ -84,7 +84,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async Task LiveChartRetainsSamplesAcrossNavigationAndClearsOnSignOut()
+    public async ValueTask LiveChartRetainsSamplesAcrossNavigationAndClearsOnSignOut()
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
@@ -111,7 +111,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async Task LiveChartSamplesWhileNoDashboardPageOrNewSnapshotsExist()
+    public async ValueTask LiveChartSamplesWhileNoDashboardPageOrNewSnapshotsExist()
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();

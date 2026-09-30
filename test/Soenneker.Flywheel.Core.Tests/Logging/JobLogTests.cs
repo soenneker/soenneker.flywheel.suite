@@ -10,7 +10,7 @@ namespace Soenneker.Flywheel.Core.Tests.Logging;
 public sealed partial class JobLogTests
 {
     [Test]
-    public async Task ConcurrentJobLoggingIsIsolatedAndBounded()
+    public async ValueTask ConcurrentJobLoggingIsIsolatedAndBounded()
     {
         using var capture = new JobLogCapture();
         var store = new LogStore();
@@ -34,7 +34,7 @@ public sealed partial class JobLogTests
     }
 
     [Test]
-    public async Task StorageFailureDoesNotEscapeLogging()
+    public async ValueTask StorageFailureDoesNotEscapeLogging()
     {
         using var capture = new JobLogCapture();
         await using JobLogCapture.Session session = capture.Begin(Lease("failed"), new LogStore { Fail = true });

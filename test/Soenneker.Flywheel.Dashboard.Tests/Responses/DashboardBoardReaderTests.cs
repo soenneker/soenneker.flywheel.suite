@@ -7,7 +7,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardBoardReaderTests
 {
     [Test]
-    public async Task BatchedReaderPreservesTheTypedSignalRPayload()
+    public async ValueTask BatchedReaderPreservesTheTypedSignalRPayload()
     {
         using var document = JsonDocument.Parse("""
         {
@@ -35,7 +35,7 @@ public sealed class DashboardBoardReaderTests
     }
 
     [Test]
-    public async Task OptionalSummariesStayNullAndCancellationDoesNotPublishAPartialBoard()
+    public async ValueTask OptionalSummariesStayNullAndCancellationDoesNotPublishAPartialBoard()
     {
         using var document = JsonDocument.Parse("""{"version":1,"items":[],"totalCount":0}""");
         var board = await DashboardBoardReader.Read(document.RootElement, CancellationToken.None);
@@ -53,7 +53,7 @@ public sealed class DashboardBoardReaderTests
     }
 
     [Test]
-    public async Task RetainedTotalsRefreshFromTheWireIncludingZeroAndNull()
+    public async ValueTask RetainedTotalsRefreshFromTheWireIncludingZeroAndNull()
     {
         var totals = new ActivityTotalsState();
         foreach (long? count in new long?[] { 42, 0, null })
@@ -67,7 +67,7 @@ public sealed class DashboardBoardReaderTests
     }
 
     [Test]
-    public async Task LargeSnapshotsCanBeCancelledBetweenBatches()
+    public async ValueTask LargeSnapshotsCanBeCancelledBetweenBatches()
     {
         var point = new JobHistoryPoint(60000, 1, 2, 3, 4);
         var board = new LiveBoard(1, [], 0, Enumerable.Repeat(point, 10000).ToList(), null);

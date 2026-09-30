@@ -19,7 +19,7 @@ public sealed class FlywheelRouterTests
     [Arguments("Succeeded")]
     [Arguments("DeadLettered")]
     [Arguments("Queued")]
-    public async Task HeaderFiltersExposeClearAndSelectTheSameGraphAndTableStatus(string state)
+    public async ValueTask HeaderFiltersExposeClearAndSelectTheSameGraphAndTableStatus(string state)
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/?state=" + state, async (component, navigation, handler) =>
@@ -93,7 +93,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task HostContentHandlesUnmatchedPathsAndNavigation()
+    public async ValueTask HostContentHandlesUnmatchedPathsAndNavigation()
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/", async (component, navigation, handler) =>
         {
@@ -106,7 +106,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task ConfiguredRootRendersDashboardAndRedirectsAnonymousVisitor()
+    public async ValueTask ConfiguredRootRendersDashboardAndRedirectsAnonymousVisitor()
     {
         await VerifyRendering("/", "https://example.test/", "https://example.test/?view=jobs", (component, navigation, handler) =>
         {
@@ -118,7 +118,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task RoutesRelativeToApplicationBase()
+    public async ValueTask RoutesRelativeToApplicationBase()
     {
         await VerifyRendering("/flywheel", "https://example.test/operations/", "https://example.test/operations/flywheel/servers", (component, navigation, handler) =>
         {
@@ -128,7 +128,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task ServerParametersDecodeOnceAndUpdateOnNavigation()
+    public async ValueTask ServerParametersDecodeOnceAndUpdateOnNavigation()
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/servers/node%20one", async (component, navigation, handler) =>
         {
@@ -140,7 +140,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task JobBackLinkPreservesPreviousPageQueryAndFragment()
+    public async ValueTask JobBackLinkPreservesPreviousPageQueryAndFragment()
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/recurring?view=recent#schedules", async (component, navigation, handler) =>
         {
@@ -152,7 +152,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task JobParameterIsPassedToConcretePage()
+    public async ValueTask JobParameterIsPassedToConcretePage()
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/jobs/job%201", (component, navigation, handler) =>
         {
@@ -162,7 +162,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task SchedulePagesShareLayoutAndConnectionWithoutLoadingOverview()
+    public async ValueTask SchedulePagesShareLayoutAndConnectionWithoutLoadingOverview()
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
@@ -195,7 +195,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task SessionExpiryRedirectsToStandaloneSignInAndClosesTheLayoutConnection()
+    public async ValueTask SessionExpiryRedirectsToStandaloneSignInAndClosesTheLayoutConnection()
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
@@ -212,7 +212,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task ScheduleDetailsUseTheSelectedIdAndReuseTheLayoutOnNavigation()
+    public async ValueTask ScheduleDetailsUseTheSelectedIdAndReuseTheLayoutOnNavigation()
     {
         var live = new BoardConnectionTestClient();
         var schedules = new ScheduleView([
@@ -236,7 +236,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async Task LiveOverviewRendersSecondResolutionActivityFromPush()
+    public async ValueTask LiveOverviewRendersSecondResolutionActivityFromPush()
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/", async (component, navigation, handler) =>
@@ -259,7 +259,7 @@ public sealed class FlywheelRouterTests
     [Arguments("/", "/api/engine")]
     [Arguments("/operations/dashboard", "/")]
     [Arguments("/operations/dashboard", "/api/engine")]
-    public async Task DashboardAndEnginePrefixesAreIndependent(string homePath, string enginePath)
+    public async ValueTask DashboardAndEnginePrefixesAreIndependent(string homePath, string enginePath)
     {
         string home = homePath.Trim('/');
         string pagePrefix = home.Length == 0 ? "" : home + "/";

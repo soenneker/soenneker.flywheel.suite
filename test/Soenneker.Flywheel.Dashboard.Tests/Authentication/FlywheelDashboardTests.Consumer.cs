@@ -24,7 +24,7 @@ public sealed partial class FlywheelDashboardTests
     [Arguments("/", "/operations/engine")]
     [Arguments("/operations/dashboard", "/")]
     [Arguments("/operations/dashboard", "/operations/engine")]
-    public async Task ConsumerUsesCoreCookieCsrfAndSharedContracts(string homePath, string enginePath)
+    public async ValueTask ConsumerUsesCoreCookieCsrfAndSharedContracts(string homePath, string enginePath)
     {
         var password = Guid.NewGuid().ToString("N");
         WebApplicationBuilder builder = WebApplication.CreateBuilder();

@@ -11,7 +11,7 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 public sealed partial class RuntimeTests
 {
     [Test]
-    public async Task IdleWorkersWakeFromNotificationsAndResize()
+    public async ValueTask IdleWorkersWakeFromNotificationsAndResize()
     {
         var executor = new EmptyExecutor();
         var store = new StubStore();
@@ -43,7 +43,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async Task OneSignalFillsPoolBeforeHandlersFinishAndRetirementDoesNotCancelThem()
+    public async ValueTask OneSignalFillsPoolBeforeHandlersFinishAndRetirementDoesNotCancelThem()
     {
         var executor = new BlockingExecutor(3);
         var store = new StubStore();
@@ -70,7 +70,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async Task NotificationDuringEmptyClaimIsNotLost()
+    public async ValueTask NotificationDuringEmptyClaimIsNotLost()
     {
         var executor = new BlockingExecutor(0) { BlockEmpty = true };
         var store = new StubStore();
@@ -89,7 +89,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async Task RecoveryProbesOnceRegardlessOfWorkerCount()
+    public async ValueTask RecoveryProbesOnceRegardlessOfWorkerCount()
     {
         var executor = new EmptyExecutor();
         using var service = new WorkerService(executor, new StubStore(),

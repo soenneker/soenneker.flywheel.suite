@@ -15,7 +15,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task ReleaseIsolationSeparatesJobsDeduplicationAndSchedulesFromOldWorkers() => WithStore(async (legacy, db, ns) =>
+    public ValueTask ReleaseIsolationSeparatesJobsDeduplicationAndSchedulesFromOldWorkers() => new ValueTask(WithStore(async (legacy, db, ns) =>
     {
         ServiceProvider Open(string version)
         {
@@ -58,10 +58,10 @@ public sealed partial class FlywheelRedisTests
                 await foreach (RedisKey key in server.KeysAsync(pattern: prefix + "*")) await db.KeyDeleteAsync(key);
             }
         }
-    });
+    }));
 
     [Test]
-    public Task ContinuousEnqueuesCannotHoldTheClaimGatePastTheRenewalDeadline() => WithStore(async (writer, db, ns) =>
+    public ValueTask ContinuousEnqueuesCannotHoldTheClaimGatePastTheRenewalDeadline() => new ValueTask(WithStore(async (writer, db, ns) =>
     {
         IDatabase wrapped = DispatchProxy.Create<IDatabase, ContendedDatabase>();
         var proxy = (ContendedDatabase)wrapped;
@@ -95,7 +95,7 @@ public sealed partial class FlywheelRedisTests
             try { await claiming; } catch (TimeoutException) { } catch (OperationCanceledException) { }
         }
         Check(await reader.Finish(running, JobOutcome.Succeeded, null, TimeSpan.Zero), "Storage did not recover after contention.");
-    });
+    }));
 
     public class ContendedDatabase : DispatchProxy
     {

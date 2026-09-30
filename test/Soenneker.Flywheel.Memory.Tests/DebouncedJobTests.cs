@@ -10,14 +10,27 @@ namespace Soenneker.Flywheel.Memory.Tests;
 public sealed class DebouncedJobTests
 {
     private static readonly JobDefinition<string> Job = new("debounce-test");
-    private static JobClient Client(IJobStore store) => new(TestJsonContext.Default, store, [new DebounceTestInvoker()]);
+    private static JobClient Client(IJobStore store) => new(store, [new DebounceTestInvoker()]);
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
     }
 
     [Test]
-    public async Task Latest_submission_resets_due_time_and_replaces_payload()
+    public async ValueTask Enqueues_payload_without_a_json_context()
+    {
+        await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
+        var client = new JobClient(store, [new DebounceTestInvoker()]);
+        string id = await client.Enqueue(new JobDefinition<ContextFreePayload>(Job.Name), new ContextFreePayload("日本語🙂"));
+        string serialized = (await store.Get(id))!.Payload;
+        var payload = System.Text.Json.JsonSerializer.Deserialize<ContextFreePayload>(serialized, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Check(payload?.Value == "日本語🙂", "Payload did not round-trip without a JSON context.");
+    }
+
+    public sealed record ContextFreePayload(string Value);
+
+    [Test]
+    public async ValueTask Latest_submission_resets_due_time_and_replaces_payload()
     {
         var clock = new DebounceClock();
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -36,7 +49,7 @@ public sealed class DebouncedJobTests
     }
 
     [Test]
-    public async Task Running_predecessor_is_cancelled_and_other_ids_are_independent()
+    public async ValueTask Running_predecessor_is_cancelled_and_other_ids_are_independent()
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         var client = Client(store);
@@ -50,7 +63,7 @@ public sealed class DebouncedJobTests
     }
 
     [Test]
-    public async Task Duplicate_and_old_deliveries_do_not_reset_the_new_job()
+    public async ValueTask Duplicate_and_old_deliveries_do_not_reset_the_new_job()
     {
         var clock = new DebounceClock();
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -73,7 +86,7 @@ public sealed class DebouncedJobTests
     }
 
     [Test]
-    public async Task Commit_excludes_replacement_and_releases_lease_on_failure()
+    public async ValueTask Commit_excludes_replacement_and_releases_lease_on_failure()
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         var client = Client(store);
@@ -99,7 +112,7 @@ public sealed class DebouncedJobTests
     }
 
     [Test]
-    public async Task Concurrent_submissions_leave_one_scheduled_execution()
+    public async ValueTask Concurrent_submissions_leave_one_scheduled_execution()
     {
         await using var database = new MemoryLibrarianDatabase(NullLogger<MemoryLibrarianDatabase>.Instance);
         await using var store = new DebounceSharedStore(database);

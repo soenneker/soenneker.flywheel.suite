@@ -60,7 +60,7 @@ public sealed class LibrarianInteropTests
     private static EnqueueRequest Request(string name = "work") => new(name, "{}", new JobPolicy(), TimeSpan.Zero);
 
     [Test]
-    public async Task Enqueue_and_claim_read_each_document_at_most_once_per_attempt()
+    public async ValueTask Enqueue_and_claim_read_each_document_at_most_once_per_attempt()
     {
         await using var database = new Database();
         await using var store = new Store(database);
@@ -71,7 +71,7 @@ public sealed class LibrarianInteropTests
     }
 
     [Test]
-    public async Task Recurring_status_uses_one_bulk_lookup_and_live_sampling_uses_index_counts()
+    public async ValueTask Recurring_status_uses_one_bulk_lookup_and_live_sampling_uses_index_counts()
     {
         await using var database = new Database();
         await using var store = new Store(database);
@@ -92,7 +92,7 @@ public sealed class LibrarianInteropTests
     }
 
     [Test]
-    public async Task Retried_attempt_discards_cached_values_and_preserves_both_writers_history()
+    public async ValueTask Retried_attempt_discards_cached_values_and_preserves_both_writers_history()
     {
         await using var database = new Database();
         await using var store = new Store(database);

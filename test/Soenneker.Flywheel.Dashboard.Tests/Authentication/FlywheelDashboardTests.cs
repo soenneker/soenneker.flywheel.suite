@@ -18,7 +18,7 @@ public sealed partial class FlywheelDashboardTests
     [Arguments("/flywheel")]
     [Arguments("/")]
     [Arguments("/operations/engine")]
-    public async Task CookieAuthenticationCsrfAndHubProtection(string enginePath)
+    public async ValueTask CookieAuthenticationCsrfAndHubProtection(string enginePath)
     {
         string prefix = enginePath.TrimEnd('/');
         var password = Guid.NewGuid().ToString("N");

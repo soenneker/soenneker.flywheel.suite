@@ -16,7 +16,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task GeneratedCronAndTypedChainExecuteThroughJobClient() => WithStore(async store =>
+    public ValueTask GeneratedCronAndTypedChainExecuteThroughJobClient() => new ValueTask(WithStore(async store =>
     {
         var services = new ServiceCollection();
         services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
@@ -49,10 +49,10 @@ public sealed partial class FlywheelRedisTests
         }
         catch (InvalidOperationException) { }
         Check((await store.List()).Count == before, "Invalid catalog wrote a partial chain");
-    });
+    }));
 
     [Test]
-    public Task ChainSubmissionIsAtomicAndDeduplicatedAcrossWorkers() => WithStore(async (store, db, ns) =>
+    public ValueTask ChainSubmissionIsAtomicAndDeduplicatedAcrossWorkers() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns);
         IReadOnlyList<string>[] results = await Task.WhenAll(Enumerable.Range(0, 10).Select(i =>
@@ -66,10 +66,10 @@ public sealed partial class FlywheelRedisTests
         try { await store.EnqueueChain([Request(), Request() with { Payload = "invalid JSON" }]); throw new Exception("Invalid step accepted"); }
         catch (System.Text.Json.JsonException) { }
         Check((await store.List()).Count == 3, "Validation wrote part of a chain");
-    });
+    }));
 
     [Test]
-    public Task ChainRetriesWaitAndSuccessReleasesExactlyOneSuccessor() => WithStore(async (store, db, ns) =>
+    public ValueTask ChainRetriesWaitAndSuccessReleasesExactlyOneSuccessor() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         IReadOnlyList<string> ids = await store.EnqueueChain([Request(), Request(), Request()]);
         JobLease first = (await store.Claim("first", TimeSpan.FromSeconds(30)))!;
@@ -84,10 +84,10 @@ public sealed partial class FlywheelRedisTests
         Check(second.Job.Id == ids[1] && (await store.Get(ids[2]))!.State == JobState.Waiting, "Successor missing after restart");
         await restarted.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await restarted.Claim("last", TimeSpan.FromSeconds(30)))!.Job.Id == ids[2], "Last step not released");
-    });
+    }));
 
     [Test]
-    public Task ChainFailureAndWaitingCancellationStopRemainingSteps() => WithStore(async store =>
+    public ValueTask ChainFailureAndWaitingCancellationStopRemainingSteps() => new ValueTask(WithStore(async store =>
     {
         IReadOnlyList<string> failed = await store.EnqueueChain([Request(attempts: 1), Request(), Request()]);
         JobLease first = (await store.Claim("failure", TimeSpan.FromSeconds(30)))!;
@@ -100,20 +100,20 @@ public sealed partial class FlywheelRedisTests
         await store.Finish(running, JobOutcome.Succeeded, null, TimeSpan.Zero);
         foreach (string id in cancelled.Skip(1)) Check((await store.Get(id))!.State == JobState.Cancelled, "Cancelled suffix was released");
         Check(await store.Claim("none", TimeSpan.FromSeconds(30)) is null, "Cancelled chain ran");
-    });
+    }));
 
     [Test]
-    public Task ChainCancellationWinsCompletionRace() => WithStore(async store =>
+    public ValueTask ChainCancellationWinsCompletionRace() => new ValueTask(WithStore(async store =>
     {
         IReadOnlyList<string> ids = await store.EnqueueChain([Request(), Request()]);
         JobLease lease = (await store.Claim("cancel", TimeSpan.FromSeconds(30)))!;
         await store.Cancel(ids[0]);
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero);
         Check((await store.Get(ids[1]))!.State == JobState.Cancelled, "Cancellation lost to success");
-    });
+    }));
 
     [Test]
-    public Task ChainRecoveryRejectsExpiredSuccessAndCancelsAfterFinalAttempt() => WithStore(async store =>
+    public ValueTask ChainRecoveryRejectsExpiredSuccessAndCancelsAfterFinalAttempt() => new ValueTask(WithStore(async store =>
     {
         IReadOnlyList<string> ids = await store.EnqueueChain([Request(attempts: 1), Request()]);
         JobLease lease = (await store.Claim("crashed", TimeSpan.FromMilliseconds(80)))!;
@@ -123,10 +123,10 @@ public sealed partial class FlywheelRedisTests
         await store.Maintain(100);
         Check((await store.Get(ids[0]))!.State == JobState.DeadLettered && (await store.Get(ids[1]))!.State == JobState.Cancelled,
             "Recovery did not terminate chain");
-    });
+    }));
 
     [Test]
-    public Task ChainSuccessorDelayAndFunctionLimitsAreRespected() => WithStore(async store =>
+    public ValueTask ChainSuccessorDelayAndFunctionLimitsAreRespected() => new ValueTask(WithStore(async store =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { RateLimit = 1, RateWindow = TimeSpan.FromMinutes(1) });
         IReadOnlyList<string> ids = await store.EnqueueChain([Request(), Request() with { Delay = TimeSpan.FromMilliseconds(150) }]);
@@ -137,10 +137,10 @@ public sealed partial class FlywheelRedisTests
         Check(await store.Claim("limited", TimeSpan.FromSeconds(30)) is null, "Chain bypassed function rate limit");
         await store.ConfigureMethod("test.v1", new MethodPolicy());
         Check((await store.Claim("ready", TimeSpan.FromSeconds(30)))!.Job.Id == ids[1], "Eligible step not released");
-    });
+    }));
 
     [Test]
-    public Task CronSchedulesPersistCoalesceAndMaterializeOnce() => WithStore(async (store, db, ns) =>
+    public ValueTask CronSchedulesPersistCoalesceAndMaterializeOnce() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         bool[] created = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ =>
             store.AddCron("daily", Request(), "0 9 * * *", "America/Chicago")));
@@ -162,10 +162,10 @@ public sealed partial class FlywheelRedisTests
         Check(!await store.AddCron("daily", Request(), "* * * * *"), "Registration replaced a schedule");
         Check((await store.ListRecurring()).Single().Cron == "0 9 * * *", "Existing expression changed");
         Check(await store.RunRecurring(schedule.Id) is not null, "Manual cron run failed");
-    });
+    }));
 
     [Test]
-    public Task ChainLengthLimitAndFullCancellationAreBounded() => WithStore(async store =>
+    public ValueTask ChainLengthLimitAndFullCancellationAreBounded() => new ValueTask(WithStore(async store =>
     {
         try { await store.EnqueueChain(Enumerable.Range(0, 101).Select(_ => Request()).ToArray()); throw new Exception("Oversized chain accepted"); }
         catch (ArgumentException) { }
@@ -175,10 +175,10 @@ public sealed partial class FlywheelRedisTests
         IReadOnlyList<JobRecord> jobs = await store.List(count: 200);
         Check(jobs.Count == 100 && jobs.All(job => job.State == JobState.Cancelled), "Maximum chain did not cancel completely");
         Check(await store.Claim("none", TimeSpan.FromSeconds(30)) is null, "Cancelled maximum chain ran");
-    });
+    }));
 
     [Test]
-    public Task InvalidCronDoesNotWriteAndIntervalsStillRun() => WithStore(async store =>
+    public ValueTask InvalidCronDoesNotWriteAndIntervalsStillRun() => new ValueTask(WithStore(async store =>
     {
         try { await store.AddCron("invalid", Request(), "not cron"); throw new Exception("Bad expression accepted"); }
         catch (FormatException) { }
@@ -188,5 +188,5 @@ public sealed partial class FlywheelRedisTests
         await store.AddRecurring("interval", Request(), TimeSpan.FromHours(1));
         await store.Maintain(100);
         Check((await store.List()).Count == 1 && (await store.ListRecurring()).Single().Cron is null, "Interval behavior changed");
-    });
+    }));
 }

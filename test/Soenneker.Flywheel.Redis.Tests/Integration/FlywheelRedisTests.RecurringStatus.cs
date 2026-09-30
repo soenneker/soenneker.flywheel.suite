@@ -9,7 +9,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task RecurringStatusTracksLatestExecutionAndSurvivesCleanup() => WithStore(async (store, db, ns) =>
+    public ValueTask RecurringStatusTracksLatestExecutionAndSurvivesCleanup() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.AddRecurring("status", Request(), TimeSpan.FromHours(1));
         Check((await store.ListRecurring()).Single().LastExecutionStatus is null, "Unrun schedule has an execution status");
@@ -31,5 +31,5 @@ public sealed partial class FlywheelRedisTests
         await cleanup.Maintain(10);
         Check(await store.Get(latest.Job.Id) is null, "Completed execution was not pruned");
         Check((await store.ListRecurring()).Single().LastExecutionStatus == "Succeeded", "Cleanup lost latest status");
-    });
+    }));
 }

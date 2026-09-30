@@ -49,7 +49,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task ReleaseIsolationUsesSeparateFilesAndOwnershipLocks()
+    public async ValueTask ReleaseIsolationUsesSeparateFilesAndOwnershipLocks()
     {
         using var files = new Files();
         ServiceProvider Release(string version)
@@ -78,7 +78,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task ServerWorkerHistorySurvivesReopening()
+    public async ValueTask ServerWorkerHistorySurvivesReopening()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -98,7 +98,7 @@ public sealed class FilesystemJobStoreTests
         }
     }
     [Test]
-    public async Task JobsLeasesLogsProgressAndLimitsSurviveReopening()
+    public async ValueTask JobsLeasesLogsProgressAndLimitsSurviveReopening()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -132,7 +132,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task ChainsSchedulesAndVersionMarkersSurviveReopening()
+    public async ValueTask ChainsSchedulesAndVersionMarkersSurviveReopening()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -170,7 +170,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task OnlyOneStoreCanOwnAFileAndConcurrentClaimsAreExclusive()
+    public async ValueTask OnlyOneStoreCanOwnAFileAndConcurrentClaimsAreExclusive()
     {
         using var files = new Files();
         await using ServiceProvider first = Open(files.Path);
@@ -184,7 +184,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task PartialFileWritePreservesCommittedStateAndAllowsRetry()
+    public async ValueTask PartialFileWritePreservesCommittedStateAndAllowsRetry()
     {
         using var files = new Files();
         await using ServiceProvider services = Open(files.Path);
@@ -206,7 +206,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task CorruptDatabaseIsRejectedWithoutOverwrite()
+    public async ValueTask CorruptDatabaseIsRejectedWithoutOverwrite()
     {
         using var files = new Files();
         Directory.CreateDirectory(Path.GetDirectoryName(files.Path)!);
@@ -219,7 +219,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task ExpiredPersistedLeaseIsRecoveredAndOldOwnerIsFenced()
+    public async ValueTask ExpiredPersistedLeaseIsRecoveredAndOldOwnerIsFenced()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -243,7 +243,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task NotificationsFollowPersistenceAndInvalidInputDoesNotPoisonStore()
+    public async ValueTask NotificationsFollowPersistenceAndInvalidInputDoesNotPoisonStore()
     {
         using var files = new Files();
         await using ServiceProvider services = Open(files.Path);
@@ -262,7 +262,7 @@ public sealed class FilesystemJobStoreTests
             services.GetRequiredService<ILogger<FilesystemJobStore>>());
 
     [Test]
-    public async Task IndividualRecordsAreReadableThroughLibrarianAfterReopening()
+    public async ValueTask IndividualRecordsAreReadableThroughLibrarianAfterReopening()
     {
         using var files = new Files();
         string first, second;
@@ -288,7 +288,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task AbandonedWorkingAndCommitFilesNeverReplaceCommittedDatabase()
+    public async ValueTask AbandonedWorkingAndCommitFilesNeverReplaceCommittedDatabase()
     {
         using var files = new Files();
         string id;
@@ -305,7 +305,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task LibrarianSaveFailureIsPropagatedBeforeCommit()
+    public async ValueTask LibrarianSaveFailureIsPropagatedBeforeCommit()
     {
         using var files = new Files();
         await using ServiceProvider services = Open(files.Path);
@@ -329,7 +329,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task MidMutationFailureDiscardsStagedDocuments()
+    public async ValueTask MidMutationFailureDiscardsStagedDocuments()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -361,7 +361,7 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
-    public async Task ReadsDoNotRewriteCommittedDatabase()
+    public async ValueTask ReadsDoNotRewriteCommittedDatabase()
     {
         using var files = new Files();
         await using ServiceProvider services = Open(files.Path);
@@ -374,7 +374,7 @@ public sealed class FilesystemJobStoreTests
         Check((await _fileUtil.GetLastModified(files.Path))!.Value.UtcDateTime == modified && await _fileUtil.Read(files.Path) == original, "Read rewrote the committed database.");
     }
     [Test]
-    public async Task SearchPaginationPreservesOrderingAndTotalCount()
+    public async ValueTask SearchPaginationPreservesOrderingAndTotalCount()
     {
         using var files = new Files();
         var clock = new Clock();
@@ -391,7 +391,7 @@ public sealed class FilesystemJobStoreTests
         Check((await store.List(2, 3)).Select(j => j.Id).SequenceEqual(ids.AsEnumerable().Reverse().Skip(2).Take(3)), "Pagination order changed.");
     }
     [Test]
-    public async Task LibrarianLoadFailureCannotOverwriteExistingItems()
+    public async ValueTask LibrarianLoadFailureCannotOverwriteExistingItems()
     {
         using var files = new Files();
         await using ServiceProvider services = Open(files.Path);

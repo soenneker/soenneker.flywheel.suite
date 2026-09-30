@@ -7,7 +7,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed class DashboardTimeZoneTests
 {
     [Test]
-    public async Task SelectedZoneSurvivesReloadAndHandlesDaylightSaving()
+    public async ValueTask SelectedZoneSurvivesReloadAndHandlesDaylightSaving()
     {
         var browser = new Browser();
         var zone = new DashboardTimeZone(browser);
@@ -22,7 +22,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async Task InvalidSavedZoneFallsBackToUtcAndFractionalOffsetsArePreserved()
+    public async ValueTask InvalidSavedZoneFallsBackToUtcAndFractionalOffsetsArePreserved()
     {
         var browser = new Browser { Saved = "invalid/timezone" };
         var zone = new DashboardTimeZone(browser);
@@ -62,7 +62,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async Task ConversionTogglePersistsAndRetainsSelectedTimezone()
+    public async ValueTask ConversionTogglePersistsAndRetainsSelectedTimezone()
     {
         var browser = new Browser();
         var zone = new DashboardTimeZone(browser);
@@ -86,7 +86,7 @@ public sealed class DashboardTimeZoneTests
     [Arguments("America/Los_Angeles", "PT")]
     [Arguments("America/Toronto", "ET")]
     [Arguments("America/Phoenix", "MT")]
-    public async Task DisplayUsesRegionalAbbreviations(string id, string label)
+    public async ValueTask DisplayUsesRegionalAbbreviations(string id, string label)
     {
         var zone = new DashboardTimeZone(new Browser());
         await zone.Select(id);
@@ -95,7 +95,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async Task BlockedStorageStillAllowsSessionPreferences()
+    public async ValueTask BlockedStorageStillAllowsSessionPreferences()
     {
         var zone = new DashboardTimeZone(new Browser { Unavailable = true });
         await zone.Initialize();

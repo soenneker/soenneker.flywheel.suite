@@ -8,5 +8,5 @@ public sealed class BenchmarkRunner
     [Test]
     [Explicit]
     [NotInParallel]
-    public Task RedisOperations() => RedisOperationsBenchmark.Run();
+    public ValueTask RedisOperations() => new ValueTask(RedisOperationsBenchmark.Run());
 }

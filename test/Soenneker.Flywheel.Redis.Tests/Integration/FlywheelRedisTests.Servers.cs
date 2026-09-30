@@ -11,7 +11,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task ServerHeartbeatsReportWorkerCapacity() => WithStore(async store =>
+    public ValueTask ServerHeartbeatsReportWorkerCapacity() => new ValueTask(WithStore(async store =>
     {
         await store.Heartbeat("server-one", 12, TimeSpan.FromSeconds(30));
         await store.Heartbeat("server-two", 4, TimeSpan.FromSeconds(30));
@@ -20,10 +20,10 @@ public sealed partial class FlywheelRedisTests
         Check(servers.Sum(server => server.Workers) == 16, "Total live worker capacity was incorrect");
         Check(await store.GetTotalWorkerCount() == 16, "Worker capacity aggregate was incorrect");
         Check((await store.GetServer("server-one"))?.Workers == 12, "Server worker capacity was not persisted");
-    });
+    }));
 
     [Test]
-    public Task HeartbeatDoesNotInvalidateDispatchOrNotifyUnchangedCapacity() => WithStore(async (store, db, ns) =>
+    public ValueTask HeartbeatDoesNotInvalidateDispatchOrNotifyUnchangedCapacity() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using IAsyncEnumerator<JobChange> feed = store.Watch(timeout.Token).GetAsyncEnumerator();
@@ -38,10 +38,10 @@ public sealed partial class FlywheelRedisTests
         Check(await ControlValue(db, ns, "revision") == revision, "Heartbeat invalidated job selection");
         await store.Heartbeat("node", 8, TimeSpan.FromSeconds(30));
         Check(await next && feed.Current.Kind == "Servers", "Capacity change notification missing");
-    });
+    }));
 
     [Test]
-    public Task ReturningServerKeepsCapacityWhileExpiredPeersAreRemoved() => WithStore(async (store, db, ns) =>
+    public ValueTask ReturningServerKeepsCapacityWhileExpiredPeersAreRemoved() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.Heartbeat("returning", 8, TimeSpan.FromSeconds(30));
         await store.Heartbeat("expired", 3, TimeSpan.FromSeconds(30));
@@ -52,5 +52,5 @@ public sealed partial class FlywheelRedisTests
         await using var database = OpenLibrarian(db, ns);
         Check(await (await database.GetContainer("flywheel.nodes")).GetItem(DocumentId("expired")) is null, "Expired peer capacity was retained");
         Check((await store.ListServers()).Count == 1, "Expired peer remained live");
-    });
+    }));
 }

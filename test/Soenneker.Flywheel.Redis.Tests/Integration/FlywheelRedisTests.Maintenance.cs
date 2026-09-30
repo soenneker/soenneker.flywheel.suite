@@ -6,7 +6,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task RecoveryPrunesNewTerminalJobsInTheSamePassWhenRetentionIsDisabled() => WithStore(async (_, db, ns) =>
+    public ValueTask RecoveryPrunesNewTerminalJobsInTheSamePassWhenRetentionIsDisabled() => new ValueTask(WithStore(async (_, db, ns) =>
     {
         var store = new RedisJobStore(_ => Task.FromResult(db), ns, retainCompletedJobs: false);
         string id = await store.Enqueue(Request(attempts: 1));
@@ -14,5 +14,5 @@ public sealed partial class FlywheelRedisTests
         await Task.Delay(100);
         await store.Maintain(100);
         Check(await store.Get(id) is null, "Recovery retained a terminal job despite immediate cleanup");
-    });
+    }));
 }

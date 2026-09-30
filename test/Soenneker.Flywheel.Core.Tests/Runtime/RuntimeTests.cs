@@ -12,7 +12,7 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 public sealed partial class RuntimeTests
 {
     [Test]
-    public async Task WorkerShutdownIsNotReportedAsJobTimeout()
+    public async ValueTask WorkerShutdownIsNotReportedAsJobTimeout()
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -27,7 +27,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async Task DependencyCancellationIsNotReportedAsJobTimeout()
+    public async ValueTask DependencyCancellationIsNotReportedAsJobTimeout()
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -41,7 +41,7 @@ public sealed partial class RuntimeTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task LeaseLossCancelsHandlerAndPreventsCommit(bool stalledRenewal)
+    public async ValueTask LeaseLossCancelsHandlerAndPreventsCommit(bool stalledRenewal)
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Lost, StalledRenewal = stalledRenewal };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -54,7 +54,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async Task TimeoutAndDurableCancellationAreDistinct()
+    public async ValueTask TimeoutAndDurableCancellationAreDistinct()
     {
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
         foreach (LeaseStatus status in new[] { Communication.Enums.LeaseStatus.Renewed, Communication.Enums.LeaseStatus.CancellationRequested })

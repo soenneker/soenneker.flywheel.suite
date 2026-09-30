@@ -16,7 +16,7 @@ public sealed class JobRunAgainTests
     [Arguments("Succeeded")]
     [Arguments("DeadLettered")]
     [Arguments("Cancelled")]
-    public async Task FinishedJobsCreateFreshStandaloneExecutions(string state)
+    public async ValueTask FinishedJobsCreateFreshStandaloneExecutions(string state)
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
         var capture = (RunStore)store;
@@ -34,7 +34,7 @@ public sealed class JobRunAgainTests
     [Arguments("Scheduled", null, 409)]
     [Arguments("Waiting", null, 409)]
     [Arguments("Succeeded", "build-1", 501)]
-    public async Task IneligibleJobsNeverEnqueue(string state, string? version, int status)
+    public async ValueTask IneligibleJobsNeverEnqueue(string state, string? version, int status)
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
         var capture = (RunStore)store;
@@ -45,7 +45,7 @@ public sealed class JobRunAgainTests
     }
 
     [Test]
-    public async Task MissingAndInvalidJobsNeverEnqueue()
+    public async ValueTask MissingAndInvalidJobsNeverEnqueue()
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
         if (await FlywheelJobsEndpoints.RunAgain(store, "missing", CancellationToken.None) is not NotFound ||

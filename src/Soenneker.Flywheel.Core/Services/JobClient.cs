@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Soenneker.Flywheel.Communication.Requests;
@@ -10,7 +8,7 @@ using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Core.Services;
 
-public sealed class JobClient(JsonSerializerContext jsonContext, IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
+public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
 {
     private readonly FlywheelOptions _options = options ?? new FlywheelOptions();
     private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
@@ -66,7 +64,8 @@ public sealed class JobClient(JsonSerializerContext jsonContext, IJobStore store
             throw new InvalidOperationException($"Unregistered job: {job.Name}");
         policy ??= new JobPolicy();
         policy.Validate();
-        return new EnqueueRequest(job.Name, payload is null ? "null" : JsonSerializer.Serialize(payload, payload.GetType(), jsonContext), policy, delay, key, job.Description);
+        string serialized = payload is null ? "null" : JsonUtil.Serialize(payload) ?? "null";
+        return new EnqueueRequest(job.Name, serialized, policy, delay, key, job.Description);
     }
 
     public Task<string> Enqueue<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null, TimeSpan? delay = null,

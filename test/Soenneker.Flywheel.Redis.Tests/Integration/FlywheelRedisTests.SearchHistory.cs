@@ -11,7 +11,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task SearchHistoryMatchesSearchAcrossPagesStatesAndDateBounds() => WithStore(async (store, db, ns) =>
+    public ValueTask SearchHistoryMatchesSearchAcrossPagesStatesAndDateBounds() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         long timestamp = DateTimeOffset.UtcNow.AddHours(-2).ToUnixTimeMilliseconds();
         JobState[] states = [JobState.Scheduled, JobState.Running, JobState.Succeeded, JobState.DeadLettered, JobState.Cancelled, JobState.Waiting];
@@ -35,5 +35,5 @@ public sealed partial class FlywheelRedisTests
         Check(filtered.TotalCount == 11 && history.Sum(p => p.Scheduled + p.Running + p.Succeeded + p.DeadLettered + p.Cancelled + p.Waiting + p.Queued) == 11,
             "Date boundaries do not match the table");
         Check((await store.GetSearchHistory("matching", null, null)).Sum(p => p.Waiting) > 0, "Waiting jobs were omitted");
-    });
+    }));
 }

@@ -15,7 +15,7 @@ public sealed class DashboardOriginTests
     [Arguments("/flywheel")]
     [Arguments("/")]
     [Arguments("/operations/engine")]
-    public async Task EnforcesOriginsAndPreflight(string enginePath)
+    public async ValueTask EnforcesOriginsAndPreflight(string enginePath)
     {
         string prefix = enginePath.TrimEnd('/');
         var services = new ServiceCollection();

@@ -20,7 +20,7 @@ public sealed class PostgresJobStoreTests
     private static EnqueueRequest Request(string? key = null) => new("job", "{}", new JobPolicy(), TimeSpan.Zero, key);
 
     [Test]
-    public async Task RegistrationSharesOneStoreWithoutOpeningDatabase()
+    public async ValueTask RegistrationSharesOneStoreWithoutOpeningDatabase()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -56,7 +56,7 @@ public sealed class PostgresJobStoreTests
     }
 
     [Test]
-    public async Task JobsLeasesAndHistorySurviveReopening()
+    public async ValueTask JobsLeasesAndHistorySurviveReopening()
     {
         await using var fixture = new DatabaseFixture();
         string id;
@@ -83,7 +83,7 @@ public sealed class PostgresJobStoreTests
     }
 
     [Test]
-    public async Task IndependentWorkersCoordinateClaimsAndNamespaces()
+    public async ValueTask IndependentWorkersCoordinateClaimsAndNamespaces()
     {
         await using var fixture = new DatabaseFixture();
         await using PostgresJobStore first = fixture.Open();

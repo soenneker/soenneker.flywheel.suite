@@ -14,7 +14,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task VersionSubmissionIsAtomicAndSurvivesRetention() => WithStore(async (store, db, ns) =>
+    public ValueTask VersionSubmissionIsAtomicAndSurvivesRetention() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         var other = new RedisJobStore(_ => Task.FromResult(db), ns, retainCompletedJobs: false);
         string[] ids = await Task.WhenAll(Enumerable.Range(0, 20).Select(i =>
@@ -27,10 +27,10 @@ public sealed partial class FlywheelRedisTests
         Check(await other.EnqueueForCurrentInstance(Request(), "build-2", "new") == ids[0], "Retention removed once-per-version marker");
         Check(await store.EnqueueForCurrentInstance(Request(), "build-3", "new") != ids[0], "Different builds shared a submission");
         Check(await store.EnqueueForCurrentInstance(Request() with { Name = "other" }, "build-2", "new") != ids[0], "Different jobs shared a submission");
-    });
+    }));
 
     [Test]
-    public Task VersionDispatchSkipsIncompatibleJobsBeforeSelectingMethod() => WithStore(async store =>
+    public ValueTask VersionDispatchSkipsIncompatibleJobsBeforeSelectingMethod() => new ValueTask(WithStore(async store =>
     {
         string restricted = await store.EnqueueForCurrentInstance(Request() with
         {
@@ -46,10 +46,10 @@ public sealed partial class FlywheelRedisTests
             store.ClaimForVersion("new-" + i, TimeSpan.FromSeconds(30), "build-2")));
         Check(claims.Count(x => x is not null) == 1, "Matching runners did not obtain exactly one lease");
         Check(claims.Single(x => x is not null)!.Job.Id == restricted, "Matching runner claimed the wrong job");
-    });
+    }));
 
     [Test]
-    public Task VersionRestrictionSurvivesRetriesAndRecovery() => WithStore(async store =>
+    public ValueTask VersionRestrictionSurvivesRetriesAndRecovery() => new ValueTask(WithStore(async store =>
     {
         string id = await store.EnqueueForCurrentInstance(Request(), "build-2", "new");
         JobLease first = (await store.ClaimForVersion("new", TimeSpan.FromSeconds(30), "build-2"))!;
@@ -65,10 +65,10 @@ public sealed partial class FlywheelRedisTests
         Check(third.Job.Id == id && third.Job.Attempt == 3 && third.Job.ApplicationVersion == "build-2",
             "Retry or recovery lost job identity or version");
         Check(!await store.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero), "Recovered lease could still commit");
-    });
+    }));
 
     [Test]
-    public Task VersionClientAndExecutorUseHostingApplicationVersion() => WithStore(async store =>
+    public ValueTask VersionClientAndExecutorUseHostingApplicationVersion() => new ValueTask(WithStore(async store =>
     {
         ServiceProvider Host(string version)
         {
@@ -96,5 +96,5 @@ public sealed partial class FlywheelRedisTests
         Check(current.GetRequiredService<InvocationState>().Value == "first", "First payload did not win");
         Check(!await current.GetRequiredService<IJobExecutor>().RunOnce(default), "Completed job ran twice");
         Check((await store.Get(id))!.State == JobState.Succeeded, "Matching execution did not complete");
-    });
+    }));
 }

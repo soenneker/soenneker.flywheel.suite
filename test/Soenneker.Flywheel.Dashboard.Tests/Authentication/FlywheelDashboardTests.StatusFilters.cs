@@ -8,7 +8,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 public sealed partial class FlywheelDashboardTests
 {
     [Test]
-    public async Task DeadLetterFilterExcludesNewScheduledAndQueuedExecutions()
+    public async ValueTask DeadLetterFilterExcludesNewScheduledAndQueuedExecutions()
     {
         var failed = new JobRecord { Id = "failed", Name = "invoice", Payload = "{}", Policy = new JobPolicy(), State = JobState.DeadLettered };
         var store = new SearchStore { SearchItems = [failed] };
@@ -23,7 +23,7 @@ public sealed partial class FlywheelDashboardTests
     }
 
     [Test]
-    public async Task StatusFiltersApplyBeforePaginationAndPreserveSearch()
+    public async ValueTask StatusFiltersApplyBeforePaginationAndPreserveSearch()
     {
         var store = new SearchStore
         {

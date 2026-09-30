@@ -10,7 +10,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task DispatchPreservesPriorityAndVersionAcrossBatches() => WithStore(async store =>
+    public ValueTask DispatchPreservesPriorityAndVersionAcrossBatches() => new ValueTask(WithStore(async store =>
     {
         for (int i = 0; i < 140; i++)
             await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Low } });
@@ -23,10 +23,10 @@ public sealed partial class FlywheelRedisTests
             "Unversioned worker executed a restricted job");
         Check((await store.ClaimForVersion("versioned", TimeSpan.FromMinutes(1), "build-2"))!.Job.Id == restricted,
             "Dispatch lost a high priority job beyond the first batch");
-    });
+    }));
 
     [Test]
-    public Task MissingDispatchMetadataFailsInsteadOfSilentlySkippingWork() => WithStore(async (store, db, ns) =>
+    public ValueTask MissingDispatchMetadataFailsInsteadOfSilentlySkippingWork() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.Enqueue(Request());
         await using var database = OpenLibrarian(db, ns);
@@ -40,10 +40,10 @@ public sealed partial class FlywheelRedisTests
             return;
         }
         throw new Exception("Missing dispatch metadata was silently accepted");
-    });
+    }));
 
     [Test]
-    public Task DispatchIndexSupportsConcurrentClaims() => WithStore(async (store, db, ns) =>
+    public ValueTask DispatchIndexSupportsConcurrentClaims() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         for (int i = 0; i < 30; i++) await store.Enqueue(Request());
         JobLease?[] leases = await Task.WhenAll(Enumerable.Range(0, 30).Select(i =>
@@ -51,19 +51,19 @@ public sealed partial class FlywheelRedisTests
         Check(leases.All(l => l is not null) && leases.Select(l => l!.Job.Id).Distinct().Count() == 30,
             "Concurrent dispatch lost work or admitted duplicate leases");
         Check(await store.Claim("empty", TimeSpan.FromMinutes(1)) is null, "Claimed an already running job");
-    });
+    }));
     [Test]
-    public Task DispatchPreservesPriorityAcrossPipelineWindows() => WithStore(async (store, db, ns) =>
+    public ValueTask DispatchPreservesPriorityAcrossPipelineWindows() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         for (int i = 0; i < 530; i++)
             await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Low } });
         string high = await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Critical } });
         Check((await store.Claim("worker", TimeSpan.FromMinutes(1)))!.Job.Id == high,
             "Dispatch missed the highest priority job after a pipeline window");
-    });
+    }));
 
     [Test]
-    public Task DispatchMetadataExcludesPayloadAndIsRemovedOnCompletion() => WithStore(async (store, db, ns) =>
+    public ValueTask DispatchMetadataExcludesPayloadAndIsRemovedOnCompletion() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         string payload = JsonSerializer.Serialize(new { Secret = new string('x', 16000) });
         string id = await store.EnqueueForCurrentInstance(Request() with { Name = "work-\"\\日本語-🚀", Payload = payload }, "build-β-🚀", "worker");
@@ -77,5 +77,5 @@ public sealed partial class FlywheelRedisTests
         Check(lease.Job.Payload == payload && lease.Job.Name == "work-\"\\日本語-🚀", "Claim did not preserve UTF-8 metadata and payload");
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero), "Completion failed");
         Check(await dispatch.GetItem(DocumentId(id)) is null, "Completed job leaked dispatch metadata");
-    });
+    }));
 }

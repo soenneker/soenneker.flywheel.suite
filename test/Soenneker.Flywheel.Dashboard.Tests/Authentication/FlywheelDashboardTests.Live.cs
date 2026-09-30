@@ -22,7 +22,7 @@ public sealed partial class FlywheelDashboardTests
     [Arguments("/flywheel")]
     [Arguments("/")]
     [Arguments("/operations/engine")]
-    public async Task SignalRPushesSnapshotsOnlyOnChangesAndResubscribes(string enginePath)
+    public async ValueTask SignalRPushesSnapshotsOnlyOnChangesAndResubscribes(string enginePath)
     {
         string prefix = enginePath.TrimEnd('/');
         WebApplicationBuilder builder = WebApplication.CreateBuilder();

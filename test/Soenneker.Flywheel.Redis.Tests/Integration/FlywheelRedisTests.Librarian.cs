@@ -16,7 +16,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task MissedCommittedNotificationsRequestResync() => WithStore(async (store, db, ns) =>
+    public ValueTask MissedCommittedNotificationsRequestResync() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await using var observer = new RedisJobStore(_ => Task.FromResult(db), ns);
         using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -26,7 +26,7 @@ public sealed partial class FlywheelRedisTests
         await store.Enqueue(Request());
         Check(await feed.MoveNextAsync() && feed.Current == JobChange.Resync, "Missed revisions were presented as a complete feed");
         Check((await observer.List()).Count == 2, "Resync did not expose committed documents");
-    });
+    }));
 
     private static RedisLibrarianDatabase OpenLibrarian(IDatabase db, string ns) => new(ns, _ => ValueTask.FromResult(db), keyPrefix: "flywheel");
     private static string DocumentId<T>(T key) => new Sha256HashingUtil().Hash(JsonUtil.Serialize(key)!);

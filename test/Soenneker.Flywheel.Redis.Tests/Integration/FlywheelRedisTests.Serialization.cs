@@ -15,7 +15,7 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public Task PayloadSerializationPreservesJsonNullForEnqueuesAndChains() => WithStore(async store =>
+    public ValueTask PayloadSerializationPreservesJsonNullForEnqueuesAndChains() => new ValueTask(WithStore(async store =>
     {
         var services = new ServiceCollection();
         services.AddSingleton<System.Text.Json.Serialization.JsonSerializerContext>(TestJsonContext.Default);
@@ -31,10 +31,10 @@ public sealed partial class FlywheelRedisTests
         string valueId = await client.Enqueue(FlywheelJobs.IntegrationJobs_Run, new TestPayload("camelCase"));
         JsonNode payload = JsonNode.Parse((await store.Get(valueId))!.Payload)!;
         Check(payload["value"]!.GetValue<string>() == "camelCase", "Typed payload did not use camelCase");
-    });
+    }));
 
     [Test]
-    public Task CamelCaseStoragePreservesOwnership() => WithStore(async (store, db, ns) =>
+    public ValueTask CamelCaseStoragePreservesOwnership() => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await store.ConfigureMethod("test.v1", new MethodPolicy { MaxConcurrency = 1, RateLimit = 2 });
         string id = await store.EnqueueForCurrentInstance(Request(), "release-2", "worker");
@@ -62,7 +62,7 @@ public sealed partial class FlywheelRedisTests
         await store.Maintain(100);
         JobLease recurring = (await store.Claim("worker", TimeSpan.FromSeconds(30)))!;
         Check(recurring.Job.Name == "recurring.v1", "Stored schedule did not materialize");
-    });
+    }));
 
     private static void VerifyCamelCase(JsonNode? node)
     {
