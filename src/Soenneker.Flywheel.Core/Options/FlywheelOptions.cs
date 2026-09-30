@@ -1,8 +1,13 @@
+using Microsoft.Extensions.Logging;
+
 namespace Soenneker.Flywheel.Core.Options;
 
 /// <summary>Runtime concurrency and recovery intervals. Notifications are wake-up hints; eligibility lives in storage.</summary>
 public sealed class FlywheelOptions
 {
+    /// <summary>Minimum level of handler ILogger messages captured in job execution logs. Defaults to Information.
+    /// Application logging filters must also allow the desired level. None disables handler log capture.</summary>
+    public LogLevel MinimumJobLogLevel { get; set; } = LogLevel.Information;
     /// <summary>Exact hosting application build identity used for version-restricted jobs. Defaults to the entry
     /// assembly's module version ID, shared by instances of the same compiled artifact. Override with an immutable
     /// release ID when producers and runners have different entry assemblies. Never use a slot or instance ID.</summary>
@@ -43,6 +48,9 @@ public sealed class FlywheelOptions
     public string NodeId { get; set; } = $"{Environment.MachineName}-{Guid.NewGuid():N}";
     public void Validate()
     {
+        if (!Enum.IsDefined(MinimumJobLogLevel))
+            throw new ArgumentOutOfRangeException(nameof(MinimumJobLogLevel));
+
         if (Workers is < 1 or > 256 || LeaseDuration < TimeSpan.FromSeconds(3) || LeaseDuration > TimeSpan.FromHours(1) ||
             PollInterval < TimeSpan.FromMilliseconds(10) || PollInterval > TimeSpan.FromMinutes(5) ||
             MaintenanceInterval < TimeSpan.FromSeconds(1) || MaintenanceInterval > TimeSpan.FromMinutes(5) || string.IsNullOrWhiteSpace(NodeId) ||
