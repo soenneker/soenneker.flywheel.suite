@@ -12,6 +12,7 @@ internal sealed class RouterTestLocalStorage : ILocalStorageUtil
         {
             "flywheel.timezone" => "UTC",
             "flywheel.timezone.enabled" => "true",
+            "flywheel.logs.formatExceptions" => null,
             _ => throw new NotSupportedException(key)
         });
 
