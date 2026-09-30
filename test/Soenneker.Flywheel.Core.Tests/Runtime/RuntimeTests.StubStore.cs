@@ -12,7 +12,7 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 
 public sealed partial class RuntimeTests
 {
-    private sealed class StubStore : IJobStore, IJobChangeFeed
+    private sealed class StubStore : IJobStore, IJobChangeFeed, IWorkerJobStore
     {
         private readonly Channel<JobChange> _changes = Channel.CreateUnbounded<JobChange>();
         public Communication.Enums.LeaseStatus Status;
@@ -20,6 +20,15 @@ public sealed partial class RuntimeTests
         public int Commits;
         public string? Error;
         public Communication.Enums.JobOutcome Outcome;
+        public int Interruptions;
+        public int Quarantines;
+        public Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
+            IReadOnlySet<string> jobNames, CancellationToken cancellationToken = default) =>
+            jobNames.Contains("test") ? Claim(owner, duration, cancellationToken) : Task.FromResult<JobLease?>(null);
+        public Task<bool> Interrupt(JobLease lease, string error, CancellationToken cancellationToken = default)
+        { Interruptions++; Error = error; return Task.FromResult(true); }
+        public Task<bool> Quarantine(JobLease lease, string error, CancellationToken cancellationToken = default)
+        { Quarantines++; Error = error; return Task.FromResult(true); }
         public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) =>
             Task.FromResult<JobLease?>(new JobLease(new JobRecord { Id = "one", Name = "test", Payload = "{}", Attempt = 1,
                 Policy = new JobPolicy { Timeout = TimeSpan.FromMilliseconds(150) } }, "token", 1));

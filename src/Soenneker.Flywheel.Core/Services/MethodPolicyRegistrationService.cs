@@ -8,6 +8,8 @@ public sealed class MethodPolicyRegistrationService(IJobStore store, IEnumerable
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (store is not IWorkerJobStore)
+            throw new NotSupportedException("Flywheel workers require an IWorkerJobStore implementation.");
         IMethodPolicyStore? policies = store as IMethodPolicyStore;
         foreach (IJobInvoker invoker in invokers)
         {

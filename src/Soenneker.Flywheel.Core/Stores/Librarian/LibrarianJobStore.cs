@@ -11,7 +11,7 @@ using Soenneker.Flywheel.Core.Services.Abstract;
 
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
-public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
+public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
     IJobChainStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
     IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
@@ -31,7 +31,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordin
 
     protected LibrarianJobStore(ILibrarianDatabase database, TimeSpan? historyRetention = null,
         bool retainCompletedJobs = true, TimeProvider? timeProvider = null, bool ownsDatabase = false,
-        Func<CancellationToken, ValueTask<long>>? clock = null)
+        Func<CancellationToken, ValueTask<long>>? clock = null, TimeSpan? operationTimeout = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         HistoryRetention = historyRetention ?? TimeSpan.FromDays(1);
@@ -41,6 +41,8 @@ public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordin
         _time = timeProvider ?? TimeProvider.System;
         _clock = clock ?? (_ => ValueTask.FromResult(_time.GetUtcNow().ToUnixTimeMilliseconds()));
         _ownsDatabase = ownsDatabase;
+        _operationTimeout = operationTimeout ?? TimeSpan.FromSeconds(5);
+        if (_operationTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(operationTimeout));
         _jobs = new LibrarianTable<string, JobRecord>("jobs");
         _dedupe = new LibrarianTable<string, string>("dedupe");
         _versions = new LibrarianTable<VersionKey, string>("versions");
@@ -162,16 +164,25 @@ public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordin
     }
 
     public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) =>
-        ClaimCore(owner, duration, null, cancellationToken);
+        ClaimCore(owner, duration, null, null, cancellationToken);
 
     public Task<JobLease?> ClaimForVersion(string owner, TimeSpan duration, string applicationVersion,
         CancellationToken cancellationToken = default)
     {
         ValidateId(applicationVersion);
-        return ClaimCore(owner, duration, applicationVersion, cancellationToken);
+        return ClaimCore(owner, duration, applicationVersion, null, cancellationToken);
     }
 
-    private Task<JobLease?> ClaimCore(string owner, TimeSpan duration, string? applicationVersion, CancellationToken ct)
+    public Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
+        IReadOnlySet<string> jobNames, CancellationToken cancellationToken = default)
+    {
+        ValidateId(applicationVersion);
+        ArgumentNullException.ThrowIfNull(jobNames);
+        return ClaimCore(owner, duration, applicationVersion, jobNames, cancellationToken);
+    }
+
+    private Task<JobLease?> ClaimCore(string owner, TimeSpan duration, string? applicationVersion,
+        IReadOnlySet<string>? jobNames, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         long milliseconds = Duration(duration);
@@ -184,6 +195,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordin
             foreach (DispatchCandidate candidate in candidates.Select(e => e.Value)
                 .Where(c => c.ApplicationVersion is null || c.ApplicationVersion == applicationVersion)
                 .Where(c => c.TargetNodeId is null || c.TargetNodeId == owner)
+                .Where(c => jobNames is null || jobNames.Contains(c.Name))
                 .OrderByDescending(c => c.Priority).ThenBy(c => c.DueAt).ThenBy(c => c.Id, StringComparer.Ordinal))
             {
                 if (blocked.Contains(candidate.Name)) continue;
@@ -222,6 +234,30 @@ public abstract partial class LibrarianJobStore : IJobStore, IJobDebounceCoordin
     private async ValueTask<JobRecord?> Owned(JobLease lease, long now) =>
         (await _jobs.GetEntry(lease.Job.Id)) is { Value: var job } && job.State == JobState.Running &&
         job.Token == lease.Token && job.Version == lease.Version && job.LeaseUntil > now ? job : null;
+
+    public Task<bool> Interrupt(JobLease lease, string error, CancellationToken cancellationToken = default) =>
+        ReleaseExecution(lease, error, quarantine: false, cancellationToken);
+
+    public Task<bool> Quarantine(JobLease lease, string error, CancellationToken cancellationToken = default) =>
+        ReleaseExecution(lease, error, quarantine: true, cancellationToken);
+
+    private Task<bool> ReleaseExecution(JobLease lease, string error, bool quarantine, CancellationToken ct) =>
+        Mutate(ct, async now =>
+        {
+            JobRecord? job = await Owned(lease, now);
+            if (job is null) return false;
+            JobState state = quarantine ? JobState.DeadLettered : job.CancelRequested ? JobState.Cancelled : JobState.Scheduled;
+            JobRecord released = job with
+            {
+                State = state, Token = null, Owner = null, LeaseUntil = 0, Version = job.Version + 1,
+                Attempt = state == JobState.Scheduled ? Math.Max(0, job.Attempt - 1) : job.Attempt,
+                DueAt = state == JobState.Scheduled ? now : job.DueAt,
+                Error = error[..Math.Min(error.Length, 1024)]
+            };
+            await Save(released, now);
+            await AdvanceChain(released, now);
+            return true;
+        });
 
     public Task<LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default)
     {

@@ -3,6 +3,7 @@ using Soenneker.Flywheel.Core.Stores.Librarian;
 using Soenneker.Librarian.FileSystem;
 using Soenneker.Utils.File.Abstract;
 using Soenneker.Utils.MemoryStream.Abstract;
+using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Filesystem;
 
@@ -12,15 +13,16 @@ public sealed class FilesystemJobStore : LibrarianJobStore
     private FileStream? _ownership;
 
     public FilesystemJobStore(FlywheelFilesystemOptions options, IFileUtil fileUtil, IMemoryStreamUtil memoryStreamUtil,
-        ILogger<FilesystemJobStore> logger, TimeProvider? timeProvider = null)
-        : base(Create(options, fileUtil, memoryStreamUtil, logger), options.HistoryRetention, options.RetainCompletedJobs,
-            timeProvider, ownsDatabase: true) => _path = Path.GetFullPath(options.FilePath);
+        ILogger<FilesystemJobStore> logger, TimeProvider? timeProvider = null, FlywheelOptions? runtimeOptions = null)
+        : base(Create(options, fileUtil, memoryStreamUtil, logger, runtimeOptions), options.HistoryRetention, options.RetainCompletedJobs,
+            timeProvider, ownsDatabase: true, operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) =>
+        _path = Path.GetFullPath(runtimeOptions?.GetStorageName(options.FilePath) ?? options.FilePath);
 
     private static FileSystemLibrarianDatabase Create(FlywheelFilesystemOptions options, IFileUtil file,
-        IMemoryStreamUtil streams, ILogger logger)
+        IMemoryStreamUtil streams, ILogger logger, FlywheelOptions? runtimeOptions)
     {
         ValidateOptions(options);
-        return new FileSystemLibrarianDatabase(options.FilePath, file, streams, logger);
+        return new FileSystemLibrarianDatabase(runtimeOptions?.GetStorageName(options.FilePath) ?? options.FilePath, file, streams, logger);
     }
 
     internal static void ValidateOptions(FlywheelFilesystemOptions options)

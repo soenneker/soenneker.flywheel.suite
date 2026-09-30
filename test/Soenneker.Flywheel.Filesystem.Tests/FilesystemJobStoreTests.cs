@@ -49,6 +49,35 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
+    public async Task ReleaseIsolationUsesSeparateFilesAndOwnershipLocks()
+    {
+        using var files = new Files();
+        ServiceProvider Release(string version)
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddFlywheel(o => { o.IsolateApplicationVersion = true; o.ApplicationVersion = version; })
+                .AddFilesystem(o => o.FilePath = files.Path);
+            return services.BuildServiceProvider();
+        }
+        string id;
+        await using (var first = Release("v1"))
+        await using (var second = Release("v2"))
+        await using (var legacy = Open(files.Path))
+        {
+            var newStore = second.GetRequiredService<FilesystemJobStore>();
+            id = await newStore.Enqueue(Request(key: "same"));
+            var oldStore = first.GetRequiredService<FilesystemJobStore>();
+            Check(await oldStore.Claim("old", TimeSpan.FromMinutes(1)) is null, "Old release claimed new work.");
+            Check(await oldStore.Enqueue(Request(key: "same")) != id, "Cross-release deduplication collided.");
+            Check(await legacy.GetRequiredService<FilesystemJobStore>().Get(id) is null, "Legacy file exposed isolated work.");
+        }
+        await using var reopened = Release("v2");
+        Check((await reopened.GetRequiredService<FilesystemJobStore>().Claim("new", TimeSpan.FromMinutes(1)))!.Job.Id == id,
+            "Release path was not stable across restarts.");
+    }
+
+    [Test]
     public async Task ServerWorkerHistorySurvivesReopening()
     {
         using var files = new Files();

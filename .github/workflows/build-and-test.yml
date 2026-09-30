@@ -17,7 +17,6 @@ env:
   PipelineEnvironment: true
   NUGET_XMLDOC_MODE: skip
   BUILD_VERSION: ${{ inputs.version || '5.0.0' }}
-  LibrarianVersion: ${{ vars.LIBRARIAN_VERSION || '4.0.0' }}
 
 jobs:
   build-and-test:

@@ -15,6 +15,7 @@ public abstract partial class LibrarianJobStore
     private readonly string[] _controlIds;
     private readonly Func<CancellationToken, ValueTask<long>> _clock;
     private readonly bool _ownsDatabase;
+    private readonly TimeSpan _operationTimeout;
     private bool _disposed;
     private const string Control = "flywheel.control";
     private bool _notifyServers;
@@ -22,84 +23,98 @@ public abstract partial class LibrarianJobStore
 
     protected virtual ValueTask BeforeOperation(CancellationToken token) => ValueTask.CompletedTask;
 
-    private async Task<T> Mutate<T>(CancellationToken ct, Func<long, Task<T>> action)
+    private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action)
     {
-        using (await _gate.Lock(ct).NoSync())
+        for (int attempt = 0; ; attempt++)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            await BeforeOperation(ct).NoSync();
-            ILibrarianContainer control = await _database.GetContainer(Control, ct).NoSync();
-            foreach (ILibrarianTable table in _tables)
-                table.Bind(await _database.GetContainer(table.Name, ct).NoSync(), ct);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             try
             {
-                for (int attempt = 0; ; attempt++)
+                using (await _gate.Lock(cancellationToken).NoSync())
                 {
-                    foreach (ILibrarianTable table in _tables) table.Reset();
-                    _notifyServers = false;
-                    _livePruned = false;
-                    string?[] controlValues = await control.GetItems(_controlIds, ct).NoSync();
-                    var controls = new Dictionary<string, string?>(_controlIds.Length, StringComparer.Ordinal);
-                    for (int i = 0; i < _controlIds.Length; i++) controls.Add(_controlIds[i], controlValues[i]);
-                    _lifecycleRevision = controls.GetValueOrDefault("revision");
-                    string? format = controls.GetValueOrDefault("format");
-                    if (format is not null && format != "4") throw new InvalidDataException("Unsupported Flywheel Librarian format.");
-                    long now = await _clock(ct).NoSync();
-                    T result = default!;
-                    InvalidDataException? inconsistent = null;
-                    try { result = await action(now).NoSync(); }
-                    catch (InvalidDataException ex) { inconsistent = ex; }
-                    int writeCount = 0, touchedCount = 0;
-                    foreach (ILibrarianTable table in _tables)
-                    {
-                        writeCount += table.WriteCount;
-                        if (table.Touched) touchedCount++;
-                    }
-                    var writes = new List<LibrarianWrite>(writeCount + (writeCount == 0 ? 0 : touchedCount + 3));
-                    var conditions = new List<LibrarianCondition>(touchedCount + 3);
-                    foreach (ILibrarianTable table in _tables)
-                    {
-                        table.AddWrites(writes);
-                        if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controls.GetValueOrDefault(table.Name)));
-                    }
-                    conditions.Add(new LibrarianCondition(Control, "format", format));
-                    if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
-                    if (inconsistent is not null)
-                    {
-                        if (await _database.Execute(new LibrarianBatch([], conditions), ct).NoSync())
-                            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(inconsistent).Throw();
-                        if (attempt >= 127) throw new TimeoutException("Flywheel reads repeatedly conflicted with another worker.");
-                        await Task.Delay(Random.Shared.Next(1, 10), ct).NoSync();
-                        continue;
-                    }
-                    if (format is null) writes.Add(new LibrarianWrite(Control, "format", "4"));
-                    if (writes.Count != 0)
-                    {
-                        string next = Guid.NewGuid().ToString("N");
-                        foreach (ILibrarianTable table in _tables)
-                            if (table.WriteCount != 0) writes.Add(new LibrarianWrite(Control, table.Name, next));
-                        JobChange[] changes = Changes(writes);
-                        if (changes.Length != 0)
-                        {
-                            string? previous = await control.GetItem("feed", ct).NoSync();
-                            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
-                            writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
-                            conditions.Add(new LibrarianCondition(Control, "feed", previous));
-                        }
-                        if (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0)
-                            writes.Add(new LibrarianWrite(Control, "revision", next));
-                    }
-                    // Even read-only results validate the revision: multiple reads are one optimistic snapshot.
-                    if (await _database.Execute(new LibrarianBatch(writes, conditions), ct).NoSync())
-                        return result;
-                    if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
-                    await Task.Delay(Random.Shared.Next(1, 10), ct).NoSync();
+                    deadline.CancelAfter(_operationTimeout);
+                    (bool committed, T result) = await TryMutate(deadline.Token, action).NoSync();
+                    if (committed) return result;
                 }
             }
-            finally { foreach (ILibrarianTable table in _tables) table.Reset(); }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+            {
+                throw new TimeoutException("Flywheel storage exceeded its operation deadline.", ex);
+            }
+            if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
+            // Release the shared table state and gate between attempts so renewals can make progress.
+            await Task.Delay(Random.Shared.Next(1, 10), cancellationToken).NoSync();
         }
     }
 
+    private async Task<(bool Committed, T Result)> TryMutate<T>(CancellationToken ct, Func<long, Task<T>> action)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await BeforeOperation(ct).NoSync();
+        ILibrarianContainer control = await _database.GetContainer(Control, ct).NoSync();
+        foreach (ILibrarianTable table in _tables)
+            table.Bind(await _database.GetContainer(table.Name, ct).NoSync(), ct);
+        try
+        {
+            foreach (ILibrarianTable table in _tables) table.Reset();
+            _notifyServers = false;
+            _livePruned = false;
+            string?[] controlValues = await control.GetItems(_controlIds, ct).NoSync();
+            var controls = new Dictionary<string, string?>(_controlIds.Length, StringComparer.Ordinal);
+            for (int i = 0; i < _controlIds.Length; i++) controls.Add(_controlIds[i], controlValues[i]);
+            _lifecycleRevision = controls.GetValueOrDefault("revision");
+            string? format = controls.GetValueOrDefault("format");
+            if (format is not null && format != "4") throw new InvalidDataException("Unsupported Flywheel Librarian format.");
+            long now = await _clock(ct).NoSync();
+            T result = default!;
+            InvalidDataException? inconsistent = null;
+            try { result = await action(now).NoSync(); }
+            catch (InvalidDataException ex) { inconsistent = ex; }
+            int writeCount = 0, touchedCount = 0;
+            foreach (ILibrarianTable table in _tables)
+            {
+                writeCount += table.WriteCount;
+                if (table.Touched) touchedCount++;
+            }
+            var writes = new List<LibrarianWrite>(writeCount + (writeCount == 0 ? 0 : touchedCount + 3));
+            var conditions = new List<LibrarianCondition>(touchedCount + 3);
+            foreach (ILibrarianTable table in _tables)
+            {
+                table.AddWrites(writes);
+                if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controls.GetValueOrDefault(table.Name)));
+            }
+            conditions.Add(new LibrarianCondition(Control, "format", format));
+            if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
+            if (inconsistent is not null)
+            {
+                if (await _database.Execute(new LibrarianBatch([], conditions), ct).NoSync())
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(inconsistent).Throw();
+                return (false, default!);
+            }
+            if (format is null) writes.Add(new LibrarianWrite(Control, "format", "4"));
+            if (writes.Count != 0)
+            {
+                string next = Guid.NewGuid().ToString("N");
+                foreach (ILibrarianTable table in _tables)
+                    if (table.WriteCount != 0) writes.Add(new LibrarianWrite(Control, table.Name, next));
+                JobChange[] changes = Changes(writes);
+                if (changes.Length != 0)
+                {
+                    string? previous = await control.GetItem("feed", ct).NoSync();
+                    string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
+                    writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
+                    conditions.Add(new LibrarianCondition(Control, "feed", previous));
+                }
+                if (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0)
+                    writes.Add(new LibrarianWrite(Control, "revision", next));
+            }
+            // Even read-only results validate the revision: multiple reads are one optimistic snapshot.
+            if (await _database.Execute(new LibrarianBatch(writes, conditions), ct).NoSync())
+                return (true, result);
+            return (false, default!);
+        }
+        finally { foreach (ILibrarianTable table in _tables) table.Reset(); }
+    }
     private JobChange[] Changes(List<LibrarianWrite> writes)
     {
         var changes = new HashSet<JobChange>();
@@ -121,23 +136,24 @@ public abstract partial class LibrarianJobStore
     {
         ILibrarianContainer control;
         string? previous;
-        using (await _gate.Lock(cancellationToken).NoSync())
+        using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            await BeforeOperation(cancellationToken).NoSync();
-            control = await _database.GetContainer(Control, cancellationToken).NoSync();
-            previous = await control.GetItem("feed", cancellationToken).NoSync();
+            deadline.CancelAfter(_operationTimeout);
+            using (await _gate.Lock(deadline.Token).NoSync())
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                await BeforeOperation(deadline.Token).NoSync();
+                control = await _database.GetContainer(Control, deadline.Token).NoSync();
+            }
+            previous = await control.GetItem("feed", deadline.Token).NoSync();
         }
         yield return JobChange.Resync;
         while (true)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).NoSync();
-            string? current;
-            using (await _gate.Lock(cancellationToken).NoSync())
-            {
-                if (_disposed) yield break;
-                current = await control.GetItem("feed", cancellationToken).NoSync();
-            }
+            if (_disposed) yield break;
+            // The feed has no shared table bindings; a stalled subscription must not block lease renewal.
+            string? current = await control.GetItem("feed", cancellationToken).NoSync();
             if (current == previous) continue;
             StoreRevision? entry = current is null ? null : JsonUtil.Deserialize<StoreRevision>(current, LibraryJsonContext.Get<StoreRevision>());
             string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;

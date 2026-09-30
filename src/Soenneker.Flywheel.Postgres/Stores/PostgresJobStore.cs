@@ -1,6 +1,7 @@
 using Npgsql;
 using Soenneker.Flywheel.Core.Stores.Librarian;
 using Soenneker.Librarian.Postgres;
+using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Postgres;
 
@@ -8,13 +9,14 @@ public sealed class PostgresJobStore : LibrarianJobStore
 {
     private readonly NpgsqlDataSource _source;
 
-    public PostgresJobStore(FlywheelPostgresOptions options) : this(CreateSource(options), options)
+    public PostgresJobStore(FlywheelPostgresOptions options, FlywheelOptions? runtimeOptions = null) : this(CreateSource(options), options, runtimeOptions)
     {
     }
 
-    private PostgresJobStore(NpgsqlDataSource source, FlywheelPostgresOptions options)
-        : base(new PostgresLibrarianDatabase(source, options.Namespace), options.HistoryRetention,
-            options.RetainCompletedJobs, ownsDatabase: true, clock: token => GetServerTime(source, token))
+    private PostgresJobStore(NpgsqlDataSource source, FlywheelPostgresOptions options, FlywheelOptions? runtimeOptions)
+        : base(new PostgresLibrarianDatabase(source, runtimeOptions?.GetStorageName(options.Namespace) ?? options.Namespace), options.HistoryRetention,
+            options.RetainCompletedJobs, ownsDatabase: true, clock: token => GetServerTime(source, token),
+            operationTimeout: runtimeOptions?.GetStorageOperationTimeout())
     {
         _source = source;
     }

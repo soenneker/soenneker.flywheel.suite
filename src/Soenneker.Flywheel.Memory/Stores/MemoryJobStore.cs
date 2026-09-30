@@ -1,13 +1,15 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Soenneker.Flywheel.Core.Stores.Librarian;
 using Soenneker.Librarian.Memory;
+using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Memory;
 
 public sealed class MemoryJobStore : LibrarianJobStore
 {
-    public MemoryJobStore(FlywheelMemoryOptions options, TimeProvider? timeProvider = null)
-        : base(Create(options), options.HistoryRetention, options.RetainCompletedJobs, timeProvider, ownsDatabase: true) { }
+    public MemoryJobStore(FlywheelMemoryOptions options, TimeProvider? timeProvider = null, FlywheelOptions? runtimeOptions = null)
+        : base(Create(options), options.HistoryRetention, options.RetainCompletedJobs, timeProvider, ownsDatabase: true,
+            operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) { }
 
     private static MemoryLibrarianDatabase Create(FlywheelMemoryOptions options)
     {

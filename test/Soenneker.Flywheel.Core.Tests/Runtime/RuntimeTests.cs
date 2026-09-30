@@ -22,6 +22,8 @@ public sealed partial class RuntimeTests
         await executor.RunOnce(stopping.Token);
         if (store.Error != "Execution interrupted by worker shutdown")
             throw new Exception("Worker shutdown was misreported as a job timeout");
+        if (store.Interruptions != 1 || store.Commits != 0)
+            throw new Exception("Shutdown consumed a normal failure attempt");
     }
 
     [Test]

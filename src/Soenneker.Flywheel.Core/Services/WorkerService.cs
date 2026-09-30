@@ -20,6 +20,50 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
     private CancellationToken _stoppingToken;
     private ValueAtomicInt _workerCount = new(options.Workers);
     private ValueAtomicInt _started;
+    private readonly CancellationTokenSource _executionStop = new();
+    private int _draining;
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await Drain();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.ShutdownGracePeriod);
+        using var registration = deadline.Token.UnsafeRegister(state => { _ = CancelExecutions(); }, null);
+        await base.StopAsync(cancellationToken);
+    }
+
+    public override void Dispose()
+    {
+        Interlocked.Exchange(ref _draining, 1);
+        _ = CancelExecutions();
+        base.Dispose();
+        // Dispose after workers exit; an early host shutdown deadline can leave them returning their leases.
+        _ = DisposeExecutionStop();
+    }
+
+    private async Task DisposeExecutionStop()
+    {
+        try { if (ExecuteTask is not null) await ExecuteTask; }
+        catch (Exception) { /* ExecuteTask is also observed by the host. */ }
+        finally { _executionStop.Dispose(); }
+    }
+
+    private async Task CancelExecutions()
+    {
+        try { await _executionStop.CancelAsync(); }
+        catch (Exception ex) { logger.LogWarning(ex, "Worker shutdown cancellation failed"); }
+    }
+
+    private async Task Drain()
+    {
+        Interlocked.Exchange(ref _draining, 1);
+        using (await _lock.Lock())
+            foreach (WorkerState worker in _workers)
+            {
+                worker.Retiring.Write(1);
+                worker.Wake.Cancel();
+            }
+    }
 
     public int WorkerCount => _workerCount.Read();
 
@@ -56,6 +100,7 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
 
     private void ResizeLocked()
     {
+        if (Volatile.Read(ref _draining) != 0 || _stoppingToken.IsCancellationRequested) return;
         int desired = WorkerCount;
         WorkerState[] available = _workers.Where(x => x.Retiring.Read() == 0).ToArray();
         for (int i = desired; i < available.Length; i++)
@@ -82,8 +127,15 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
                 try { await _pending.Reader.ReadAsync(worker.Wake.Token); }
                 catch (OperationCanceledException) when (worker.Wake.IsCancellationRequested) { break; }
                 if (worker.Retiring.Read() != 0) break;
-                try { if (await executor.RunOnce(_signalWork, token)) Pulse(); }
+                try { if (await executor.RunOnce(_signalWork, token, _executionStop.Token)) Pulse(); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
+                catch (JobExecutionUnresponsiveException ex)
+                {
+                    logger.LogCritical(ex, "Worker pool stopped because a handler ignored cancellation");
+                    await Drain();
+                    await CancelExecutions();
+                    break;
+                }
                 catch (Exception ex) { logger.LogError(ex, "Worker storage failure"); }
             }
         }
@@ -92,7 +144,7 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
             using (await _lock.Lock())
             {
                 _workers.Remove(worker);
-                if (!token.IsCancellationRequested)
+                if (!token.IsCancellationRequested && Volatile.Read(ref _draining) == 0)
                 {
                     ResizeLocked();
                     Pulse(); // Preserve a hint consumed by a worker racing retirement.
