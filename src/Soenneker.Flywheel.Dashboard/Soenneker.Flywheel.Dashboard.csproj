@@ -43,11 +43,11 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.16" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1490" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1491" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.747" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2561" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2563" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.265" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1514" />
