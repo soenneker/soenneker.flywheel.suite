@@ -12,7 +12,7 @@
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="4.0.81">
+        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="4.0.82">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
@@ -24,6 +24,6 @@
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="4.0.279" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.84" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.273" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.274" PrivateAssets="all" />
     </ItemGroup>
 </Project>
