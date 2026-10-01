@@ -12,18 +12,18 @@
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="4.0.84">
+        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="4.0.85">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.142">
+        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.143">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1495" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
-        <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="4.0.279" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="4.0.282" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.84" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.274" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.276" PrivateAssets="all" />
     </ItemGroup>
 </Project>
