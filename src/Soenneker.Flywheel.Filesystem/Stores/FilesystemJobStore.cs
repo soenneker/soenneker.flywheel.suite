@@ -9,14 +9,23 @@ namespace Soenneker.Flywheel.Filesystem;
 
 public sealed class FilesystemJobStore : LibrarianJobStore
 {
-    private readonly string _path;
-    private FileStream? _ownership;
+    private readonly FilesystemStorageOwnership _ownership;
+    private readonly bool _ownsStorageOwnership;
 
     public FilesystemJobStore(FlywheelFilesystemOptions options, IFileUtil fileUtil, IMemoryStreamUtil memoryStreamUtil,
         ILogger<FilesystemJobStore> logger, TimeProvider? timeProvider = null, FlywheelOptions? runtimeOptions = null)
         : base(Create(options, fileUtil, memoryStreamUtil, logger, runtimeOptions), options.HistoryRetention, options.RetainCompletedJobs,
-            timeProvider, ownsDatabase: true, operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) =>
-        _path = Path.GetFullPath(runtimeOptions?.GetStorageName(options.FilePath) ?? options.FilePath);
+            timeProvider, ownsDatabase: true, operationTimeout: runtimeOptions?.GetStorageOperationTimeout())
+    {
+        _ownership = new FilesystemStorageOwnership(Path.GetFullPath(runtimeOptions?.GetStorageName(options.FilePath) ?? options.FilePath));
+        _ownsStorageOwnership = true;
+    }
+
+    internal FilesystemJobStore(FileSystemLibrarianDatabase database, FilesystemStorageOwnership ownership, FlywheelFilesystemOptions options,
+        TimeProvider? timeProvider, FlywheelOptions? runtimeOptions)
+        : base(database, options.HistoryRetention, options.RetainCompletedJobs, timeProvider,
+            operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) =>
+        _ownership = ownership;
 
     private static FileSystemLibrarianDatabase Create(FlywheelFilesystemOptions options, IFileUtil file,
         IMemoryStreamUtil streams, ILogger logger, FlywheelOptions? runtimeOptions)
@@ -36,15 +45,13 @@ public sealed class FilesystemJobStore : LibrarianJobStore
     protected override ValueTask BeforeOperation(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        if (_ownership is not null) return ValueTask.CompletedTask;
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        _ownership = new FileStream(_path + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        _ownership.Acquire();
         return ValueTask.CompletedTask;
     }
 
     public override async ValueTask DisposeAsync()
     {
         try { await base.DisposeAsync().ConfigureAwait(false); }
-        finally { if (_ownership is not null) await _ownership.DisposeAsync().ConfigureAwait(false); }
+        finally { if (_ownsStorageOwnership) await _ownership.DisposeAsync().ConfigureAwait(false); }
     }
 }

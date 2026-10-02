@@ -1,3 +1,6 @@
+using Npgsql;
+using Soenneker.Librarian.Postgres;
+using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +11,9 @@ namespace Soenneker.Flywheel.Postgres;
 /// <summary>Registers the Postgres persistence provider with a Flywheel runtime.</summary>
 public static class PostgresRegistration
 {
+    /// <summary>The DI key for Flywheel's Postgres storage dependencies.</summary>
+    public const string LibrarianServiceKey = "Flywheel.Postgres";
+
     /// <summary>Adds PostgreSQL lifecycle persistence and distributed coordination.</summary>
     public static FlywheelBuilder AddPostgres(this FlywheelBuilder builder, Action<FlywheelPostgresOptions>? configure = null)
     {
@@ -16,7 +22,18 @@ public static class PostgresRegistration
         PostgresJobStore.ValidateOptions(options);
 
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton<PostgresJobStore>();
+        builder.Services.AddKeyedSingleton<NpgsqlDataSource>(LibrarianServiceKey,
+            (sp, _) => NpgsqlDataSource.Create(sp.GetRequiredService<FlywheelPostgresOptions>().ConnectionString));
+        builder.Services.AddKeyedSingleton<PostgresLibrarianDatabase>(LibrarianServiceKey, (sp, _) =>
+        {
+            var storage = sp.GetRequiredService<FlywheelPostgresOptions>();
+            return new PostgresLibrarianDatabase(sp.GetRequiredKeyedService<NpgsqlDataSource>(LibrarianServiceKey),
+                sp.GetService<FlywheelOptions>()?.GetStorageName(storage.Namespace) ?? storage.Namespace);
+        });
+        builder.Services.AddSingleton(sp => new PostgresJobStore(
+            sp.GetRequiredKeyedService<PostgresLibrarianDatabase>(LibrarianServiceKey),
+            sp.GetRequiredKeyedService<NpgsqlDataSource>(LibrarianServiceKey),
+            sp.GetRequiredService<FlywheelPostgresOptions>(), sp.GetService<FlywheelOptions>()));
         builder.Services.AddHostedService<PostgresLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<PostgresJobStore>());
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<PostgresJobStore>());

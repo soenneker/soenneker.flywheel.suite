@@ -1,3 +1,6 @@
+using Soenneker.Redis.Client.Abstract;
+using Soenneker.Librarian.Redis;
+using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +11,9 @@ namespace Soenneker.Flywheel.Redis;
 /// <summary>Registers the Redis persistence provider with a Flywheel runtime.</summary>
 public static class RedisRegistration
 {
+    /// <summary>The DI key for Flywheel's Redis storage dependencies.</summary>
+    public const string LibrarianServiceKey = "Flywheel.Redis";
+
     /// <summary>Adds Redis lifecycle persistence using the shared Soenneker connection cache.</summary>
     public static FlywheelBuilder AddRedis(this FlywheelBuilder builder, Action<FlywheelRedisOptions>? configure = null)
     {
@@ -18,7 +24,17 @@ public static class RedisRegistration
             throw new ArgumentException("Redis connection, namespace and database must be configured.");
         builder.Services.AddRedisClientAsSingleton();
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton<RedisJobStore>();
+        builder.Services.AddKeyedSingleton<RedisLibrarianDatabase>(LibrarianServiceKey, (sp, _) =>
+        {
+            var storage = sp.GetRequiredService<FlywheelRedisOptions>();
+            var client = sp.GetRequiredService<IRedisClient>();
+            return new RedisLibrarianDatabase(sp.GetService<FlywheelOptions>()?.GetStorageName(storage.Namespace) ?? storage.Namespace,
+                async ct => (await client.Get(storage.ConnectionString, ct).ConfigureAwait(false)).GetDatabase(storage.Database),
+                keyPrefix: storage.KeyPrefix);
+        });
+        builder.Services.AddSingleton(sp => new RedisJobStore(
+            sp.GetRequiredKeyedService<RedisLibrarianDatabase>(LibrarianServiceKey),
+            sp.GetRequiredService<FlywheelRedisOptions>(), sp.GetService<FlywheelOptions>()));
         builder.Services.AddHostedService<RedisLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<RedisJobStore>());

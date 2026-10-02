@@ -8,6 +8,7 @@ namespace Soenneker.Flywheel.Postgres;
 public sealed class PostgresJobStore : LibrarianJobStore
 {
     private readonly NpgsqlDataSource _source;
+    private readonly bool _ownsSource;
 
     public PostgresJobStore(FlywheelPostgresOptions options, FlywheelOptions? runtimeOptions = null) : this(CreateSource(options), options, runtimeOptions)
     {
@@ -16,6 +17,15 @@ public sealed class PostgresJobStore : LibrarianJobStore
     private PostgresJobStore(NpgsqlDataSource source, FlywheelPostgresOptions options, FlywheelOptions? runtimeOptions)
         : base(new PostgresLibrarianDatabase(source, runtimeOptions?.GetStorageName(options.Namespace) ?? options.Namespace), options.HistoryRetention,
             options.RetainCompletedJobs, ownsDatabase: true, clock: token => GetServerTime(source, token),
+            operationTimeout: runtimeOptions?.GetStorageOperationTimeout())
+    {
+        _source = source;
+        _ownsSource = true;
+    }
+
+    internal PostgresJobStore(PostgresLibrarianDatabase database, NpgsqlDataSource source,
+        FlywheelPostgresOptions options, FlywheelOptions? runtimeOptions)
+        : base(database, options.HistoryRetention, options.RetainCompletedJobs, clock: token => GetServerTime(source, token),
             operationTimeout: runtimeOptions?.GetStorageOperationTimeout())
     {
         _source = source;
@@ -46,6 +56,6 @@ public sealed class PostgresJobStore : LibrarianJobStore
     public override async ValueTask DisposeAsync()
     {
         try { await base.DisposeAsync().ConfigureAwait(false); }
-        finally { await _source.DisposeAsync().ConfigureAwait(false); }
+        finally { if (_ownsSource) await _source.DisposeAsync().ConfigureAwait(false); }
     }
 }

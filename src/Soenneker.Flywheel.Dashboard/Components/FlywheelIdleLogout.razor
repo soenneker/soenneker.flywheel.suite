@@ -1,0 +1,70 @@
+@namespace Soenneker.Flywheel.Dashboard
+@implements IDisposable
+@implements IHandleEvent
+
+<div style="display: contents;"
+     @onpointerdown="OnActivity" @onpointermove="OnActivity"
+     @onkeydown="OnActivity" @onwheel="OnActivity"
+     @ontouchstart="OnActivity" @ontouchmove="OnActivity">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public TimeSpan? Timeout { get; set; }
+    [Parameter] public EventCallback OnTimeout { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private PeriodicTimer? _timer;
+    private DateTimeOffset _lastActivity;
+    private bool _expired;
+    private bool _started;
+    private bool _disposed;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || Timeout is null) return;
+        _lastActivity = DateTimeOffset.UtcNow;
+        _started = true;
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = MonitorIdle(_timer);
+    }
+
+    private async Task OnActivity()
+    {
+        if (!_started || _disposed || _expired) return;
+        // An event arriving after a suspended tab resumes must not revive an expired session.
+        await CheckTimeout();
+        if (!_expired) _lastActivity = DateTimeOffset.UtcNow;
+    }
+
+    private async Task CheckTimeout()
+    {
+        if (_disposed || _expired || Timeout is not { } timeout || DateTimeOffset.UtcNow - _lastActivity < timeout) return;
+        _expired = true;
+        await OnTimeout.InvokeAsync();
+    }
+
+    private async Task MonitorIdle(PeriodicTimer timer)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync())
+            {
+                await InvokeAsync(CheckTimeout);
+                if (_expired || _disposed) return;
+            }
+        }
+        catch (Exception exception) { await DispatchExceptionAsync(exception); }
+        finally { timer.Dispose(); }
+    }
+
+    // Activity updates a timestamp; it must not rerender the dashboard on every pointer movement.
+    Task IHandleEvent.HandleEventAsync(EventCallbackWorkItem callback, object? arg) => callback.InvokeAsync(arg);
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _timer?.Dispose();
+    }
+}

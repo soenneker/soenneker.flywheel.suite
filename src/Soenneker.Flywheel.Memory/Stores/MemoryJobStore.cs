@@ -11,6 +11,11 @@ public sealed class MemoryJobStore : LibrarianJobStore
         : base(Create(options), options.HistoryRetention, options.RetainCompletedJobs, timeProvider, ownsDatabase: true,
             operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) { }
 
+    internal MemoryJobStore(MemoryLibrarianDatabase database, FlywheelMemoryOptions options,
+        TimeProvider? timeProvider, FlywheelOptions? runtimeOptions)
+        : base(database, options.HistoryRetention, options.RetainCompletedJobs, timeProvider,
+            operationTimeout: runtimeOptions?.GetStorageOperationTimeout()) { }
+
     private static MemoryLibrarianDatabase Create(FlywheelMemoryOptions options)
     {
         ValidateOptions(options);

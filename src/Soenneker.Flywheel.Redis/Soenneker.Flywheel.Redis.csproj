@@ -44,7 +44,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.Redis" Version="$(LibrarianVersion)" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.Redis" Version="4.0.53" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.Redis\Soenneker.Librarian.Redis.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
     </ItemGroup>
 </Project>

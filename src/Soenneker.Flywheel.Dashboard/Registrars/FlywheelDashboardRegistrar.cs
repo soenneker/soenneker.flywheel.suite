@@ -42,6 +42,8 @@ public static class FlywheelDashboardRegistrar
     {
         var options = new DashboardNavigationOptions();
         configure(options);
+        if (options.IdleTimeout is { } idleTimeout && idleTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options.IdleTimeout), "Idle timeout must be positive, or null to disable idle logout.");
         options.HomePath = Soenneker.Flywheel.Communication.DashboardPaths.Normalize(options.HomePath);
         options.EnginePath = Soenneker.Flywheel.Communication.DashboardPaths.Normalize(options.EnginePath);
 

@@ -3,6 +3,9 @@ namespace Soenneker.Flywheel.Dashboard;
 /// <summary>Configures independent dashboard navigation and engine endpoint prefixes.</summary>
 public sealed class DashboardNavigationOptions
 {
+    /// <summary>Time without browser activity before signing out. Defaults to 15 minutes. Set to null to disable idle logout.</summary>
+    public TimeSpan? IdleTimeout { get; set; } = TimeSpan.FromMinutes(15);
+
     /// <summary>Home page and prefix for dashboard navigation. Defaults to /flywheel; use / for no prefix. Independent of EnginePath.</summary>
     public string HomePath { get; set; } = "/flywheel";
     /// <summary>Prefix for API, authentication, and SignalR requests. Defaults to /flywheel; use / for no prefix. Must match the backend DashboardOptions.EnginePath.</summary>

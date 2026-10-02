@@ -49,6 +49,28 @@ public sealed class FilesystemJobStoreTests
     }
 
     [Test]
+    public async ValueTask KeyedDatabaseKeepsOwnershipUntilProviderDisposal()
+    {
+        using var files = new Files();
+        await using (ServiceProvider services = Open(files.Path))
+        {
+            var store = services.GetRequiredService<FilesystemJobStore>();
+            await store.Enqueue(Request());
+            var database = services.GetRequiredKeyedService<FileSystemLibrarianDatabase>(FilesystemRegistration.LibrarianServiceKey);
+            Check(services.GetService<FileSystemLibrarianDatabase>() is null, "Flywheel database was registered without a key.");
+            Check((await (await database.GetContainer("flywheel.jobs")).GetLibrarianItems()).Count == 1,
+                "The store did not use the keyed database.");
+            await store.DisposeAsync();
+            await database.GetContainer("still-alive");
+            bool locked = false;
+            try { using var competing = new FileStream(files.Path + ".lock", FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) { locked = true; }
+            Check(locked, "The store released ownership while the DI-owned database was still alive.");
+        }
+        using var released = new FileStream(files.Path + ".lock", FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    [Test]
     public async ValueTask ReleaseIsolationUsesSeparateFilesAndOwnershipLocks()
     {
         using var files = new Files();

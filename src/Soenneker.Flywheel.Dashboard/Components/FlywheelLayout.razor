@@ -23,6 +23,7 @@ else if (_error is not null)
 }
 else if (Session.IsAuthenticated)
 {
+    <FlywheelIdleLogout Timeout="DashboardNavigation.IdleTimeout" OnTimeout="Logout">
     <CascadingValue Name="DisplayTimeZone" Value="@TimeZone.PreferenceKey">
     <SidebarProvider SidebarWidth="14rem" CloseMobileOnNavigation="true" Style="width: 100%; min-width: 0; overflow-x: clip;" >
         <Sidebar Collapsible="SidebarCollapsible.Icon" >
@@ -65,6 +66,7 @@ else if (Session.IsAuthenticated)
         </SidebarInset>
     </SidebarProvider>
     </CascadingValue>
+    </FlywheelIdleLogout>
 }
 else if (IsSignInPage)
 {

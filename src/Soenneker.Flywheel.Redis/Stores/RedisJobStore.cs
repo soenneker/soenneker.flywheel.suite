@@ -26,8 +26,12 @@ public sealed class RedisJobStore : LibrarianJobStore
     {
     }
 
-    private RedisJobStore(RedisLibrarianDatabase database, TimeSpan? historyRetention, bool retainCompletedJobs, TimeSpan? operationTimeout) : base(database,
-        historyRetention, retainCompletedJobs, ownsDatabase: true,
+    internal RedisJobStore(RedisLibrarianDatabase database, FlywheelRedisOptions options, FlywheelOptions? runtimeOptions)
+        : this(database, options.HistoryRetention, options.RetainCompletedJobs, runtimeOptions?.GetStorageOperationTimeout(), ownsDatabase: false) { }
+
+    private RedisJobStore(RedisLibrarianDatabase database, TimeSpan? historyRetention, bool retainCompletedJobs, TimeSpan? operationTimeout,
+        bool ownsDatabase = true) : base(database,
+        historyRetention, retainCompletedJobs, ownsDatabase: ownsDatabase,
         clock: async ct => (await database.GetServerTime(ct).ConfigureAwait(false)).ToUnixTimeMilliseconds(), operationTimeout: operationTimeout)
     {
     }
