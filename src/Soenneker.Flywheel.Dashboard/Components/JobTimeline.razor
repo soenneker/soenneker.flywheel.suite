@@ -26,9 +26,7 @@
     };
 
     private bool IsTerminal => Job.State is "Succeeded" or "DeadLettered" or "Cancelled";
-    private string DurationLabel => TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).TotalSeconds < 60
-        ? $"{(Job.CompletedAt - Job.StartedAt) / 1000d:0.#} seconds"
-        : TimeSpan.FromMilliseconds(Job.CompletedAt - Job.StartedAt).ToString(@"h\:mm\:ss");
+    private string DurationLabel => $"{Job.CompletedAt - Job.StartedAt} ms";
 
     private IReadOnlyList<EventTimelineItem> TimelineEvents => Milestones
         .Where(milestone => milestone.Timestamp > 0)
