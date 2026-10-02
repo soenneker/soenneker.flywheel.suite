@@ -10,6 +10,24 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
+    public ValueTask DispatchIncludesLegacyEntriesDuringRollingUpgrade() => new ValueTask(WithStore(async (store, db, ns) =>
+    {
+        string modern = await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Low } });
+        string legacy = await store.Enqueue(Request() with { Policy = new JobPolicy { Priority = JobPriority.Critical } });
+        await using var database = OpenLibrarian(db, ns);
+        var dispatch = await database.GetContainer("flywheel.dispatch");
+        await dispatch.EnsureIndex("value.order");
+        string key = DocumentId(legacy);
+        var document = System.Text.Json.Nodes.JsonNode.Parse((await dispatch.GetItem(key))!)!;
+        document["value"]!.AsObject().Remove("order");
+        await dispatch.UpdateItemStrict(key, document.ToJsonString());
+        Check((await store.Claim("legacy-first", TimeSpan.FromMinutes(1)))!.Job.Id == legacy,
+            "The derived index hid a legacy high-priority entry.");
+        Check((await store.Claim("modern-next", TimeSpan.FromMinutes(1)))!.Job.Id == modern,
+            "Dispatch did not return to the bounded path after legacy work was claimed.");
+    }));
+
+    [Test]
     public ValueTask DispatchPreservesPriorityAndVersionAcrossBatches() => new ValueTask(WithStore(async store =>
     {
         for (int i = 0; i < 140; i++)

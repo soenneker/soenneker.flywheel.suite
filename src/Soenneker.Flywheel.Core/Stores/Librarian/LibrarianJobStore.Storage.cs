@@ -25,25 +25,30 @@ public abstract partial class LibrarianJobStore
 
     private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action)
     {
-        for (int attempt = 0; ; attempt++)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        bool started = false;
+        try
         {
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            try
+            for (int attempt = 0; ; attempt++)
             {
-                using (await _gate.Lock(cancellationToken).NoSync())
+                using (await _gate.Lock(started ? deadline.Token : cancellationToken).NoSync())
                 {
-                    deadline.CancelAfter(_operationTimeout);
+                    if (!started)
+                    {
+                        deadline.CancelAfter(_operationTimeout);
+                        started = true;
+                    }
                     (bool committed, T result) = await TryMutate(deadline.Token, action).NoSync();
                     if (committed) return result;
                 }
+                if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
+                // Release the shared table state and gate so renewals can progress; retries share the operation deadline.
+                await Task.Delay(Random.Shared.Next(1, 10), deadline.Token).NoSync();
             }
-            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
-            {
-                throw new TimeoutException("Flywheel storage exceeded its operation deadline.", ex);
-            }
-            if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
-            // Release the shared table state and gate between attempts so renewals can make progress.
-            await Task.Delay(Random.Shared.Next(1, 10), cancellationToken).NoSync();
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException("Flywheel storage exceeded its operation deadline.", ex);
         }
     }
 
@@ -56,14 +61,11 @@ public abstract partial class LibrarianJobStore
             table.Bind(await _database.GetContainer(table.Name, ct).NoSync(), ct);
         try
         {
-            foreach (ILibrarianTable table in _tables) table.Reset();
             _notifyServers = false;
             _livePruned = false;
             string?[] controlValues = await control.GetItems(_controlIds, ct).NoSync();
-            var controls = new Dictionary<string, string?>(_controlIds.Length, StringComparer.Ordinal);
-            for (int i = 0; i < _controlIds.Length; i++) controls.Add(_controlIds[i], controlValues[i]);
-            _lifecycleRevision = controls.GetValueOrDefault("revision");
-            string? format = controls.GetValueOrDefault("format");
+            _lifecycleRevision = controlValues[1];
+            string? format = controlValues[0];
             if (format is not null && format != "4") throw new InvalidDataException("Unsupported Flywheel Librarian format.");
             long now = await _clock(ct).NoSync();
             T result = default!;
@@ -78,10 +80,11 @@ public abstract partial class LibrarianJobStore
             }
             var writes = new List<LibrarianWrite>(writeCount + (writeCount == 0 ? 0 : touchedCount + 3));
             var conditions = new List<LibrarianCondition>(touchedCount + 3);
-            foreach (ILibrarianTable table in _tables)
+            for (int i = 0; i < _tables.Length; i++)
             {
+                ILibrarianTable table = _tables[i];
                 table.AddWrites(writes);
-                if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controls.GetValueOrDefault(table.Name)));
+                if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controlValues[i + 2]));
             }
             conditions.Add(new LibrarianCondition(Control, "format", format));
             if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
@@ -117,19 +120,19 @@ public abstract partial class LibrarianJobStore
     }
     private JobChange[] Changes(List<LibrarianWrite> writes)
     {
-        var changes = new HashSet<JobChange>();
+        HashSet<JobChange>? changes = null;
         foreach (LibrarianWrite write in writes)
         {
             if (write.Container is "flywheel.jobs" or "flywheel.logs")
             {
-                if (write.Value is null) { changes.Add(JobChange.Resync); continue; }
+                if (write.Value is null) { (changes ??= []).Add(JobChange.Resync); continue; }
                 using var json = System.Text.Json.JsonDocument.Parse(write.Value);
-                changes.Add(new JobChange(write.Container == "flywheel.jobs" ? "Job" : "Logs", json.RootElement.GetProperty("key").GetString()!));
+                (changes ??= []).Add(new JobChange(write.Container == "flywheel.jobs" ? "Job" : "Logs", json.RootElement.GetProperty("key").GetString()!));
             }
-            else if (write.Container == "flywheel.schedules") changes.Add(new JobChange("Schedules"));
-            else if (write.Container == "flywheel.nodes" && _notifyServers) changes.Add(new JobChange("Servers"));
+            else if (write.Container == "flywheel.schedules") (changes ??= []).Add(new JobChange("Schedules"));
+            else if (write.Container == "flywheel.nodes" && _notifyServers) (changes ??= []).Add(new JobChange("Servers"));
         }
-        return changes.ToArray();
+        return changes?.ToArray() ?? [];
     }
 
     public async IAsyncEnumerable<JobChange> Watch([EnumeratorCancellation] CancellationToken cancellationToken = default)

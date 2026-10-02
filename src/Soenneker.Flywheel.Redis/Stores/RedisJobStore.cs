@@ -9,6 +9,8 @@ namespace Soenneker.Flywheel.Redis;
 
 public sealed class RedisJobStore : LibrarianJobStore
 {
+    protected override bool UseServerQueries => true;
+
     [ActivatorUtilitiesConstructor]
     public RedisJobStore(IRedisClient client, FlywheelRedisOptions options, FlywheelOptions? runtimeOptions = null) : this(
         async ct =>

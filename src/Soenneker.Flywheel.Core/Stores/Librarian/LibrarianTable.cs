@@ -2,8 +2,10 @@ using Soenneker.Extensions.ValueTask;
 using Soenneker.Hashing.Sha256;
 using Soenneker.Librarian.Abstractions;
 using Soenneker.Librarian.Abstractions.Transactions;
+using Soenneker.Librarian.Abstractions.Serialization;
+using Soenneker.Librarian.Abstractions.Queries;
+using System.Linq.Expressions;
 using Soenneker.Utils.Json;
-using Soenneker.Utils.PooledStringBuilders;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
 using System.Text.Json;
@@ -14,6 +16,8 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTable
     where TKey : notnull
 {
+    static LibrarianTable() => LibrarianJson.Register(LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>());
+
     private static readonly Sha256HashingUtil Hash = new();
     private readonly Dictionary<string, string?> _writes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string?> _reads = new(StringComparer.Ordinal);
@@ -27,6 +31,19 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         foreach ((string id, string? value) in _writes) writes.Add(new LibrarianWrite(Name, id, value));
     }
     public bool Touched { get; private set; }
+
+    public IQueryable<LibrarianEntry<TKey, TValue>> Query()
+    {
+        if (_writes.Count != 0) throw new InvalidOperationException("Queries must precede writes to the queried table.");
+        Touched = true;
+        return _container.BuildQueryable<LibrarianEntry<TKey, TValue>>();
+    }
+
+    public ValueTask<LibrarianEntry<TKey, TValue>?> First(IQueryable<LibrarianEntry<TKey, TValue>> query) =>
+        query.FirstOrDefaultAsync(_token);
+
+    public ValueTask<int> Count(Expression<Func<LibrarianEntry<TKey, TValue>, bool>> predicate) =>
+        Query().CountAsync(predicate, _token);
     private string Id(TKey key)
     {
         if (_ids.TryGetValue(key, out string? id)) return id;
@@ -87,7 +104,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
 
     public async ValueTask<TValue?> Get(TKey key) => await GetEntry(key).NoSync() is { } entry ? entry.Value : default;
 
-    public async ValueTask<TValue?[]> GetMany(IReadOnlyList<TKey> keys)
+    public async ValueTask<TProjection?[]> GetMany<TProjection>(IReadOnlyList<TKey> keys)
     {
         if (keys.Count == 0) return [];
         Touched = true;
@@ -104,13 +121,14 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
             string?[] raw = await _container.GetItems(requested, _token).NoSync();
             for (int i = 0; i < requested.Length; i++) _reads.Add(requested[i], raw[i]);
         }
-        var result = new TValue?[keys.Count];
+        var result = new TProjection?[keys.Count];
         for (int i = 0; i < keys.Count; i++)
         {
             _token.ThrowIfCancellationRequested();
             string? raw = _writes.TryGetValue(ids[i], out string? staged) ? staged : _reads[ids[i]];
             if (raw is null) continue;
-            var entry = Decode(raw);
+            var entry = JsonUtil.Deserialize(raw, LibraryJsonContext.Get<LibrarianEntry<TKey, TProjection>>())
+                ?? throw new InvalidDataException("Invalid Flywheel document.");
             if (!EqualityComparer<TKey>.Default.Equals(keys[i], entry.Key)) throw new InvalidDataException("Librarian document key mismatch.");
             result[i] = entry.Value;
         }
@@ -133,22 +151,26 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         return true;
     }
 
-    public async ValueTask<List<TValue>> Find(string field, object? value) =>
-        (await FindEntries("value." + field, value).NoSync()).Select(e => e.Value).ToList();
+    public async ValueTask<List<TValue>> Find(string field, object? value)
+    {
+        var entries = await FindEntries("value." + field, value).NoSync();
+        var result = new List<TValue>(entries.Count);
+        for (int i = 0; i < entries.Count; i++) result.Add(entries[i].Value);
+        return result;
+    }
 
     public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> FindEntries(string path, object? value)
     {
         Touched = true;
         await _container.EnsureIndex(path, _token).NoSync();
         // Keep indexed reads on the same serialization contract as raw reads and writes.
-        var page = await _container.FindByIndex<JsonElement>(path, value, take: int.MaxValue,
+        var page = await _container.FindByIndex<LibrarianEntry<TKey, TValue>>(path, value, take: int.MaxValue,
             cancellationToken: _token).NoSync();
-        if (_writes.Count == 0) return page.Items.Select(item => Decode(item.GetRawText())).ToList();
+        if (_writes.Count == 0) return page.Items;
         var result = new List<LibrarianEntry<TKey, TValue>>(page.Items.Count + _writes.Count);
         // Apply only this transaction's overlay to indexed results.
-        foreach (JsonElement item in page.Items)
+        foreach (var entry in page.Items)
         {
-            var entry = Decode(item.GetRawText());
             if (!_writes.ContainsKey(Id(entry.Key))) result.Add(entry);
         }
         using var expected = System.Text.Json.JsonDocument.Parse(JsonUtil.Serialize(value, LibraryJsonContext.Get<object?>())!);
@@ -165,7 +187,20 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     }
 
     public async ValueTask<List<TKey>> GetKeys() => (await GetAll().NoSync()).Select(p => p.Key).ToList();
-    public async ValueTask<List<TValue>> GetValues() => (await GetAll().NoSync()).Select(p => p.Value).ToList();
+    public async ValueTask<List<TValue>> GetValues()
+    {
+        Touched = true;
+        var items = await _container.GetAllItems(_token).NoSync();
+        var result = new List<TValue>(items.Count + _writes.Count);
+        foreach (string raw in items)
+        {
+            var entry = Decode(raw);
+            if (_writes.Count == 0 || !_writes.ContainsKey(Id(entry.Key))) result.Add(entry.Value);
+        }
+        foreach (string? raw in _writes.Values)
+            if (raw is not null) result.Add(Decode(raw).Value);
+        return result;
+    }
     public async ValueTask<List<KeyValuePair<TKey, TValue>>> GetAll()
     {
         Touched = true;
@@ -188,29 +223,30 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
 
     private static string SortKey(long timestamp, string id)
     {
-        var builder = new PooledStringBuilder(20 + id.Length);
-        try
+        int numberLength = timestamp < 0 ? 20 : 19;
+        return string.Create(numberLength + 1 + id.Length, (timestamp, id, numberLength), static (destination, state) =>
         {
-            Span<char> number = stackalloc char[20];
-            timestamp.TryFormat(number, out int length, "D19", System.Globalization.CultureInfo.InvariantCulture);
-            builder.Append(number[..length]);
-            builder.Append(':');
-            builder.Append(id);
-            return builder.ToString();
-        }
-        finally { builder.Dispose(); }
+            state.timestamp.TryFormat(destination, out _, "D19", System.Globalization.CultureInfo.InvariantCulture);
+            destination[state.numberLength] = ':';
+            state.id.AsSpan().CopyTo(destination[(state.numberLength + 1)..]);
+        });
     }
 
-    public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> Range(string path, object? minimum = null,
+    public ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> Range(string path, object? minimum = null,
+        object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue) =>
+        Range<TValue>(path, minimum, maximum, descending, skip, take);
+
+    public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TProjection>>> Range<TProjection>(string path, object? minimum = null,
         object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue)
     {
         Touched = true;
         await _container.EnsureIndex(path, _token).NoSync();
         // Paged reads cannot include an uncommitted overlay: callers use them before staging writes.
         if (_writes.Count != 0) throw new InvalidOperationException("Range queries must precede writes to the queried table.");
-        var page = await _container.FindRangeByIndex<JsonElement>(path, minimum, maximum,
+        LibrarianJson.Register(LibraryJsonContext.Get<LibrarianEntry<TKey, TProjection>>());
+        var page = await _container.FindRangeByIndex<LibrarianEntry<TKey, TProjection>>(path, minimum, maximum,
             descending, skip, take, _token).NoSync();
-        return page.Items.Select(item => Decode(item.GetRawText())).ToList();
+        return page.Items;
     }
 
     public async ValueTask<int> CountRange(string path, object? minimum = null, object? maximum = null)

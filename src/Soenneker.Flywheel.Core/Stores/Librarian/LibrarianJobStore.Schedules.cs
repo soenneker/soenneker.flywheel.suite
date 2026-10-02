@@ -110,18 +110,17 @@ public abstract partial class LibrarianJobStore
         ValidatePage(0, count);
         return Mutate<IReadOnlyList<RecurringJobView>>(cancellationToken, async now =>
         {
-            var schedules = await _schedules.Range("order", minimum: "", take: count);
+            var schedules = await _schedules.Range<RecurringScheduleSummary>("order", minimum: "", take: count);
             string[] ids = schedules.Where(pair => pair.Value.LastExecutionId is not null).Select(pair => pair.Value.LastExecutionId!).ToArray();
-            JobRecord?[] executions = await _jobs.GetMany(ids);
+            RecurringJobSummary?[] executions = await _jobs.GetMany<RecurringJobSummary>(ids);
             var result = new RecurringJobView[schedules.Count];
             int executionIndex = 0;
             for (int i = 0; i < schedules.Count; i++)
             {
                 var pair = schedules[i];
-                Schedule s = pair.Value;
-                JobRecord? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
-                string? status = execution is null ? s.LastExecutionStatus :
-                    execution.CancelRequested && execution.State == JobState.Running ? "Cancelling" : execution.DisplayState(now);
+                RecurringScheduleSummary s = pair.Value;
+                RecurringJobSummary? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
+                string? status = execution is null ? s.LastExecutionStatus : execution.DisplayState(now);
                 result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt!.Value, s.Cron,
                     s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId);
             }

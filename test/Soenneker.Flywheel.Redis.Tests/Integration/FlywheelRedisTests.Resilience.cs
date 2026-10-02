@@ -104,9 +104,12 @@ public sealed partial class FlywheelRedisTests
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             object? result = method!.Invoke(Inner, args);
-            return method.Name == "ExecuteAsync" && args?[0] is "ZRANGEBYLEX" && args[1] is object[] values &&
-                values[0].ToString()!.Contains("flywheel.dispatch:index:", StringComparison.Ordinal)
-                ? After((Task<RedisResult>)result!) : result;
+            bool dispatchRead = method.Name == "ExecuteAsync" && args?[0] is "ZRANGEBYLEX" && args[1] is object[] values &&
+                values[0].ToString()!.Contains("flywheel.dispatch:index:", StringComparison.Ordinal);
+            if (method.Name == "ScriptEvaluateAsync" && args?[1] is RedisKey[] keys)
+                foreach (RedisKey key in keys)
+                    if (key.ToString().Contains("flywheel.dispatch:index:", StringComparison.Ordinal)) { dispatchRead = true; break; }
+            return dispatchRead ? After((Task<RedisResult>)result!) : result;
         }
         private async Task<RedisResult> After(Task<RedisResult> task)
         {

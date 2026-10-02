@@ -28,6 +28,32 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
+    public async ValueTask RecurringProjectionPreservesStatusAndStoredPayload()
+    {
+        var clock = new Clock();
+        await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
+        string payload = "{\"message\":\"" + new string('x', 65536) + "\"}";
+        var request = Request("recurring-雪", policy: new JobPolicy { MaxAttempts = 3 }) with { Payload = payload };
+        await store.AddRecurring("schedule", request, TimeSpan.FromHours(1));
+        RecurringJobView initial = (await store.ListRecurring()).Single();
+        Check(initial.Name == request.Name && initial.Interval == 3600000 && initial.LastExecutionId is null,
+            "Projected schedule lost its metadata.");
+        string id = (await store.RunRecurring("schedule"))!;
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Queued", "Queued status changed.");
+        JobLease lease = (await store.Claim("worker", TimeSpan.FromMinutes(1)))!;
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Running", "Running status changed.");
+        await store.Finish(lease, JobOutcome.Failed, "retry", TimeSpan.FromMinutes(1));
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Scheduled", "Delayed retry status changed.");
+        clock.Advance(TimeSpan.FromMinutes(1));
+        lease = (await store.Claim("worker", TimeSpan.FromMinutes(1)))!;
+        await store.Cancel(id);
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Cancelling", "Cancellation status changed.");
+        await store.Finish(lease, JobOutcome.Cancelled, null, TimeSpan.Zero);
+        Check((await store.ListRecurring()).Single().LastExecutionStatus == "Cancelled", "Terminal status changed.");
+        Check((await store.Get(id))!.Payload == payload, "Projection altered the stored payload.");
+    }
+
+    [Test]
     public async ValueTask StatusSearchPreservesCountsPagingAndQueuedBoundaries()
     {
         var clock = new Clock();

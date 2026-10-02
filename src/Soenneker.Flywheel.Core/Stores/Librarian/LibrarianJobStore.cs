@@ -29,6 +29,9 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     private readonly TimeProvider _time;
     private readonly bool _retainCompletedJobs;
 
+    /// <summary>Enables bounded nested-property queries for providers that execute them on the server.</summary>
+    protected virtual bool UseServerQueries => false;
+
     protected LibrarianJobStore(ILibrarianDatabase database, TimeSpan? historyRetention = null,
         bool retainCompletedJobs = true, TimeProvider? timeProvider = null, bool ownsDatabase = false,
         Func<CancellationToken, ValueTask<long>>? clock = null, TimeSpan? operationTimeout = null)
@@ -97,9 +100,9 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             Description = request.Description, Policy = request.Policy };
     }
 
-    private async Task Save(JobRecord job, long now)
+    private async Task Save(JobRecord job, long now, JobRecord? previous = null)
     {
-        JobRecord? previous = await _jobs.Get(job.Id);
+        previous ??= await _jobs.Get(job.Id);
         bool transition = previous is null || previous.State != job.State;
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
         await _jobs.Set(job.Id, job).NoSync();
@@ -188,22 +191,20 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         long milliseconds = Duration(duration);
         return Mutate<JobLease?>(ct, async now =>
         {
-            if (await _dispatch.CountAll() != await _jobs.Count("state", JobState.Scheduled.Value))
+            int pending = await _dispatch.CountAll();
+            if (pending != await _jobs.Count("state", JobState.Scheduled.Value))
                 throw new InvalidDataException("Required dispatch metadata is missing or inconsistent.");
+            if (pending == 0) return null;
             var blocked = new HashSet<string>(StringComparer.Ordinal);
-            var candidates = await _dispatch.Range("value.dueAt", maximum: now);
-            foreach (DispatchCandidate candidate in candidates.Select(e => e.Value)
-                .Where(c => c.ApplicationVersion is null || c.ApplicationVersion == applicationVersion)
-                .Where(c => c.TargetNodeId is null || c.TargetNodeId == owner)
-                .Where(c => jobNames is null || jobNames.Contains(c.Name))
-                .OrderByDescending(c => c.Priority).ThenBy(c => c.DueAt).ThenBy(c => c.Id, StringComparer.Ordinal))
+            await foreach (DispatchCandidate candidate in Candidates(now, applicationVersion, owner, jobNames, blocked, pending))
             {
                 if (blocked.Contains(candidate.Name)) continue;
                 MethodPolicy? configured = await _policies.Get(candidate.Name);
+                Rate usage = default;
                 if (configured is not null)
                 {
-                    var usage = await _rates.Get(candidate.Name);
-                    if ((configured.MaxConcurrency is { } max && (await _running.Find("name", candidate.Name)).Count(r => r.LeaseUntil > now) >= max) ||
+                    usage = await _rates.Get(candidate.Name);
+                    if ((configured.MaxConcurrency is { } max && await RunningCount(candidate.Name, now) >= max) ||
                         (configured.RateLimit is { } limit && usage.Until > now && usage.Count >= limit))
                     {
                         blocked.Add(candidate.Name);
@@ -214,17 +215,16 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 if (job.State != JobState.Scheduled || job.DueAt != candidate.DueAt || job.Name != candidate.Name ||
                     job.ApplicationVersion != candidate.ApplicationVersion || job.TargetNodeId != candidate.TargetNodeId || job.Policy.Priority.Value != candidate.Priority)
                     throw new InvalidDataException("Dispatch document does not match its job.");
-                if ((await _policies.GetEntry(job.Name)) is { Value: var policy } && policy.RateLimit is not null)
+                if (configured is { RateLimit: not null })
                 {
-                    var rate = (await _rates.Get(job.Name));
-                    if (rate.Until <= now) rate = new Rate(now + (long)policy.RateWindow.TotalMilliseconds, 0);
-                    await _rates.Set(job.Name, new Rate(rate.Until, rate.Count + 1)).NoSync();
+                    if (usage.Until <= now) usage = new Rate(now + (long)configured.RateWindow.TotalMilliseconds, 0);
+                    await _rates.Set(job.Name, new Rate(usage.Until, usage.Count + 1)).NoSync();
                 }
                 JobRecord claimed = job with { State = JobState.Running, Attempt = job.Attempt + 1,
                     Version = job.Version + 1, Token = Guid.NewGuid().ToString("N"), Owner = owner,
                     LeaseUntil = now + milliseconds, StartedAt = now, UpdatedAt = now, CompletedAt = 0,
                     Progress = null, ProgressMessage = null, ProgressUpdatedAt = 0 };
-                await Save(claimed, now);
+                await Save(claimed, now, job);
                 return new JobLease(claimed, claimed.Token!, claimed.Version);
             }
             return null;
@@ -254,7 +254,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 DueAt = state == JobState.Scheduled ? now : job.DueAt,
                 Error = error[..Math.Min(error.Length, 1024)]
             };
-            await Save(released, now);
+            await Save(released, now, job);
             await AdvanceChain(released, now);
             return true;
         });
@@ -266,7 +266,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         {
             JobRecord? job = await Owned(lease, now);
             if (job is null) return LeaseStatus.Lost;
-            await Save(job with { LeaseUntil = now + milliseconds }, now);
+            await Save(job with { LeaseUntil = now + milliseconds }, now, job);
             return job.CancelRequested ? LeaseStatus.CancellationRequested : LeaseStatus.Renewed;
         });
     }
@@ -287,7 +287,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 Version = job.Version + 1, Error = error is null ? "" : error[..Math.Min(error.Length, 1024)],
                 Progress = outcome == JobOutcome.Succeeded && job.Progress is not null ? 100 : job.Progress,
                 DueAt = state == JobState.Scheduled ? now + (long)retryDelay.TotalMilliseconds : job.DueAt };
-            await Save(finished, now);
+            await Save(finished, now, job);
             await AdvanceChain(finished, now);
             return true;
         });
@@ -302,7 +302,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             JobRecord cancelled = job with { CancelRequested = true };
             if (job.State != JobState.Running)
                 cancelled = cancelled with { State = JobState.Cancelled, Version = job.Version + 1 };
-            await Save(cancelled, now);
+            await Save(cancelled, now, job);
             await AdvanceChain(cancelled, now);
             return true;
         });

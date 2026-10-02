@@ -50,7 +50,7 @@ public abstract partial class LibrarianJobStore
         {
             JobRecord? job = await Owned(lease, now);
             if (job is null) return false;
-            await Save(job with { Progress = percentage, ProgressMessage = message, ProgressUpdatedAt = now }, now);
+            await Save(job with { Progress = percentage, ProgressMessage = message, ProgressUpdatedAt = now }, now, job);
             return true;
         });
     }

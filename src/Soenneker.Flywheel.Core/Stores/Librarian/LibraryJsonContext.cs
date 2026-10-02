@@ -31,6 +31,8 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 [JsonSerializable(typeof(LibrarianEntry<string, Rate>))]
 [JsonSerializable(typeof(LibrarianEntry<string, RunningEntry>))]
 [JsonSerializable(typeof(LibrarianEntry<string, Schedule>))]
+[JsonSerializable(typeof(LibrarianEntry<string, RecurringJobSummary>))]
+[JsonSerializable(typeof(LibrarianEntry<string, RecurringScheduleSummary>))]
 [JsonSerializable(typeof(LibrarianEntry<string, long>))]
 [JsonSerializable(typeof(LibrarianEntry<string, string>))]
 [JsonSerializable(typeof(LibrarianEntry<string, string[]>))]
