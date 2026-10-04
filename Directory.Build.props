@@ -5,7 +5,7 @@
     <RepositoryUrl>https://github.com/soenneker/soenneker.flywheel.suite</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <UseLocalQuarkProject Condition="'$(UseLocalQuarkProject)' == ''">false</UseLocalQuarkProject>
-    <LibrarianVersion Condition="'$(LibrarianVersion)' == ''">4.0.39</LibrarianVersion>
+    <LibrarianVersion Condition="'$(LibrarianVersion)' == ''">4.0.58</LibrarianVersion>
     <UseLocalLibrarianProjects Condition="'$(UseLocalLibrarianProjects)' == ''">false</UseLocalLibrarianProjects>
     <LocalLibrarianRoot Condition="'$(LocalLibrarianRoot)' == ''">$(MSBuildThisFileDirectory)..\..\Librarian\soenneker.librarian.suite</LocalLibrarianRoot>
     <LocalQuarkProject Condition="'$(LocalQuarkProject)' == ''">$(MSBuildThisFileDirectory)..\..\Quark\soenneker.quark.suite\src\Soenneker.Quark.Suite\Soenneker.Quark.Suite.csproj</LocalQuarkProject>
