@@ -44,7 +44,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.58" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.66" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.Postgres\Soenneker.Librarian.Postgres.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
     </ItemGroup>
 </Project>

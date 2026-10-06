@@ -17,9 +17,16 @@ builder.Services.AddFlywheel().AddRedis(options =>
 });
 ```
 
-Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses native hashes, sets, sorted sets, sorting, and conditional transactions, plus Lua scripts for document reads and transaction condition checks. Redis ACLs must allow `EVAL` and `EVALSHA` as well as the commands executed by those scripts. The provider reads Redis server time from the primary owning its namespace slot.
+Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses hashes, sets, sorted sets, conditional transactions, and atomic Lua scripts. Redis ACLs must allow `EVAL` and `EVALSHA` as well as the commands executed by those scripts. The provider reads server time from the primary owning its namespace slot.
 
-Redis Cluster deployments require Redis 8 or later for Librarian's sorting with external key patterns.
+The local Librarian compatibility implementation removes `SORT` and external-key patterns. It supports standalone Garnet with `--lua --lua-transaction-mode`; both switches are required for correct coordination. Configure Garnet persistence, commit acknowledgment, and recovery separately. Cluster failover and production throughput require deployment-specific validation.
+
+Until a Librarian package containing this implementation is published and referenced here, test it using the sibling Librarian checkout:
+
+```powershell
+$env:FLYWHEEL_TEST_REDIS = "localhost:16387"
+dotnet test --project test/Soenneker.Flywheel.Redis.Tests -p:UseLocalLibrarianProjects=true -- --treenode-filter "/*/*/FlywheelRedisTests/*"
+```
 
 ## JSON storage contracts
 
