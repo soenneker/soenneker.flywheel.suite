@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Soenneker.Flywheel.Communication.Requests;
@@ -8,10 +10,28 @@ using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Core.Services;
 
-public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null) : IJobClient
+public sealed class JobClient : IJobClient
 {
-    private readonly FlywheelOptions _options = options ?? new FlywheelOptions();
-    private readonly HashSet<string> _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+    private readonly IJobStore store;
+    private readonly FlywheelOptions _options;
+    private readonly HashSet<string> _names;
+    private readonly JobPayloadJson _json;
+
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Default job payload serialization uses reflection. Supply a generated JsonSerializerContext.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Default job payload serialization uses reflection. Supply a generated JsonSerializerContext.")]
+    public JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options = null)
+        : this(store, invokers, options, new JobPayloadJson()) { }
+
+    public JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options, JsonSerializerContext jsonContext)
+        : this(store, invokers, options, new JobPayloadJson(jsonContext)) { }
+
+    internal JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers, FlywheelOptions? options, JobPayloadJson json)
+    {
+        this.store = store;
+        _options = options ?? new FlywheelOptions();
+        _names = invokers.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+        _json = json;
+    }
 
     public Task EnqueueDebounced<T>(JobDefinition<T> job, T payload, string debounceId, TimeSpan delay,
         JobPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -64,7 +84,7 @@ public sealed class JobClient(IJobStore store, IEnumerable<IJobInvoker> invokers
             throw new InvalidOperationException($"Unregistered job: {job.Name}");
         policy ??= new JobPolicy();
         policy.Validate();
-        string serialized = payload is null ? "null" : JsonUtil.Serialize(payload) ?? "null";
+        string serialized = payload is null ? "null" : _json.Serialize(payload);
         return new EnqueueRequest(job.Name, serialized, policy, delay, key, job.Description);
     }
 

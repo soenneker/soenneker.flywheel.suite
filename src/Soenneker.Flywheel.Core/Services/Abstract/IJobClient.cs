@@ -2,7 +2,7 @@ using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Services.Abstract;
 
-/// <summary>Typed producer API. A completed call means persisted, not executed. Handlers must be idempotent.</summary>
+/// <summary>Typed producer API. A completed call means persisted, not executed. Handlers must be idempotent. For trimmed applications, configure Flywheel with a generated JsonSerializerContext for all job payloads.</summary>
 public interface IJobClient
 {
     /// <summary>Schedules the latest payload for a debounce ID after the delay. Each submission cancels the previous execution
