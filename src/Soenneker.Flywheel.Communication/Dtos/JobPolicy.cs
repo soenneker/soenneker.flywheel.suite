@@ -5,6 +5,11 @@ namespace Soenneker.Flywheel.Communication.Dtos;
 /// <summary>Persisted execution policy; attempt limits include recovered executions.</summary>
 public sealed record JobPolicy
 {
+    /// <summary>Optional case-sensitive partition within the job method (for example a tenant ID), up to 200 characters.
+    /// Keyed jobs are dispatched fairly within equal-priority work for that method and share its per-partition limit.</summary>
+    [JsonPropertyName("partitionKey")]
+    public string? PartitionKey { get; init; }
+
     /// <summary>Dispatch priority among due jobs. Defaults to Normal.</summary>
     [JsonPropertyName("priority")]
     public Enums.JobPriority Priority { get; init; } = Enums.JobPriority.Normal;
@@ -29,7 +34,8 @@ public sealed record JobPolicy
     /// <exception cref="ArgumentOutOfRangeException">An execution or retry setting is outside its supported range.</exception>
     public void Validate()
     {
-        if (!Enums.JobPriority.IsDefined(Priority.Value) || MaxAttempts is < 1 or > 1000 || Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromDays(1) ||
+        if (PartitionKey is not null && (string.IsNullOrWhiteSpace(PartitionKey) || PartitionKey.Length > 200) ||
+            !Enums.JobPriority.IsDefined(Priority.Value) || MaxAttempts is < 1 or > 1000 || Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromDays(1) ||
             InitialBackoff <= TimeSpan.Zero || MaxBackoff < InitialBackoff || MaxBackoff > TimeSpan.FromDays(30) ||
             !double.IsFinite(Jitter) || Jitter is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(JobPolicy));

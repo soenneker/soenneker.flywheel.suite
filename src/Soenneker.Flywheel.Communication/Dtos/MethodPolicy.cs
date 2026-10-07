@@ -5,6 +5,12 @@ namespace Soenneker.Flywheel.Communication.Dtos;
 /// <summary>Shared limits for a stable job method across all workers in a storage namespace.</summary>
 public sealed record MethodPolicy
 {
+    /// <summary>Maximum simultaneous valid leases per non-null JobPolicy.PartitionKey within this method, across all workers.
+    /// Null disables the partition limit. The method-wide limit and rate limit still apply.
+    /// Upgrade all workers sharing the namespace before submitting partitioned work; older workers do not enforce this limit.</summary>
+    [JsonPropertyName("maxConcurrencyPerPartition")]
+    public int? MaxConcurrencyPerPartition { get; init; }
+
     /// <summary>Maximum simultaneous valid leases; null means unlimited. Handlers must observe lease-loss cancellation.</summary>
     [JsonPropertyName("maxConcurrency")]
     public int? MaxConcurrency { get; init; }
@@ -19,7 +25,7 @@ public sealed record MethodPolicy
     /// <exception cref="ArgumentOutOfRangeException">A configured limit or rate window is invalid.</exception>
     public void Validate()
     {
-        if (MaxConcurrency is < 1 || RateLimit is < 1 || RateWindow < TimeSpan.FromMilliseconds(1) || RateWindow > TimeSpan.FromDays(365))
+        if (MaxConcurrencyPerPartition is < 1 || MaxConcurrency is < 1 || RateLimit is < 1 || RateWindow < TimeSpan.FromMilliseconds(1) || RateWindow > TimeSpan.FromDays(365))
             throw new ArgumentOutOfRangeException(nameof(MethodPolicy));
     }
 }

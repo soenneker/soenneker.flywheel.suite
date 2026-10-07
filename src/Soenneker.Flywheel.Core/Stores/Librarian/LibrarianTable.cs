@@ -159,6 +159,25 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         return result;
     }
 
+    public async ValueTask<bool> Any(string field, string value)
+    {
+        Touched = true;
+        string path = "value." + field;
+        await _container.EnsureIndex(path, _token).NoSync();
+        // Staged writes can hide at most this many persisted matches. One extra match proves existence.
+        var page = await _container.FindByIndex<LibrarianEntry<TKey, TValue>>(path, value, take: _writes.Count + 1,
+            cancellationToken: _token).NoSync();
+        if (page.Items.Any(entry => !_writes.ContainsKey(Id(entry.Key)))) return true;
+        foreach (string? raw in _writes.Values)
+        {
+            if (raw is null) continue;
+            using var json = JsonDocument.Parse(raw);
+            if (json.RootElement.GetProperty("value").TryGetProperty(field, out var element) &&
+                element.ValueKind == JsonValueKind.String && element.GetString() == value) return true;
+        }
+        return false;
+    }
+
     public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> FindEntries(string path, object? value)
     {
         Touched = true;

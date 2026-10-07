@@ -30,7 +30,9 @@ public interface IJobClient
     Task<string> EnqueueForCurrentInstance<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Serializes and persists a registered job; use a stable key for ambiguous enqueue retries.</summary>
+    /// <summary>Serializes and persists a registered job; use a stable key for ambiguous enqueue retries.
+    /// Set JobPolicy.PartitionKey for fair tenant dispatch and configure MethodPolicy.MaxConcurrencyPerPartition
+    /// through ConfigureMethod to limit concurrent executions per tenant. Payloads survive retries and lease recovery.</summary>
     Task<string> Enqueue<T>(JobDefinition<T> job, T payload, JobPolicy? policy = null, TimeSpan? delay = null,
         string? idempotencyKey = null, CancellationToken cancellationToken = default);
     /// <summary>Persists a job for execution at or after the given time; past times enqueue immediately.</summary>

@@ -25,6 +25,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     private readonly LibrarianTable<string, Rate> _rates;
     private readonly LibrarianTable<string, DispatchCandidate> _dispatch;
     private readonly LibrarianTable<string, RunningEntry> _running;
+    private readonly LibrarianTable<string, long> _partitionTurns;
     private readonly LibrarianTable<string, string> _chainMembership;
     private readonly TimeProvider _time;
     private readonly bool _retainCompletedJobs;
@@ -62,8 +63,9 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _idle = new LibrarianTable<string, IdleSample>("idle");
         _dispatch = new LibrarianTable<string, DispatchCandidate>("dispatch");
         _running = new LibrarianTable<string, RunningEntry>("running");
+        _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _chainMembership, _debounce];
+        _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 
@@ -107,11 +109,19 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
         await _jobs.Set(job.Id, job).NoSync();
         if (job.State == JobState.Scheduled)
-            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId)).NoSync();
+            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId, PartitionId(job))).NoSync();
         else await _dispatch.Remove(job.Id).NoSync();
         if (job.State == JobState.Running)
-            await _running.Set(job.Id, new RunningEntry(job.Name, job.LeaseUntil)).NoSync();
+            await _running.Set(job.Id, new RunningEntry(job.Name, job.LeaseUntil, PartitionId(job))).NoSync();
         else await _running.Remove(job.Id).NoSync();
+        if (PartitionId(job) is { } partitionId)
+        {
+            if (job.State == JobState.Scheduled && await _partitionTurns.GetEntry(partitionId) is null)
+                await _partitionTurns.Set(partitionId, 0).NoSync();
+            else if (Terminal(job.State) && !await _dispatch.Any("partitionId", partitionId) &&
+                     !await _running.Any("partitionId", partitionId))
+                await _partitionTurns.Remove(partitionId).NoSync();
+        }
         if (transition) await RecordTransition(job.State, now);
     }
 
@@ -196,9 +206,11 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 throw new InvalidDataException("Required dispatch metadata is missing or inconsistent.");
             if (pending == 0) return null;
             var blocked = new HashSet<string>(StringComparer.Ordinal);
-            await foreach (DispatchCandidate candidate in Candidates(now, applicationVersion, owner, jobNames, blocked, pending))
+            var blockedPartitions = new HashSet<string>(StringComparer.Ordinal);
+            await foreach (DispatchCandidate candidate in Candidates(now, applicationVersion, owner, jobNames, blocked, blockedPartitions, pending))
             {
                 if (blocked.Contains(candidate.Name)) continue;
+                if (candidate.PartitionId is { } partition && blockedPartitions.Contains(partition)) continue;
                 MethodPolicy? configured = await _policies.Get(candidate.Name);
                 Rate usage = default;
                 if (configured is not null)
@@ -211,9 +223,16 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                         continue;
                     }
                 }
+                if (candidate.PartitionId is { } partitionId && configured?.MaxConcurrencyPerPartition is { } partitionMax &&
+                    await PartitionRunningCount(partitionId, now) >= partitionMax)
+                {
+                    blockedPartitions.Add(partitionId);
+                    continue;
+                }
                 JobRecord job = await _jobs.Get(candidate.Id) ?? throw new InvalidDataException("Dispatch document has no job.");
                 if (job.State != JobState.Scheduled || job.DueAt != candidate.DueAt || job.Name != candidate.Name ||
-                    job.ApplicationVersion != candidate.ApplicationVersion || job.TargetNodeId != candidate.TargetNodeId || job.Policy.Priority.Value != candidate.Priority)
+                    job.ApplicationVersion != candidate.ApplicationVersion || job.TargetNodeId != candidate.TargetNodeId || job.Policy.Priority.Value != candidate.Priority ||
+                    PartitionId(job) != candidate.PartitionId)
                     throw new InvalidDataException("Dispatch document does not match its job.");
                 if (configured is { RateLimit: not null })
                 {
@@ -225,6 +244,12 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                     LeaseUntil = now + milliseconds, StartedAt = now, UpdatedAt = now, CompletedAt = 0,
                     Progress = null, ProgressMessage = null, ProgressUpdatedAt = 0 };
                 await Save(claimed, now, job);
+                if (candidate.PartitionId is { } claimedPartition)
+                {
+                    long turn = checked(await _metadata.Get("partitionTurn") + 1);
+                    await _metadata.Set("partitionTurn", turn).NoSync();
+                    await _partitionTurns.Set(claimedPartition, turn).NoSync();
+                }
                 return new JobLease(claimed, claimed.Token!, claimed.Version);
             }
             return null;
