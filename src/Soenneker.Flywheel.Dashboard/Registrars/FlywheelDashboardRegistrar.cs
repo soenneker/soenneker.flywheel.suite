@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Soenneker.Blazor.Utils.LocalStorage.Registrars;
+using Soenneker.Librarian.LocalStorage.Registrars;
 using Soenneker.Quark;
 using Soenneker.SignalR.Web.Clients.Registrars;
 using Soenneker.Quark.Gen.Lucide.Generated;
@@ -52,6 +52,7 @@ public static class FlywheelDashboardRegistrar
             .AddScoped<IFlywheelApiClient, FlywheelApiClient>()
             .AddScoped<IFlywheelDashboardConsumer, FlywheelDashboardConsumer>()
             .AddScoped<IFlywheelLiveClient, FlywheelLiveClient>()
-            .AddLocalStorageUtilAsScoped().AddQuarkSuiteAsScoped().AddSignalRWebClientsAsScoped().AddLucideIconsAsScoped();
+            .AddLocalStorageLibrarianDatabaseAsScoped(DashboardPreferenceStorage.ServiceKey)
+            .AddQuarkSuiteAsScoped().AddSignalRWebClientsAsScoped().AddLucideIconsAsScoped();
     }
 }

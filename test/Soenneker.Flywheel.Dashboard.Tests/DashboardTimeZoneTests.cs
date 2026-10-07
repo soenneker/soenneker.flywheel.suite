@@ -1,7 +1,3 @@
-using Microsoft.JSInterop;
-using Soenneker.Blazor.Utils.LocalStorage.Abstract;
-using System.Text.Json.Serialization.Metadata;
-
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed class DashboardTimeZoneTests
@@ -9,10 +5,10 @@ public sealed class DashboardTimeZoneTests
     [Test]
     public async ValueTask SelectedZoneSurvivesReloadAndHandlesDaylightSaving()
     {
-        var browser = new Browser();
+        var browser = new TestPreferenceDatabase();
         var zone = new DashboardTimeZone(browser);
         await zone.Select("America/Chicago");
-        var reloaded = new DashboardTimeZone(browser);
+        var reloaded = new DashboardTimeZone(browser.Reopen());
         await reloaded.Initialize();
         Check(reloaded.Id == "America/Chicago", "Saved timezone was not restored.");
         Check(reloaded.Format(DateTimeOffset.Parse("2026-01-01T02:00:00Z")) == "2025-12-31 20:00:00 CT", "Winter conversion or date rollover failed.");
@@ -24,7 +20,8 @@ public sealed class DashboardTimeZoneTests
     [Test]
     public async ValueTask InvalidSavedZoneFallsBackToUtcAndFractionalOffsetsArePreserved()
     {
-        var browser = new Browser { Saved = "invalid/timezone" };
+        var browser = new TestPreferenceDatabase();
+        await browser.SetPreference("flywheel.timezone", "invalid/timezone");
         var zone = new DashboardTimeZone(browser);
         await zone.Initialize();
         Check(zone.Id == "UTC", "Invalid preference should fall back to UTC.");
@@ -64,11 +61,12 @@ public sealed class DashboardTimeZoneTests
     [Test]
     public async ValueTask ConversionTogglePersistsAndRetainsSelectedTimezone()
     {
-        var browser = new Browser();
+        var browser = new TestPreferenceDatabase();
         var zone = new DashboardTimeZone(browser);
         await zone.Select("America/Chicago");
         await zone.SetEnabled(false);
-        var restored = new DashboardTimeZone(browser);
+        var restoredDatabase = browser.Reopen();
+        var restored = new DashboardTimeZone(restoredDatabase);
         await restored.Initialize();
         Check(!restored.Enabled && restored.SelectedId == "America/Chicago" && restored.Id == "UTC", "Disabled preference or selected timezone was not restored.");
         const string message = "Due 2026-07-01T02:00:00Z";
@@ -76,7 +74,7 @@ public sealed class DashboardTimeZoneTests
         Check(restored.Format(DateTimeOffset.Parse("2026-07-01T02:00:00Z")) == "2026-07-01 02:00:00 UTC", "Disabled timestamps must use UTC.");
         await restored.SetEnabled(true);
         Check(restored.FormatMessage(message) == "Due 2026-06-30T21:00:00-05:00", "Re-enabling did not restore the selected timezone.");
-        Check(browser.Enabled, "Enabled preference was not saved.");
+        Check(await restoredDatabase.Reopen().GetPreference("flywheel.timezone.enabled") == "true", "Enabled preference was not saved.");
     }
 
     [Test]
@@ -88,7 +86,7 @@ public sealed class DashboardTimeZoneTests
     [Arguments("America/Phoenix", "MT")]
     public async ValueTask DisplayUsesRegionalAbbreviations(string id, string label)
     {
-        var zone = new DashboardTimeZone(new Browser());
+        var zone = new DashboardTimeZone(new TestPreferenceDatabase());
         await zone.Select(id);
         Check(zone.ZoneLabel == label, "Unexpected regional abbreviation.");
         Check(zone.Format(DateTimeOffset.Parse("2026-07-01T00:00:00Z")).EndsWith(" " + label), "Timestamp did not use the abbreviation.");
@@ -97,11 +95,24 @@ public sealed class DashboardTimeZoneTests
     [Test]
     public async ValueTask BlockedStorageStillAllowsSessionPreferences()
     {
-        var zone = new DashboardTimeZone(new Browser { Unavailable = true });
+        var zone = new DashboardTimeZone(new TestPreferenceDatabase { Unavailable = true });
         await zone.Initialize();
         Check(!await zone.Select("America/Chicago"), "Blocked storage should report unsaved preference.");
         Check(zone.SelectedId == "America/Chicago", "Session preference was lost.");
         Check(!await zone.SetEnabled(false) && !zone.Enabled, "Session toggle should apply when storage is blocked.");
+    }
+
+    [Test]
+    public async Task FailedSaveKeepsSessionTimezoneWithoutPersistingIt()
+    {
+        var database = new TestPreferenceDatabase { SaveUnavailable = true };
+        var zone = new DashboardTimeZone(database);
+        Check(!await zone.Select("America/Chicago"), "A failed flush should report failure.");
+        Check(zone.SelectedId == "America/Chicago", "The session timezone should still apply.");
+        Check(!await zone.SetEnabled(false) && !zone.Enabled, "The session toggle should apply despite a failed flush.");
+        var restored = new DashboardTimeZone(database.Reopen());
+        await restored.Initialize();
+        Check(restored.Id == "UTC" && restored.Enabled, "Unsaved preferences must not survive reopening the database.");
     }
 
     private static void Check(bool condition, string message)
@@ -109,33 +120,4 @@ public sealed class DashboardTimeZoneTests
         if (!condition) throw new InvalidOperationException(message);
     }
 
-    private sealed class Browser : ILocalStorageUtil
-    {
-        public string Saved { get; set; } = "UTC";
-        public bool Enabled { get; set; } = true;
-        public bool Unavailable { get; set; }
-        public ValueTask Initialize(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
-        public ValueTask<string?> Get(string key, CancellationToken cancellationToken = default)
-        {
-            if (Unavailable) throw new JSException("Storage blocked");
-            return ValueTask.FromResult<string?>(key == "flywheel.timezone" ? Saved : Enabled ? "true" : "false");
-        }
-        public ValueTask Set(string key, string value, CancellationToken cancellationToken = default)
-        {
-            if (Unavailable) throw new JSException("Storage blocked");
-            if (key == "flywheel.timezone") Saved = value;
-            else if (key == "flywheel.timezone.enabled") Enabled = value == "true";
-            else throw new InvalidOperationException("Unexpected preference key.");
-            return ValueTask.CompletedTask;
-        }
-        public ValueTask<T?> Get<T>(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<T?> Get<T>(string key, JsonTypeInfo<T> jsonTypeInfo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask Set<T>(string key, T value, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask Set<T>(string key, T value, JsonTypeInfo<T> jsonTypeInfo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask Remove(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask Clear(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<bool> ContainsKey(string key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<IReadOnlyList<string>> GetKeys(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<int> GetLength(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    }
 }

@@ -1,10 +1,11 @@
 using Microsoft.JSInterop;
-using Soenneker.Blazor.Utils.LocalStorage.Abstract;
+using Soenneker.Librarian.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Soenneker.Flywheel.Dashboard;
 
 /// <summary>Browser-persisted presentation options for execution logs.</summary>
-public sealed class DashboardLogOptions(ILocalStorageUtil storage)
+public sealed class DashboardLogOptions([FromKeyedServices(DashboardPreferenceStorage.ServiceKey)] ILibrarianDatabase storage)
 {
     private const string StorageKey = "flywheel.logs.formatExceptions";
 
@@ -14,7 +15,7 @@ public sealed class DashboardLogOptions(ILocalStorageUtil storage)
     /// <summary>Loads the browser's saved preference.</summary>
     public async Task Initialize()
     {
-        try { FormatExceptions = await storage.Get(StorageKey) != "false"; }
+        try { FormatExceptions = await storage.GetPreference(StorageKey) != "false"; }
         catch (JSException) { }
     }
 
@@ -24,7 +25,7 @@ public sealed class DashboardLogOptions(ILocalStorageUtil storage)
         FormatExceptions = enabled;
         try
         {
-            await storage.Set(StorageKey, enabled ? "true" : "false");
+            await storage.SetPreference(StorageKey, enabled ? "true" : "false");
             return true;
         }
         catch (JSException) { return false; }

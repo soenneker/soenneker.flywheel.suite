@@ -1,11 +1,12 @@
 using System.Globalization;
 using Microsoft.JSInterop;
-using Soenneker.Blazor.Utils.LocalStorage.Abstract;
+using Soenneker.Librarian.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Soenneker.Flywheel.Dashboard;
 
 /// <summary>Browser-persisted timezone used for dashboard timestamps and calendar ranges.</summary>
-public sealed class DashboardTimeZone(ILocalStorageUtil storage)
+public sealed class DashboardTimeZone([FromKeyedServices(DashboardPreferenceStorage.ServiceKey)] ILibrarianDatabase storage)
 {
     private TimeZoneInfo _selectedZone = TimeZoneInfo.Utc;
     public bool Enabled { get; private set; } = true;
@@ -22,8 +23,8 @@ public sealed class DashboardTimeZone(ILocalStorageUtil storage)
         string id = TimeZoneInfo.Local.Id;
         try
         {
-            id = await storage.Get("flywheel.timezone") is { Length: > 0 } saved ? saved : id;
-            Enabled = await storage.Get("flywheel.timezone.enabled") != "false";
+            id = await storage.GetPreference("flywheel.timezone") is { Length: > 0 } saved ? saved : id;
+            Enabled = await storage.GetPreference("flywheel.timezone.enabled") != "false";
         }
         catch (JSException) { }
         try { _selectedZone = TimeZoneInfo.FindSystemTimeZoneById(id); }
@@ -50,7 +51,7 @@ public sealed class DashboardTimeZone(ILocalStorageUtil storage)
     {
         try
         {
-            await storage.Set(key, value);
+            await storage.SetPreference(key, value);
             return true;
         }
         catch (JSException) { return false; }
