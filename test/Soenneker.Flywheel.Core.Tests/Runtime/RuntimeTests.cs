@@ -12,7 +12,7 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 public sealed partial class RuntimeTests
 {
     [Test]
-    public async ValueTask WorkerShutdownIsNotReportedAsJobTimeout()
+    public async ValueTask WorkerShutdownIsNotReportedAsJobTimeout(CancellationToken cancellationToken)
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -27,13 +27,13 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async ValueTask DependencyCancellationIsNotReportedAsJobTimeout()
+    public async ValueTask DependencyCancellationIsNotReportedAsJobTimeout(CancellationToken cancellationToken)
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Renewed };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
         var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [new CancelledDependencyInvoker()],
             new FlywheelOptions(), NullLogger<JobExecutor>.Instance);
-        await executor.RunOnce(CancellationToken.None);
+        await executor.RunOnce(cancellationToken);
         if (store.Error != "A handler or dependency cancelled an operation before the job timeout")
             throw new Exception("A dependency cancellation was misreported as an execution timeout");
     }
@@ -41,7 +41,7 @@ public sealed partial class RuntimeTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async ValueTask LeaseLossCancelsHandlerAndPreventsCommit(bool stalledRenewal)
+    public async ValueTask LeaseLossCancelsHandlerAndPreventsCommit(bool stalledRenewal, CancellationToken cancellationToken)
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Lost, StalledRenewal = stalledRenewal };
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -54,7 +54,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async ValueTask TimeoutAndDurableCancellationAreDistinct()
+    public async ValueTask TimeoutAndDurableCancellationAreDistinct(CancellationToken cancellationToken)
     {
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
         foreach (LeaseStatus status in new[] { Communication.Enums.LeaseStatus.Renewed, Communication.Enums.LeaseStatus.CancellationRequested })

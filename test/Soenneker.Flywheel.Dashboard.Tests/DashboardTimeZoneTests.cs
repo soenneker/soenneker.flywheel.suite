@@ -1,9 +1,10 @@
+using System.Threading;
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed class DashboardTimeZoneTests
 {
     [Test]
-    public async ValueTask SelectedZoneSurvivesReloadAndHandlesDaylightSaving()
+    public async ValueTask SelectedZoneSurvivesReloadAndHandlesDaylightSaving(CancellationToken cancellationToken)
     {
         var browser = new TestPreferenceDatabase();
         var zone = new DashboardTimeZone(browser);
@@ -18,7 +19,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async ValueTask InvalidSavedZoneFallsBackToUtcAndFractionalOffsetsArePreserved()
+    public async ValueTask InvalidSavedZoneFallsBackToUtcAndFractionalOffsetsArePreserved(CancellationToken cancellationToken)
     {
         var browser = new TestPreferenceDatabase();
         await browser.SetPreference("flywheel.timezone", "invalid/timezone");
@@ -59,7 +60,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async ValueTask ConversionTogglePersistsAndRetainsSelectedTimezone()
+    public async ValueTask ConversionTogglePersistsAndRetainsSelectedTimezone(CancellationToken cancellationToken)
     {
         var browser = new TestPreferenceDatabase();
         var zone = new DashboardTimeZone(browser);
@@ -84,7 +85,7 @@ public sealed class DashboardTimeZoneTests
     [Arguments("America/Los_Angeles", "PT")]
     [Arguments("America/Toronto", "ET")]
     [Arguments("America/Phoenix", "MT")]
-    public async ValueTask DisplayUsesRegionalAbbreviations(string id, string label)
+    public async ValueTask DisplayUsesRegionalAbbreviations(string id, string label, CancellationToken cancellationToken)
     {
         var zone = new DashboardTimeZone(new TestPreferenceDatabase());
         await zone.Select(id);
@@ -93,7 +94,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async ValueTask BlockedStorageStillAllowsSessionPreferences()
+    public async ValueTask BlockedStorageStillAllowsSessionPreferences(CancellationToken cancellationToken)
     {
         var zone = new DashboardTimeZone(new TestPreferenceDatabase { Unavailable = true });
         await zone.Initialize();
@@ -103,7 +104,7 @@ public sealed class DashboardTimeZoneTests
     }
 
     [Test]
-    public async Task FailedSaveKeepsSessionTimezoneWithoutPersistingIt()
+    public async Task FailedSaveKeepsSessionTimezoneWithoutPersistingIt(CancellationToken cancellationToken)
     {
         var database = new TestPreferenceDatabase { SaveUnavailable = true };
         var zone = new DashboardTimeZone(database);

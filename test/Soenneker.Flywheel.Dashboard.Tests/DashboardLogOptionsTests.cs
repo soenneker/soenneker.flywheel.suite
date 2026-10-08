@@ -1,9 +1,10 @@
+using System.Threading;
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed class DashboardLogOptionsTests
 {
     [Test]
-    public async Task FormattingPreferenceSurvivesReload()
+    public async Task FormattingPreferenceSurvivesReload(CancellationToken cancellationToken)
     {
         var browser = new TestPreferenceDatabase();
         var options = new DashboardLogOptions(browser);
@@ -21,7 +22,7 @@ public sealed class DashboardLogOptionsTests
     }
 
     [Test]
-    public async Task UnavailableStorageKeepsSessionPreference()
+    public async Task UnavailableStorageKeepsSessionPreference(CancellationToken cancellationToken)
     {
         var options = new DashboardLogOptions(new TestPreferenceDatabase { Unavailable = true });
         await options.Initialize();
@@ -31,7 +32,7 @@ public sealed class DashboardLogOptionsTests
     }
 
     [Test]
-    public async Task FailedSaveKeepsSessionPreferenceWithoutPersistingIt()
+    public async Task FailedSaveKeepsSessionPreferenceWithoutPersistingIt(CancellationToken cancellationToken)
     {
         var database = new TestPreferenceDatabase { SaveUnavailable = true };
         var options = new DashboardLogOptions(database);

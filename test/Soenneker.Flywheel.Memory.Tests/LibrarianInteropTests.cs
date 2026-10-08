@@ -6,6 +6,7 @@ using Soenneker.Flywheel.Core.Stores.Librarian;
 using Soenneker.Librarian.Abstractions;
 using Soenneker.Librarian.Abstractions.Transactions;
 using Soenneker.Librarian.Memory;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Memory.Tests;
 
@@ -60,47 +61,47 @@ public sealed class LibrarianInteropTests
     private static EnqueueRequest Request(string name = "work") => new(name, "{}", new JobPolicy(), TimeSpan.Zero);
 
     [Test]
-    public async ValueTask Enqueue_and_claim_read_each_document_at_most_once_per_attempt()
+    public async ValueTask Enqueue_and_claim_read_each_document_at_most_once_per_attempt(CancellationToken cancellationToken)
     {
         await using var database = new Database();
         await using var store = new Store(database);
-        await store.Enqueue(Request());
-        JobLease lease = (await store.Claim("worker", TimeSpan.FromMinutes(1)))!;
-        await store.Renew(lease, TimeSpan.FromMinutes(2));
+        await store.Enqueue(Request(), cancellationToken: cancellationToken);
+        JobLease lease = (await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
+        await store.Renew(lease, TimeSpan.FromMinutes(2), cancellationToken: cancellationToken);
         Check(database.DuplicateReads == 0, "An attempt fetched the same raw document repeatedly.");
     }
 
     [Test]
-    public async ValueTask Recurring_status_uses_one_bulk_lookup_and_live_sampling_uses_index_counts()
+    public async ValueTask Recurring_status_uses_one_bulk_lookup_and_live_sampling_uses_index_counts(CancellationToken cancellationToken)
     {
         await using var database = new Database();
         await using var store = new Store(database);
         for (int i = 0; i < 20; i++)
         {
-            await store.AddRecurring("schedule-" + i, Request(), TimeSpan.FromMinutes(1));
-            await store.RunRecurring("schedule-" + i);
+            await store.AddRecurring("schedule-" + i, Request(), TimeSpan.FromMinutes(1), cancellationToken: cancellationToken);
+            await store.RunRecurring("schedule-" + i, cancellationToken: cancellationToken);
         }
         database.Calls.Clear();
-        Check((await store.ListRecurring()).Count == 20, "Recurring results changed.");
+        Check((await store.ListRecurring(cancellationToken: cancellationToken)).Count == 20, "Recurring results changed.");
         Check(database.Calls.GetValueOrDefault("flywheel.jobs/GetItems") == 1 &&
             database.Calls.GetValueOrDefault("flywheel.jobs/GetItem") == 0, "Recurring status performed individual job reads.");
         database.Calls.Clear();
-        Check(await store.SampleLiveActivity(default), "Queued jobs were not observed.");
+        Check(await store.SampleLiveActivity(cancellationToken), "Queued jobs were not observed.");
         Check(database.Calls.GetValueOrDefault("flywheel.jobs/CountRangeByIndex") == 1 &&
             database.Calls.GetValueOrDefault("flywheel.jobs/FindByIndex") == 0 &&
             database.Calls.GetValueOrDefault("flywheel.jobs/GetAllItems") == 0, "Sampling materialized job payloads.");
     }
 
     [Test]
-    public async ValueTask Retried_attempt_discards_cached_values_and_preserves_both_writers_history()
+    public async ValueTask Retried_attempt_discards_cached_values_and_preserves_both_writers_history(CancellationToken cancellationToken)
     {
         await using var database = new Database();
         await using var store = new Store(database);
         await using var peer = new Store(database.Inner);
-        database.BeforeCommit = async () => { await peer.Enqueue(Request("peer")); };
-        await store.Enqueue(Request("original"));
-        Check((await store.List()).Count == 2, "Retry lost a job.");
-        var history = await store.GetHistory(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddMinutes(1));
+        database.BeforeCommit = async () => { await peer.Enqueue(Request("peer"), cancellationToken: cancellationToken); };
+        await store.Enqueue(Request("original"), cancellationToken: cancellationToken);
+        Check((await store.List(cancellationToken: cancellationToken)).Count == 2, "Retry lost a job.");
+        var history = await store.GetHistory(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddMinutes(1), cancellationToken: cancellationToken);
         Check(history.Sum(point => point.Scheduled) == 2, "Retry reused stale history from its rejected attempt.");
     }
 

@@ -6,13 +6,14 @@ using Microsoft.Extensions.Logging;
 using Soenneker.Flywheel.Core.Logging;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Registrars;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Core.Tests.Logging;
 
 public sealed partial class JobLogTests
 {
     [Test]
-    public async ValueTask DefaultCaptureExcludesDebug()
+    public async ValueTask DefaultCaptureExcludesDebug(CancellationToken cancellationToken)
     {
         using var capture = new JobLogCapture();
         await VerifyLevels(capture, LogLevel.Information);
@@ -26,7 +27,7 @@ public sealed partial class JobLogTests
     [Arguments(LogLevel.Error)]
     [Arguments(LogLevel.Critical)]
     [Arguments(LogLevel.None)]
-    public async ValueTask RegisteredCaptureUsesConfiguredMinimum(LogLevel minimum)
+    public async ValueTask RegisteredCaptureUsesConfiguredMinimum(LogLevel minimum, CancellationToken cancellationToken)
     {
         var services = new ServiceCollection();
         services.AddFlywheel(options => options.MinimumJobLogLevel = minimum);

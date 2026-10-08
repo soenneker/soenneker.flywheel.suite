@@ -13,6 +13,7 @@ using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using System.Net.Http.Json;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -22,7 +23,7 @@ public sealed partial class FlywheelDashboardTests
     [Arguments("/flywheel")]
     [Arguments("/")]
     [Arguments("/operations/engine")]
-    public async ValueTask SignalRPushesSnapshotsOnlyOnChangesAndResubscribes(string enginePath)
+    public async ValueTask SignalRPushesSnapshotsOnlyOnChangesAndResubscribes(string enginePath, CancellationToken cancellationToken)
     {
         string prefix = enginePath.TrimEnd('/');
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
@@ -39,15 +40,15 @@ public sealed partial class FlywheelDashboardTests
         await using WebApplication app = builder.Build();
         app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
         app.MapFlywheelDashboard();
-        await app.StartAsync();
+        await app.StartAsync(cancellationToken: cancellationToken);
         using HttpClient http = app.GetTestClient();
         http.BaseAddress = new Uri("https://localhost");
-        HttpResponseMessage csrfResponse = await http.GetAsync($"{prefix}/csrf");
-        var csrf = await csrfResponse.Content.ReadFromJsonAsync<Csrf>();
+        HttpResponseMessage csrfResponse = await http.GetAsync($"{prefix}/csrf", cancellationToken: cancellationToken);
+        var csrf = await csrfResponse.Content.ReadFromJsonAsync<Csrf>(cancellationToken: cancellationToken);
         string csrfCookie = csrfResponse.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         http.DefaultRequestHeaders.Add("Cookie", csrfCookie);
         http.DefaultRequestHeaders.Add("X-Flywheel-CSRF", csrf!.Token);
-        HttpResponseMessage login = await http.PostAsJsonAsync($"{prefix}/login", new { Username = "admin", Password = "live-password" });
+        HttpResponseMessage login = await http.PostAsJsonAsync($"{prefix}/login", new { Username = "admin", Password = "live-password" }, cancellationToken: cancellationToken);
         string cookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
         await using HubConnection connection = new HubConnectionBuilder().WithUrl($"https://localhost{prefix}/hub", options =>
         {

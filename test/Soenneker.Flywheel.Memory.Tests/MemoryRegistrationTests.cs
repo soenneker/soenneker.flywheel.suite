@@ -4,13 +4,14 @@ using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Librarian.Abstractions;
 using Soenneker.Librarian.Memory;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Memory.Tests;
 
 public sealed class MemoryRegistrationTests
 {
     [Test]
-    public async ValueTask KeyedDatabaseIsIsolatedAndOwnedByServiceProvider()
+    public async ValueTask KeyedDatabaseIsIsolatedAndOwnedByServiceProvider(CancellationToken cancellationToken)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -25,12 +26,12 @@ public sealed class MemoryRegistrationTests
                 provider.GetService<MemoryLibrarianDatabase>() is not null)
                 throw new InvalidOperationException("Flywheel's database leaked into unkeyed services.");
             var store = provider.GetRequiredService<MemoryJobStore>();
-            await store.Enqueue(new EnqueueRequest("job", "{}", new(), TimeSpan.Zero, null));
-            var jobs = await database.GetContainer("flywheel.jobs");
-            if ((await jobs.GetLibrarianItems()).Count == 0)
+            await store.Enqueue(new EnqueueRequest("job", "{}", new(), TimeSpan.Zero, null), cancellationToken: cancellationToken);
+            var jobs = await database.GetContainer("flywheel.jobs", cancellationToken: cancellationToken);
+            if ((await jobs.GetLibrarianItems(cancellationToken: cancellationToken)).Count == 0)
                 throw new InvalidOperationException("The store did not use the keyed database.");
             await store.DisposeAsync();
-            await database.GetContainer("still-alive");
+            await database.GetContainer("still-alive", cancellationToken: cancellationToken);
         }
         finally
         {
@@ -38,7 +39,7 @@ public sealed class MemoryRegistrationTests
         }
         try
         {
-            await database.GetContainer("disposed");
+            await database.GetContainer("disposed", cancellationToken: cancellationToken);
             throw new InvalidOperationException("DI did not dispose its database.");
         }
         catch (ObjectDisposedException) { }

@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Communication.Responses;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Redis.Tests;
 
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public ValueTask SearchHistoryMatchesSearchAcrossPagesStatesAndDateBounds() => new ValueTask(WithStore(async (store, db, ns) =>
+    public ValueTask SearchHistoryMatchesSearchAcrossPagesStatesAndDateBounds(CancellationToken cancellationToken) => new ValueTask(WithStore(async (store, db, ns) =>
     {
         long timestamp = DateTimeOffset.UtcNow.AddHours(-2).ToUnixTimeMilliseconds();
         JobState[] states = [JobState.Scheduled, JobState.Running, JobState.Succeeded, JobState.DeadLettered, JobState.Cancelled, JobState.Waiting];
@@ -23,17 +24,17 @@ public sealed partial class FlywheelRedisTests
         }
         foreach (string query in new[] { "matching", "Queued", "Scheduled", "WAITING", "worker-a", "job-229", "absent" })
         {
-            JobSearchResult search = await store.Search(query, 0, 10);
-            IReadOnlyList<JobHistoryPoint> points = await store.GetSearchHistory(query, null, null);
+            JobSearchResult search = await store.Search(query, 0, 10, cancellationToken: cancellationToken);
+            IReadOnlyList<JobHistoryPoint> points = await store.GetSearchHistory(query, null, null, cancellationToken: cancellationToken);
             Check(points.Sum(p => p.Scheduled + p.Running + p.Succeeded + p.DeadLettered + p.Cancelled + p.Waiting + p.Queued) == search.TotalCount,
                 "Chart count differs from all matching jobs");
         }
         DateTimeOffset start = DateTimeOffset.FromUnixTimeMilliseconds(timestamp + 600000);
         DateTimeOffset end = start.AddMinutes(11);
-        JobSearchResult filtered = await store.Search("matching", start, end, 0, 10);
-        IReadOnlyList<JobHistoryPoint> history = await store.GetSearchHistory("matching", start, end);
+        JobSearchResult filtered = await store.Search("matching", start, end, 0, 10, cancellationToken: cancellationToken);
+        IReadOnlyList<JobHistoryPoint> history = await store.GetSearchHistory("matching", start, end, cancellationToken: cancellationToken);
         Check(filtered.TotalCount == 11 && history.Sum(p => p.Scheduled + p.Running + p.Succeeded + p.DeadLettered + p.Cancelled + p.Waiting + p.Queued) == 11,
             "Date boundaries do not match the table");
-        Check((await store.GetSearchHistory("matching", null, null)).Sum(p => p.Waiting) > 0, "Waiting jobs were omitted");
+        Check((await store.GetSearchHistory("matching", null, null, cancellationToken: cancellationToken)).Sum(p => p.Waiting) > 0, "Waiting jobs were omitted");
     }));
 }

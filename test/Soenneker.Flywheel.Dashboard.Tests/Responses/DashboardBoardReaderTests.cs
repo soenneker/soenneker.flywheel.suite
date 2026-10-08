@@ -1,13 +1,14 @@
 using System.Text.Json;
 using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Dashboard.Communication;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed class DashboardBoardReaderTests
 {
     [Test]
-    public async ValueTask BatchedReaderPreservesTheTypedSignalRPayload()
+    public async ValueTask BatchedReaderPreservesTheTypedSignalRPayload(CancellationToken cancellationToken)
     {
         using var document = JsonDocument.Parse("""
         {
@@ -29,16 +30,16 @@ public sealed class DashboardBoardReaderTests
         }
         """);
         var expected = document.RootElement.Deserialize<LiveBoard>(JsonSerializerOptions.Web)!;
-        var actual = await DashboardBoardReader.Read(document.RootElement, CancellationToken.None);
+        var actual = await DashboardBoardReader.Read(document.RootElement, cancellationToken);
         if (JsonSerializer.Serialize(actual) != JsonSerializer.Serialize(expected))
             throw new Exception("Batched decoding changed the live snapshot contract.");
     }
 
     [Test]
-    public async ValueTask OptionalSummariesStayNullAndCancellationDoesNotPublishAPartialBoard()
+    public async ValueTask OptionalSummariesStayNullAndCancellationDoesNotPublishAPartialBoard(CancellationToken cancellationToken)
     {
         using var document = JsonDocument.Parse("""{"version":1,"items":[],"totalCount":0}""");
-        var board = await DashboardBoardReader.Read(document.RootElement, CancellationToken.None);
+        var board = await DashboardBoardReader.Read(document.RootElement, cancellationToken);
         if (board.History is not null || board.LiveActivity is not null || board.Schedules is not null || board.RunningCount is not null ||
             board.FailedCount is not null || board.SucceededCount is not null)
             throw new Exception("Missing optional summaries were invented.");
@@ -53,21 +54,21 @@ public sealed class DashboardBoardReaderTests
     }
 
     [Test]
-    public async ValueTask RetainedTotalsRefreshFromTheWireIncludingZeroAndNull()
+    public async ValueTask RetainedTotalsRefreshFromTheWireIncludingZeroAndNull(CancellationToken cancellationToken)
     {
         var totals = new ActivityTotalsState();
         foreach (long? count in new long?[] { 42, 0, null })
         {
             var expected = new LiveBoard(1, [], 0, null, null, FailedCount: count, SucceededCount: count);
             JsonElement element = JsonSerializer.SerializeToElement(expected);
-            totals.UpdateSnapshot(await DashboardBoardReader.Read(element, CancellationToken.None));
+            totals.UpdateSnapshot(await DashboardBoardReader.Read(element, cancellationToken));
             if (totals.FailedCount != count || totals.SucceededCount != count)
                 throw new Exception("Retained totals did not reach the header state from the live payload.");
         }
     }
 
     [Test]
-    public async ValueTask LargeSnapshotsCanBeCancelledBetweenBatches()
+    public async ValueTask LargeSnapshotsCanBeCancelledBetweenBatches(CancellationToken cancellationToken)
     {
         var point = new JobHistoryPoint(60000, 1, 2, 3, 4);
         var board = new LiveBoard(1, [], 0, Enumerable.Repeat(point, 10000).ToList(), null);

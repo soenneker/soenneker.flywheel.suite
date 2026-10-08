@@ -7,6 +7,7 @@ using Soenneker.Flywheel.Communication.Logging.Dtos;
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Postgres.Tests;
 
@@ -20,7 +21,7 @@ public sealed class PostgresJobStoreTests
     private static EnqueueRequest Request(string? key = null) => new("job", "{}", new JobPolicy(), TimeSpan.Zero, key);
 
     [Test]
-    public async ValueTask RegistrationSharesOneStoreWithoutOpeningDatabase()
+    public async ValueTask RegistrationSharesOneStoreWithoutOpeningDatabase(CancellationToken cancellationToken)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -56,46 +57,46 @@ public sealed class PostgresJobStoreTests
     }
 
     [Test]
-    public async ValueTask JobsLeasesAndHistorySurviveReopening()
+    public async ValueTask JobsLeasesAndHistorySurviveReopening(CancellationToken cancellationToken)
     {
         await using var fixture = new DatabaseFixture();
         string id;
         JobLease lease;
         await using (PostgresJobStore store = fixture.Open())
         {
-            id = await store.Enqueue(Request("dedupe"));
-            lease = (await store.Claim("worker", TimeSpan.FromMinutes(1)))!;
+            id = await store.Enqueue(Request("dedupe"), cancellationToken: cancellationToken);
+            lease = (await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
             Check(lease is not null, "Job was not claimed.");
-            await store.SetProgress(lease!, 25, "working");
-            await store.AppendLogs(lease!, [new JobLogMessage("Info", "test", "persisted")]);
-            await store.Heartbeat("worker", 2, TimeSpan.FromMinutes(1));
+            await store.SetProgress(lease!, 25, "working", cancellationToken: cancellationToken);
+            await store.AppendLogs(lease!, [new JobLogMessage("Info", "test", "persisted")], cancellationToken: cancellationToken);
+            await store.Heartbeat("worker", 2, TimeSpan.FromMinutes(1), cancellationToken: cancellationToken);
         }
         await using (PostgresJobStore store = fixture.Open())
         {
-            JobRecord job = (await store.Get(id))!;
+            JobRecord job = (await store.Get(id, cancellationToken: cancellationToken))!;
             Check(job.State == JobState.Running && job.Progress == 25, "Job state did not persist.");
-            Check((await store.GetLogs(id)).Single().Message == "persisted", "Logs did not persist.");
-            Check(await store.GetTotalWorkerCount() == 2, "Worker heartbeat did not persist.");
-            Check(await store.Enqueue(Request("dedupe")) == id, "Dedupe did not persist.");
-            Check(await store.Finish(lease!, JobOutcome.Succeeded, null, TimeSpan.Zero), "Lease did not persist.");
-            Check((await store.GetSearchHistory(null, null, null)).Sum(p => p.Succeeded) == 1, "Completion history missing.");
+            Check((await store.GetLogs(id, cancellationToken: cancellationToken)).Single().Message == "persisted", "Logs did not persist.");
+            Check(await store.GetTotalWorkerCount(cancellationToken: cancellationToken) == 2, "Worker heartbeat did not persist.");
+            Check(await store.Enqueue(Request("dedupe"), cancellationToken: cancellationToken) == id, "Dedupe did not persist.");
+            Check(await store.Finish(lease!, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken), "Lease did not persist.");
+            Check((await store.GetSearchHistory(null, null, null, cancellationToken: cancellationToken)).Sum(p => p.Succeeded) == 1, "Completion history missing.");
         }
     }
 
     [Test]
-    public async ValueTask IndependentWorkersCoordinateClaimsAndNamespaces()
+    public async ValueTask IndependentWorkersCoordinateClaimsAndNamespaces(CancellationToken cancellationToken)
     {
         await using var fixture = new DatabaseFixture();
         await using PostgresJobStore first = fixture.Open();
         await using PostgresJobStore second = fixture.Open();
-        string[] ids = await Task.WhenAll(first.Enqueue(Request("same")), second.Enqueue(Request("same")));
+        string[] ids = await Task.WhenAll(first.Enqueue(Request("same"), cancellationToken: cancellationToken), second.Enqueue(Request("same"), cancellationToken: cancellationToken));
         Check(ids[0] == ids[1], "Concurrent dedupe produced two jobs.");
-        JobLease?[] leases = await Task.WhenAll(first.Claim("first", TimeSpan.FromMinutes(1)), second.Claim("second", TimeSpan.FromMinutes(1)));
+        JobLease?[] leases = await Task.WhenAll(first.Claim("first", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken), second.Claim("second", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken));
         Check(leases.Count(l => l is not null) == 1, "Workers both claimed the same job.");
-        Check(await second.Finish(leases.Single(l => l is not null)!, JobOutcome.Succeeded, null, TimeSpan.Zero), "Cross-instance finish failed.");
+        Check(await second.Finish(leases.Single(l => l is not null)!, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken), "Cross-instance finish failed.");
         await using var isolatedFixture = new DatabaseFixture();
         await using PostgresJobStore isolated = isolatedFixture.Open();
-        Check(await isolated.Get(ids[0]) is null, "Job leaked across namespaces.");
+        Check(await isolated.Get(ids[0], cancellationToken: cancellationToken) is null, "Job leaked across namespaces.");
     }
 
     private sealed class DatabaseFixture : IAsyncDisposable

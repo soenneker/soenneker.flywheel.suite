@@ -1,11 +1,9 @@
-using System.Collections.Generic;
 // Explicit enum metadata keeps generated contracts compatible with numeric persisted values.
 using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Communication.Responses;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Serialization;
 using System.Text.Json;
-using System;
 
 namespace Soenneker.Flywheel.Communication;
 

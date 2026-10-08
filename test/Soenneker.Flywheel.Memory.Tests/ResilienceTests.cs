@@ -7,6 +7,7 @@ using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Flywheel.Core.Services;
 using Soenneker.Flywheel.Core.Services.Abstract;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Memory.Tests;
 
@@ -19,49 +20,49 @@ public sealed class ResilienceTests
     { if (!condition) throw new InvalidOperationException(message); }
 
     [Test]
-    public async ValueTask ClaimsSkipUnsupportedHandlersWithoutConsumingAttempts()
+    public async ValueTask ClaimsSkipUnsupportedHandlersWithoutConsumingAttempts(CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
-        string unknown = await store.Enqueue(Request("new-handler"));
-        string known = await store.Enqueue(Request());
-        JobLease lease = (await store.ClaimForWorker("old", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "test" }))!;
+        string unknown = await store.Enqueue(Request("new-handler"), cancellationToken: cancellationToken);
+        string known = await store.Enqueue(Request(), cancellationToken: cancellationToken);
+        JobLease lease = (await store.ClaimForWorker("old", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "test" }, cancellationToken: cancellationToken))!;
         Check(lease.Job.Id == known, "Unknown handler prevented eligible work from being claimed.");
-        JobRecord untouched = (await store.Get(unknown))!;
+        JobRecord untouched = (await store.Get(unknown, cancellationToken: cancellationToken))!;
         Check(untouched.State == JobState.Scheduled && untouched.Attempt == 0, "Unsupported work was consumed.");
-        Check(await store.ClaimForWorker("old", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "test" }) is null,
+        Check(await store.ClaimForWorker("old", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "test" }, cancellationToken: cancellationToken) is null,
             "Unsupported work was claimed after eligible work ran out.");
     }
 
     [Test]
-    public async ValueTask InterruptedLeasePreservesRetryBudgetAndFencesTheOldOwner()
+    public async ValueTask InterruptedLeasePreservesRetryBudgetAndFencesTheOldOwner(CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
-        string id = await store.Enqueue(Request()); // Default MaxAttempts = 1.
-        JobLease first = (await store.Claim("first", TimeSpan.FromMinutes(1)))!;
-        Check(await store.Interrupt(first, "shutdown"), "Shutdown recovery failed.");
-        JobRecord scheduled = (await store.Get(id))!;
+        string id = await store.Enqueue(Request(), cancellationToken: cancellationToken); // Default MaxAttempts = 1.
+        JobLease first = (await store.Claim("first", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
+        Check(await store.Interrupt(first, "shutdown", cancellationToken: cancellationToken), "Shutdown recovery failed.");
+        JobRecord scheduled = (await store.Get(id, cancellationToken: cancellationToken))!;
         Check(scheduled.State == JobState.Scheduled && scheduled.Attempt == 0, "Shutdown exhausted the retry budget.");
-        JobLease second = (await store.Claim("second", TimeSpan.FromMinutes(1)))!;
-        Check(!await store.Interrupt(first, "stale") && !await store.Quarantine(first, "stale"), "Old owner changed a successor lease.");
-        Check(await store.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero), "Successor could not finish.");
+        JobLease second = (await store.Claim("second", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
+        Check(!await store.Interrupt(first, "stale", cancellationToken: cancellationToken) && !await store.Quarantine(first, "stale", cancellationToken: cancellationToken), "Old owner changed a successor lease.");
+        Check(await store.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken), "Successor could not finish.");
     }
 
     [Test]
-    public async ValueTask DurableCancellationWinsOverShutdownRecovery()
+    public async ValueTask DurableCancellationWinsOverShutdownRecovery(CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
-        string id = await store.Enqueue(Request());
-        JobLease lease = (await store.Claim("first", TimeSpan.FromMinutes(1)))!;
-        await store.Cancel(id);
-        await store.Interrupt(lease, "shutdown");
-        Check((await store.Get(id))!.State == JobState.Cancelled && await store.Claim("second", TimeSpan.FromMinutes(1)) is null,
+        string id = await store.Enqueue(Request(), cancellationToken: cancellationToken);
+        JobLease lease = (await store.Claim("first", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
+        await store.Cancel(id, cancellationToken: cancellationToken);
+        await store.Interrupt(lease, "shutdown", cancellationToken: cancellationToken);
+        Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.Cancelled && await store.Claim("second", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken) is null,
             "Shutdown resurrected a cancelled job.");
     }
 
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async ValueTask ShutdownDrainsThenRecoversUnfinishedWork(bool finishDuringDrain)
+    public async ValueTask ShutdownDrainsThenRecoversUnfinishedWork(bool finishDuringDrain, CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
@@ -71,13 +72,13 @@ public sealed class ResilienceTests
         var invoker = new Invoker(async (_, ct) => { started.SetResult(); await release.Task.WaitAsync(ct); });
         var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [invoker], options, NullLogger<JobExecutor>.Instance);
         using var worker = new WorkerService(executor, store, options, NullLogger<WorkerService>.Instance);
-        string id = await store.Enqueue(Request());
-        await worker.StartAsync(default);
-        await started.Task.WaitAsync(Limit);
-        Task stopping = worker.StopAsync(default);
+        string id = await store.Enqueue(Request(), cancellationToken: cancellationToken);
+        await worker.StartAsync(cancellationToken);
+        await started.Task.WaitAsync(Limit, cancellationToken: cancellationToken);
+        Task stopping = worker.StopAsync(cancellationToken);
         if (finishDuringDrain) release.SetResult();
-        await stopping.WaitAsync(Limit);
-        JobRecord job = (await store.Get(id))!;
+        await stopping.WaitAsync(Limit, cancellationToken: cancellationToken);
+        JobRecord job = (await store.Get(id, cancellationToken: cancellationToken))!;
         Check(job.State == (finishDuringDrain ? JobState.Succeeded : JobState.Scheduled), "Incorrect shutdown outcome.");
         if (!finishDuringDrain) Check(job.Attempt == 0, "Shutdown consumed an attempt.");
     }
@@ -86,7 +87,7 @@ public sealed class ResilienceTests
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]
-    public async ValueTask IgnoredCancellationQuarantinesWithoutRetryAndKeepsScopeAlive(bool throwingCallback, bool policyTimeout)
+    public async ValueTask IgnoredCancellationQuarantinesWithoutRetryAndKeepsScopeAlive(bool throwingCallback, bool policyTimeout, CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         var resource = new ScopedResource();
@@ -105,19 +106,19 @@ public sealed class ResilienceTests
         var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [invoker],
             new FlywheelOptions { CancellationGracePeriod = TimeSpan.FromMilliseconds(50) }, NullLogger<JobExecutor>.Instance, lifetime: lifetime);
         string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 3,
-            Timeout = policyTimeout ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromMinutes(1) }));
+            Timeout = policyTimeout ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromMinutes(1) }), cancellationToken: cancellationToken);
         Task running = executor.RunOnce(stop.Token);
         try
         {
-            await started.Task.WaitAsync(Limit);
+            await started.Task.WaitAsync(Limit, cancellationToken: cancellationToken);
             if (!policyTimeout) await stop.CancelAsync();
-            try { await running.WaitAsync(Limit); throw new Exception("Unresponsive execution was accepted."); }
+            try { await running.WaitAsync(Limit, cancellationToken: cancellationToken); throw new Exception("Unresponsive execution was accepted."); }
             catch (JobExecutionUnresponsiveException) { }
             Check(lifetime.Stopped && !resource.Disposed.Task.IsCompleted, "Host was not stopped or active handler scope was disposed.");
-            Check((await store.Get(id))!.State == JobState.DeadLettered, "Unresponsive execution was not quarantined.");
-            await store.Maintain(100);
-            Check(await store.Claim("other", TimeSpan.FromMinutes(1)) is null, "Quarantine allowed an automatic duplicate.");
-            try { await executor.RunOnce(default); throw new Exception("Unhealthy executor resumed claiming."); }
+            Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Unresponsive execution was not quarantined.");
+            await store.Maintain(100, cancellationToken: cancellationToken);
+            Check(await store.Claim("other", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken) is null, "Quarantine allowed an automatic duplicate.");
+            try { await executor.RunOnce(cancellationToken); throw new Exception("Unhealthy executor resumed claiming."); }
             catch (JobExecutionUnresponsiveException) { }
         }
         finally

@@ -9,6 +9,7 @@ using Soenneker.Librarian.Abstractions;
 using Soenneker.Flywheel.Dashboard.Registrars;
 using Soenneker.Flywheel.Dashboard.Communication.Abstract;
 using Soenneker.Flywheel.Communication.Responses;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -19,7 +20,7 @@ public sealed class FlywheelRouterTests
     [Arguments("Succeeded")]
     [Arguments("DeadLettered")]
     [Arguments("Queued")]
-    public async ValueTask HeaderFiltersExposeClearAndSelectTheSameGraphAndTableStatus(string state)
+    public async ValueTask HeaderFiltersExposeClearAndSelectTheSameGraphAndTableStatus(string state, CancellationToken cancellationToken)
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/?state=" + state, async (component, navigation, handler) =>
@@ -93,7 +94,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask HostContentHandlesUnmatchedPathsAndNavigation()
+    public async ValueTask HostContentHandlesUnmatchedPathsAndNavigation(CancellationToken cancellationToken)
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/", async (component, navigation, handler) =>
         {
@@ -106,7 +107,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask ConfiguredRootRendersDashboardAndRedirectsAnonymousVisitor()
+    public async ValueTask ConfiguredRootRendersDashboardAndRedirectsAnonymousVisitor(CancellationToken cancellationToken)
     {
         await VerifyRendering("/", "https://example.test/", "https://example.test/?view=jobs", (component, navigation, handler) =>
         {
@@ -118,7 +119,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask RoutesRelativeToApplicationBase()
+    public async ValueTask RoutesRelativeToApplicationBase(CancellationToken cancellationToken)
     {
         await VerifyRendering("/flywheel", "https://example.test/operations/", "https://example.test/operations/flywheel/servers", (component, navigation, handler) =>
         {
@@ -128,7 +129,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask ServerParametersDecodeOnceAndUpdateOnNavigation()
+    public async ValueTask ServerParametersDecodeOnceAndUpdateOnNavigation(CancellationToken cancellationToken)
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/servers/node%20one", async (component, navigation, handler) =>
         {
@@ -140,7 +141,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask JobBackLinkPreservesPreviousPageQueryAndFragment()
+    public async ValueTask JobBackLinkPreservesPreviousPageQueryAndFragment(CancellationToken cancellationToken)
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/recurring?view=recent#schedules", async (component, navigation, handler) =>
         {
@@ -152,7 +153,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask JobParameterIsPassedToConcretePage()
+    public async ValueTask JobParameterIsPassedToConcretePage(CancellationToken cancellationToken)
     {
         await VerifyRendering("/flywheel", "https://example.test/", "https://example.test/flywheel/jobs/job%201", (component, navigation, handler) =>
         {
@@ -162,7 +163,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask SchedulePagesShareLayoutAndConnectionWithoutLoadingOverview()
+    public async ValueTask SchedulePagesShareLayoutAndConnectionWithoutLoadingOverview(CancellationToken cancellationToken)
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
@@ -195,7 +196,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask SessionExpiryRedirectsToStandaloneSignInAndClosesTheLayoutConnection()
+    public async ValueTask SessionExpiryRedirectsToStandaloneSignInAndClosesTheLayoutConnection(CancellationToken cancellationToken)
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/recurring", async (component, navigation, handler) =>
@@ -212,7 +213,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask ScheduleDetailsUseTheSelectedIdAndReuseTheLayoutOnNavigation()
+    public async ValueTask ScheduleDetailsUseTheSelectedIdAndReuseTheLayoutOnNavigation(CancellationToken cancellationToken)
     {
         var live = new BoardConnectionTestClient();
         var schedules = new ScheduleView([
@@ -236,7 +237,7 @@ public sealed class FlywheelRouterTests
     }
 
     [Test]
-    public async ValueTask LiveOverviewRendersSecondResolutionActivityFromPush()
+    public async ValueTask LiveOverviewRendersSecondResolutionActivityFromPush(CancellationToken cancellationToken)
     {
         var live = new BoardConnectionTestClient();
         await VerifyRendering("/", "https://example.test/", "https://example.test/", async (component, navigation, handler) =>
@@ -259,7 +260,7 @@ public sealed class FlywheelRouterTests
     [Arguments("/", "/api/engine")]
     [Arguments("/operations/dashboard", "/")]
     [Arguments("/operations/dashboard", "/api/engine")]
-    public async ValueTask DashboardAndEnginePrefixesAreIndependent(string homePath, string enginePath)
+    public async ValueTask DashboardAndEnginePrefixesAreIndependent(string homePath, string enginePath, CancellationToken cancellationToken)
     {
         string home = homePath.Trim('/');
         string pagePrefix = home.Length == 0 ? "" : home + "/";

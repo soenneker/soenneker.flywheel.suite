@@ -13,6 +13,7 @@ using Soenneker.Flywheel.Dashboard.Consumers.Abstract;
 using Soenneker.Flywheel.Dashboard.Registrars;
 using Soenneker.Hashing.Pbkdf2;
 using Soenneker.SignalR.Web.Clients.Abstract;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -24,7 +25,7 @@ public sealed partial class FlywheelDashboardTests
     [Arguments("/", "/operations/engine")]
     [Arguments("/operations/dashboard", "/")]
     [Arguments("/operations/dashboard", "/operations/engine")]
-    public async ValueTask ConsumerUsesCoreCookieCsrfAndSharedContracts(string homePath, string enginePath)
+    public async ValueTask ConsumerUsesCoreCookieCsrfAndSharedContracts(string homePath, string enginePath, CancellationToken cancellationToken)
     {
         var password = Guid.NewGuid().ToString("N");
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
@@ -41,7 +42,7 @@ public sealed partial class FlywheelDashboardTests
         await using WebApplication app = builder.Build();
         app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
         app.MapFlywheelDashboard();
-        await app.StartAsync();
+        await app.StartAsync(cancellationToken: cancellationToken);
 
         IServiceCollection services = new ServiceCollection().AddLogging();
         services.AddSingleton<NavigationManager>(new RouterTestNavigationManager("https://dashboard.example/", "https://dashboard.example/"));
@@ -53,17 +54,17 @@ public sealed partial class FlywheelDashboardTests
         using IServiceScope scope = provider.CreateScope();
         var consumer = scope.ServiceProvider.GetRequiredService<IFlywheelDashboardConsumer>();
 
-        OperationResult<SearchResult> anonymous = await consumer.Search();
+        OperationResult<SearchResult> anonymous = await consumer.Search(cancellationToken: cancellationToken);
         Check(anonymous.StatusCode == 401 && anonymous.Failed, "Anonymous consumer result lost authentication failure.");
-        OperationResult<object> wrong = await consumer.Login("admin", "wrong");
+        OperationResult<object> wrong = await consumer.Login("admin", "wrong", cancellationToken: cancellationToken);
         Check(wrong.StatusCode == 401 && wrong.Failed, "Incorrect credentials were accepted.");
-        OperationResult<object> login = await consumer.Login("admin", password);
+        OperationResult<object> login = await consumer.Login("admin", password, cancellationToken: cancellationToken);
         Check(login.Succeeded && login.StatusCode == 204, "Consumer did not complete CSRF-protected login.");
-        OperationResult<SearchResult> search = await consumer.Search("invoice&monthly", 50, 25);
+        OperationResult<SearchResult> search = await consumer.Search("invoice&monthly", 50, 25, cancellationToken: cancellationToken);
         Check(search.Succeeded && search.Value?.TotalCount == 51, "Consumer failed to deserialize the shared search contract.");
-        OperationResult<List<ServerView>> servers = await consumer.GetServers();
+        OperationResult<List<ServerView>> servers = await consumer.GetServers(cancellationToken: cancellationToken);
         Check(servers.Succeeded && servers.Value is [{ Id: "node one", Workers: 12 }], "Server list did not load at the configured base path.");
-        OperationResult<ServerView> server = await consumer.GetServer("node one");
+        OperationResult<ServerView> server = await consumer.GetServer("node one", cancellationToken: cancellationToken);
         Check(server.Succeeded && server.Value is { Id: "node one", Workers: 12 }, "Server detail did not load at the configured base path.");
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
         {
@@ -80,20 +81,20 @@ public sealed partial class FlywheelDashboardTests
             Check(subscription.IsConnected, "SignalR did not connect using the independent engine prefix.");
         }
         using HttpResponseMessage obsolete = await scope.ServiceProvider.GetRequiredService<IFlywheelApiClient>()
-            .Get(enginePath == "/" ? "flywheel/servers" : "servers");
+            .Get(enginePath == "/" ? "flywheel/servers" : "servers", cancellationToken: cancellationToken);
         Check(obsolete.StatusCode == System.Net.HttpStatusCode.NotFound, "An endpoint remained mapped outside the configured base path.");
-        OperationResult<JobView> job = await consumer.GetJob("one");
+        OperationResult<JobView> job = await consumer.GetJob("one", cancellationToken: cancellationToken);
         Check(job.Value is { MaxAttempts: 1, Priority: "Normal" }, "Shared execution projection was lost.");
-        OperationResult<JobView> missing = await consumer.GetJob("missing");
+        OperationResult<JobView> missing = await consumer.GetJob("missing", cancellationToken: cancellationToken);
         Check(missing.StatusCode == 404 && missing.Failed, "Missing execution did not preserve failure status.");
-        OperationResult<ScheduleView> schedules = await consumer.GetSchedules();
+        OperationResult<ScheduleView> schedules = await consumer.GetSchedules(cancellationToken: cancellationToken);
         Check(schedules.StatusCode == 501 && schedules.Failed, "Unsupported store capability did not preserve failure status.");
-        OperationResult<object> logout = await consumer.Logout();
+        OperationResult<object> logout = await consumer.Logout(cancellationToken: cancellationToken);
         Check(logout.Succeeded, "Consumer did not refresh CSRF after authentication changed.");
-        Check((await consumer.Search()).StatusCode == 401, "Sign-out left an authenticated consumer session.");
+        Check((await consumer.Search(cancellationToken: cancellationToken)).StatusCode == 401, "Sign-out left an authenticated consumer session.");
 
         var api = scope.ServiceProvider.GetRequiredService<IFlywheelApiClient>();
-        await Assert.That(async () => await api.Get("https://untrusted.example/flywheel/jobs")).Throws<InvalidOperationException>();
-        await app.StopAsync();
+        await Assert.That(async () => await api.Get("https://untrusted.example/flywheel/jobs", cancellationToken: cancellationToken)).Throws<InvalidOperationException>();
+        await app.StopAsync(cancellationToken: cancellationToken);
     }
 }

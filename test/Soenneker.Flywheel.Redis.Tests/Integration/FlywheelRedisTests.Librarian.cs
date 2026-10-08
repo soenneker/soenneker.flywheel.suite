@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Globalization;
 using System.Threading.Tasks;
 using Soenneker.Flywheel.Communication.Dtos;
@@ -10,22 +9,23 @@ using Soenneker.Librarian.Redis;
 using Soenneker.Librarian.Abstractions.Transactions;
 using Soenneker.Utils.Json;
 using StackExchange.Redis;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Redis.Tests;
 
 public sealed partial class FlywheelRedisTests
 {
     [Test]
-    public ValueTask MissedCommittedNotificationsRequestResync() => new ValueTask(WithStore(async (store, db, ns) =>
+    public ValueTask MissedCommittedNotificationsRequestResync(CancellationToken cancellationToken) => new ValueTask(WithStore(async (store, db, ns) =>
     {
         await using var observer = new RedisJobStore(_ => Task.FromResult(db), ns);
         using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await using var feed = observer.Watch(timeout.Token).GetAsyncEnumerator();
+        await using var feed = observer.Watch(timeout.Token).GetAsyncEnumerator(cancellationToken: cancellationToken);
         Check(await feed.MoveNextAsync() && feed.Current == JobChange.Resync, "Initial resync missing");
-        await store.Enqueue(Request());
-        await store.Enqueue(Request());
+        await store.Enqueue(Request(), cancellationToken: cancellationToken);
+        await store.Enqueue(Request(), cancellationToken: cancellationToken);
         Check(await feed.MoveNextAsync() && feed.Current == JobChange.Resync, "Missed revisions were presented as a complete feed");
-        Check((await observer.List()).Count == 2, "Resync did not expose committed documents");
+        Check((await observer.List(cancellationToken: cancellationToken)).Count == 2, "Resync did not expose committed documents");
     }));
 
     private static RedisLibrarianDatabase OpenLibrarian(IDatabase db, string ns) => new(ns, _ => ValueTask.FromResult(db), keyPrefix: "flywheel");

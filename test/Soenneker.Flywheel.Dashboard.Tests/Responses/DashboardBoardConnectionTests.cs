@@ -1,4 +1,5 @@
 using Soenneker.Flywheel.Communication.Responses;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -25,7 +26,7 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async ValueTask NavigationReusesTransportWithoutResettingStatusOrCancellingItsLifetime()
+    public async ValueTask NavigationReusesTransportWithoutResettingStatusOrCancellingItsLifetime(CancellationToken cancellationToken)
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
@@ -36,22 +37,22 @@ public sealed class DashboardBoardConnectionTests
         Check(client.Transport.Subscriptions == 1, "Startup subscribed twice.");
         await firstPage.CancelAsync();
         int second = connection.NextVersion();
-        await connection.Configure(second, "second", 0, 10, null, null, CancellationToken.None);
+        await connection.Configure(second, "second", 0, 10, null, null, cancellationToken);
         Check(client.Connections == 1 && !client.Transport.Disposed, "Navigation recreated the socket.");
         Check(totals.Live && !client.Lifetime.IsCancellationRequested, "Page cancellation reset the shell connection.");
         Check(client.Transport.Version == second && client.Transport.Query == "second", "Navigation did not replace the subscription.");
-        await connection.Configure(first, "stale", 0, 50, null, null, CancellationToken.None);
+        await connection.Configure(first, "stale", 0, 50, null, null, cancellationToken);
         Check(client.Transport.Query == "second", "An old page replaced the current subscription.");
     }
 
     [Test]
-    public async ValueTask RealDisconnectsUpdateStatusAndRecoveryRestoresTheCurrentQuery()
+    public async ValueTask RealDisconnectsUpdateStatusAndRecoveryRestoresTheCurrentQuery(CancellationToken cancellationToken)
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
         await using var connection = new DashboardBoardConnection(client, totals);
         int version = connection.NextVersion();
-        await connection.Configure(version, "current", 0, 50, null, null, CancellationToken.None);
+        await connection.Configure(version, "current", 0, 50, null, null, cancellationToken);
         client.Transport.IsConnected = false;
         await client.Disconnected();
         Check(!totals.Live, "A real disconnection was hidden.");
@@ -60,17 +61,17 @@ public sealed class DashboardBoardConnectionTests
         Check(totals.Live && client.Transport.Subscriptions == 2 && client.Transport.Query == "current", "Recovery did not restore the current query.");
         await connection.Stop();
         Check(client.Transport.Disposed && !totals.Live, "Sign-out left a socket or connected status behind.");
-        await connection.EnsureStarted();
+        await connection.EnsureStarted(cancellationToken: cancellationToken);
         Check(client.Connections == 2 && totals.Live, "A later shell could not reconnect.");
     }
 
     [Test]
-    public async ValueTask HeaderUpdatesWithoutAPageAndIgnoresStaleAndUnchangedSnapshots()
+    public async ValueTask HeaderUpdatesWithoutAPageAndIgnoresStaleAndUnchangedSnapshots(CancellationToken cancellationToken)
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
         await using var connection = new DashboardBoardConnection(client, totals);
-        await connection.EnsureStarted();
+        await connection.EnsureStarted(cancellationToken: cancellationToken);
         int changes = 0;
         totals.Changed += () => changes++;
         var snapshot = new LiveBoard(0, [], 0, [], new ScheduleView([], []), 2, 1, 4);
@@ -78,19 +79,19 @@ public sealed class DashboardBoardConnectionTests
         await client.Snapshot(snapshot);
         Check(changes == 1 && totals.RunningCount == 2 && totals.TotalWorkers == 4, "Header updates were missing or redundant.");
         int version = connection.NextVersion();
-        await connection.Configure(version, "next", 0, 50, null, null, CancellationToken.None);
+        await connection.Configure(version, "next", 0, 50, null, null, cancellationToken);
         await client.Snapshot(snapshot with { RunningCount = 99 });
         Check(totals.RunningCount == 2, "A stale snapshot overwrote the current header.");
     }
 
     [Test]
-    public async ValueTask LiveChartRetainsSamplesAcrossNavigationAndClearsOnSignOut()
+    public async ValueTask LiveChartRetainsSamplesAcrossNavigationAndClearsOnSignOut(CancellationToken cancellationToken)
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
         await using var connection = new DashboardBoardConnection(client, totals);
         int first = connection.NextVersion();
-        await connection.Configure(first, "", 0, 50, null, null, CancellationToken.None);
+        await connection.Configure(first, "", 0, 50, null, null, cancellationToken);
         var snapshot = new LiveBoard(first, [], 0, [], new ScheduleView([], []), 3, 1, 4)
         {
             LiveActivity = [new JobHistoryPoint(60000, 0, 0, 2, 0)]
@@ -101,7 +102,7 @@ public sealed class DashboardBoardConnectionTests
         await connection.ReleaseQuery(first);
         await client.Snapshot(snapshot with { Version = client.Transport.Version });
         int next = connection.NextVersion();
-        await connection.Configure(next, "", 0, 50, null, null, CancellationToken.None);
+        await connection.Configure(next, "", 0, 50, null, null, cancellationToken);
         Check(ReferenceEquals(activity, connection.LiveActivity), "Navigation discarded chart state.");
         connection.LiveActivity.Advance(totals);
         Check(activity.Data.Series[1].Values[^1] == 3 && activity.Data.Series[2].Values.Contains(2),
@@ -111,18 +112,18 @@ public sealed class DashboardBoardConnectionTests
     }
 
     [Test]
-    public async ValueTask LiveChartSamplesWhileNoDashboardPageOrNewSnapshotsExist()
+    public async ValueTask LiveChartSamplesWhileNoDashboardPageOrNewSnapshotsExist(CancellationToken cancellationToken)
     {
         var client = new BoardConnectionTestClient();
         var totals = new ActivityTotalsState();
         await using var connection = new DashboardBoardConnection(client, totals);
-        await connection.EnsureStarted();
+        await connection.EnsureStarted(cancellationToken: cancellationToken);
         await client.Snapshot(new LiveBoard(0, [], 0, [], new ScheduleView([], []), 3, 1, 4)
         {
             LiveActivity = [new JobHistoryPoint(60000, 0, 0, 2, 0)]
         });
         // No page calls Advance, and unchanged server state sends no new snapshots.
-        await Task.Delay(3200);
+        await Task.Delay(3200, cancellationToken: cancellationToken);
         DashboardLiveActivityState state = connection.LiveActivity;
         var samples = (Dictionary<long, double?>)typeof(DashboardLiveActivityState)
             .GetField("_runningSamples", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!

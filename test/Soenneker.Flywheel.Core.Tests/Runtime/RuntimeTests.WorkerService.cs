@@ -11,7 +11,7 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 public sealed partial class RuntimeTests
 {
     [Test]
-    public async ValueTask IdleWorkersWakeFromNotificationsAndResize()
+    public async ValueTask IdleWorkersWakeFromNotificationsAndResize(CancellationToken cancellationToken)
     {
         var executor = new EmptyExecutor();
         var store = new StubStore();
@@ -39,11 +39,11 @@ public sealed partial class RuntimeTests
         await Task.Delay(100, deadline.Token);
         if (executor.Claims != resizedClaims + 1) throw new Exception("Retired workers claimed more jobs");
 
-        await service.StopAsync(CancellationToken.None);
+        await service.StopAsync(cancellationToken);
     }
 
     [Test]
-    public async ValueTask OneSignalFillsPoolBeforeHandlersFinishAndRetirementDoesNotCancelThem()
+    public async ValueTask OneSignalFillsPoolBeforeHandlersFinishAndRetirementDoesNotCancelThem(CancellationToken cancellationToken)
     {
         var executor = new BlockingExecutor(3);
         var store = new StubStore();
@@ -52,7 +52,7 @@ public sealed partial class RuntimeTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await service.StartAsync(default);
+            await service.StartAsync(cancellationToken);
             await WaitFor(() => executor.Started == 3, deadline.Token);
             await service.SetWorkerCount(0, deadline.Token);
             await Task.Delay(50, deadline.Token);
@@ -70,7 +70,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async ValueTask NotificationDuringEmptyClaimIsNotLost()
+    public async ValueTask NotificationDuringEmptyClaimIsNotLost(CancellationToken cancellationToken)
     {
         var executor = new BlockingExecutor(0) { BlockEmpty = true };
         var store = new StubStore();
@@ -79,7 +79,7 @@ public sealed partial class RuntimeTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await service.StartAsync(default);
+            await service.StartAsync(cancellationToken);
             await WaitFor(() => executor.Probes == 1, deadline.Token);
             store.Notify();
             executor.Release.TrySetResult();
@@ -89,7 +89,7 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
-    public async ValueTask RecoveryProbesOnceRegardlessOfWorkerCount()
+    public async ValueTask RecoveryProbesOnceRegardlessOfWorkerCount(CancellationToken cancellationToken)
     {
         var executor = new EmptyExecutor();
         using var service = new WorkerService(executor, new StubStore(),
@@ -97,7 +97,7 @@ public sealed partial class RuntimeTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await service.StartAsync(default);
+            await service.StartAsync(cancellationToken);
             await WaitFor(() => executor.Claims >= 3, deadline.Token);
             if (executor.Claims > 5) throw new Exception("Recovery broadcast to the pool");
         }

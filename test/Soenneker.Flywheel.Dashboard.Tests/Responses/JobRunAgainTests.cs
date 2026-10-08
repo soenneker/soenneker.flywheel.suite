@@ -7,6 +7,7 @@ using Soenneker.Flywheel.Communication.Requests;
 using Soenneker.Flywheel.Communication.Responses;
 using Soenneker.Flywheel.Core.Dashboard.Endpoints;
 using Soenneker.Flywheel.Core.Stores.Abstract;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Dashboard.Tests;
 
@@ -16,12 +17,12 @@ public sealed class JobRunAgainTests
     [Arguments("Succeeded")]
     [Arguments("DeadLettered")]
     [Arguments("Cancelled")]
-    public async ValueTask FinishedJobsCreateFreshStandaloneExecutions(string state)
+    public async ValueTask FinishedJobsCreateFreshStandaloneExecutions(string state, CancellationToken cancellationToken)
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
         var capture = (RunStore)store;
         capture.Job = CreateJob(state);
-        IResult result = await FlywheelJobsEndpoints.RunAgain(store, "original", CancellationToken.None);
+        IResult result = await FlywheelJobsEndpoints.RunAgain(store, "original", cancellationToken);
         if (result is not JsonHttpResult<StartedJob> { Value: StartedJob { Id: "new-job" } } || capture.Request is not { } request)
             throw new Exception("Run did not return the newly queued execution.");
         if (request.Name != capture.Job.Name || request.Payload != capture.Job.Payload || request.Policy != capture.Job.Policy ||
@@ -34,22 +35,22 @@ public sealed class JobRunAgainTests
     [Arguments("Scheduled", null, 409)]
     [Arguments("Waiting", null, 409)]
     [Arguments("Succeeded", "build-1", 501)]
-    public async ValueTask IneligibleJobsNeverEnqueue(string state, string? version, int status)
+    public async ValueTask IneligibleJobsNeverEnqueue(string state, string? version, int status, CancellationToken cancellationToken)
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
         var capture = (RunStore)store;
         capture.Job = CreateJob(state) with { ApplicationVersion = version };
-        IResult result = await FlywheelJobsEndpoints.RunAgain(store, "original", CancellationToken.None);
+        IResult result = await FlywheelJobsEndpoints.RunAgain(store, "original", cancellationToken);
         if (result is not IStatusCodeHttpResult code || code.StatusCode != status || capture.Request is not null)
             throw new Exception("An ineligible job was queued.");
     }
 
     [Test]
-    public async ValueTask MissingAndInvalidJobsNeverEnqueue()
+    public async ValueTask MissingAndInvalidJobsNeverEnqueue(CancellationToken cancellationToken)
     {
         IJobStore store = DispatchProxy.Create<IJobStore, RunStore>();
-        if (await FlywheelJobsEndpoints.RunAgain(store, "missing", CancellationToken.None) is not NotFound ||
-            await FlywheelJobsEndpoints.RunAgain(store, "", CancellationToken.None) is not BadRequest || ((RunStore)store).Request is not null)
+        if (await FlywheelJobsEndpoints.RunAgain(store, "missing", cancellationToken) is not NotFound ||
+            await FlywheelJobsEndpoints.RunAgain(store, "", cancellationToken) is not BadRequest || ((RunStore)store).Request is not null)
             throw new Exception("Invalid or missing job was accepted.");
     }
 

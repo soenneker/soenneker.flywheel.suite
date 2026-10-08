@@ -4,13 +4,14 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Soenneker.Flywheel.Core.Logging;
 using Soenneker.Flywheel.Communication.Dtos;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Core.Tests.Logging;
 
 public sealed partial class JobLogTests
 {
     [Test]
-    public async ValueTask ConcurrentJobLoggingIsIsolatedAndBounded()
+    public async ValueTask ConcurrentJobLoggingIsIsolatedAndBounded(CancellationToken cancellationToken)
     {
         using var capture = new JobLogCapture();
         var store = new LogStore();
@@ -34,7 +35,7 @@ public sealed partial class JobLogTests
     }
 
     [Test]
-    public async ValueTask StorageFailureDoesNotEscapeLogging()
+    public async ValueTask StorageFailureDoesNotEscapeLogging(CancellationToken cancellationToken)
     {
         using var capture = new JobLogCapture();
         await using JobLogCapture.Session session = capture.Begin(Lease("failed"), new LogStore { Fail = true });

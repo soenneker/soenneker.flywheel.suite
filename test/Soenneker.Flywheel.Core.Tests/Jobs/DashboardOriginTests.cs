@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Soenneker.Flywheel.Core.Registrars;
+using System.Threading;
 
 namespace Soenneker.Flywheel.Core.Tests.Jobs;
 
@@ -15,7 +16,7 @@ public sealed class DashboardOriginTests
     [Arguments("/flywheel")]
     [Arguments("/")]
     [Arguments("/operations/engine")]
-    public async ValueTask EnforcesOriginsAndPreflight(string enginePath)
+    public async ValueTask EnforcesOriginsAndPreflight(string enginePath, CancellationToken cancellationToken)
     {
         string prefix = enginePath.TrimEnd('/');
         var services = new ServiceCollection();
