@@ -46,6 +46,7 @@ justify-center
 justify-end
 leading-normal
 m-0
+m-auto
 max-w-[1600px]
 max-w-md
 mb-3
