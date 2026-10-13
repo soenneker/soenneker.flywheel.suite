@@ -45,10 +45,11 @@ jobs:
           user: soenneker
 
       - name: Deploy ${{ matrix.package }} to NuGet
-        env:
-          NUGET_TOKEN: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-          PACKAGE: Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg
-        run: dotnet nuget push "artifacts/$PACKAGE" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_TOKEN" --skip-duplicate
+        uses: soenneker/nuget-resilient-publish@v2
+        with:
+          api-key: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          packages: 'artifacts/Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg'
+
       - name: Deploy ${{ matrix.package }} to GitHub Packages
         env:
           GH_TOKEN: ${{ secrets.GH__TOKEN }}
@@ -63,6 +64,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Get release notes from latest commit
+        uses: soenneker/release-notes-from-commits@v2
+
       - uses: actions/download-artifact@v8
         with:
           name: flywheel-packages
@@ -71,4 +76,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: 5.0.${{ github.run_number }}
-        run: gh release create "v$VERSION" artifacts/*.nupkg --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes
+        run: gh release create "v$VERSION" artifacts/*.nupkg --target "$GITHUB_SHA" --title "v$VERSION" --notes "$PACKAGE_RELEASE_NOTES"
