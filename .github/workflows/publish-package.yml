@@ -39,13 +39,13 @@ jobs:
           name: flywheel-packages
           path: artifacts
       - name: Log in to NuGet
-        uses: soenneker/nuget-resilient-login@v6
+        uses: soenneker/nuget-resilient-login@v7
         id: nuget-login
         with:
           user: soenneker
 
       - name: Deploy ${{ matrix.package }} to NuGet
-        uses: soenneker/nuget-resilient-publish@v3
+        uses: soenneker/nuget-resilient-publish@v4
         with:
           api-key: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           packages: 'artifacts/Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg'
