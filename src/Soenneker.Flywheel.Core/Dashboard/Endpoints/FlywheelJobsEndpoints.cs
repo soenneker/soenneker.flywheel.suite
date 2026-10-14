@@ -14,6 +14,15 @@ public static class FlywheelJobsEndpoints
 {
     internal static void Map(RouteGroupBuilder group)
     {
+        group.MapGet("/jobs/manual", ListManual)
+            .WithName("FlywheelJobs_ListManual").WithTags("Flywheel jobs")
+            .WithSummary("Lists up to 200 registered manual jobs and their latest execution status.")
+            .Produces<IReadOnlyList<ManualJobView>>().Produces(StatusCodes.Status501NotImplemented);
+        group.MapPost("/jobs/manual/{id}/run", RunManual)
+            .WithName("FlywheelJobs_RunManual").WithTags("Flywheel jobs")
+            .WithSummary("Queues a fresh execution of a registered manual job.")
+            .Produces<StartedJob>().Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound).Produces(StatusCodes.Status501NotImplemented);
         group.MapPost("/jobs/schedules/{id}/run", RunRecurring)
             .WithName("FlywheelJobs_RunRecurring")
             .WithTags("Flywheel jobs")
@@ -124,6 +133,21 @@ public static class FlywheelJobsEndpoints
             .Produces(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden);
+    }
+
+    /// <summary>Lists registered manual definitions without exposing payloads.</summary>
+    public static async ValueTask<IResult> ListManual([FromServices] IJobStore store, CancellationToken cancellationToken) =>
+        store is IManualJobStore manual
+            ? DashboardResults.Json(await manual.ListManual(200, cancellationToken))
+            : TypedResults.StatusCode(501);
+
+    /// <summary>Queues a fresh execution of a registered manual job.</summary>
+    public static async ValueTask<IResult> RunManual([FromServices] IJobStore store, [FromRoute] string id, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return TypedResults.BadRequest();
+        if (store is not IManualJobStore manual) return TypedResults.StatusCode(501);
+        string? executionId = await manual.RunManual(id, cancellationToken);
+        return executionId is null ? TypedResults.NotFound() : DashboardResults.Json(new StartedJob(executionId));
     }
 
     /// <summary>Queues an immediate execution without changing the recurring schedule.</summary>

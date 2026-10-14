@@ -40,13 +40,18 @@ public interface IJobClient
         string? idempotencyKey = null, CancellationToken cancellationToken = default);
     /// <summary>Updates distributed limits for a registered method at runtime. Requires a provider supporting method policies.</summary>
     Task ConfigureMethod<T>(JobDefinition<T> job, MethodPolicy policy, CancellationToken cancellationToken = default);
+    /// <summary>Registers a reusable manual job without scheduling an execution. Existing definitions remain unchanged.</summary>
+    Task<bool> Manual<T>(string id, JobDefinition<T> job, T payload, JobPolicy? policy = null, CancellationToken cancellationToken = default);
+    /// <summary>Queues a fresh execution of a manual definition, or returns null if it does not exist.</summary>
+    Task<string?> RunManual(string id, CancellationToken cancellationToken = default);
+
     /// <summary>Registers a fixed-interval recurring job, leaving an existing schedule unchanged.</summary>
     Task<bool> Recurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval, JobPolicy? policy = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Registers a cron schedule in the specified time zone (UTC by default). Existing schedule IDs are unchanged.
     /// Use five fields, or six with includeSeconds. Missed occurrences coalesce; separate occurrences may overlap.
-    /// Use JobSchedule.None for a manual-only job with no next run; it remains available through RunRecurring.</summary>
+    /// </summary>
     Task<bool> Schedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
         JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default);
 

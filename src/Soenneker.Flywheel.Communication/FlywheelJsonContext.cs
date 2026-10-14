@@ -31,6 +31,8 @@ namespace Soenneker.Flywheel.Communication;
 [JsonSerializable(typeof(IReadOnlyList<JobHistoryPoint>))]
 [JsonSerializable(typeof(List<ServerView>))]
 [JsonSerializable(typeof(ScheduleView))]
+[JsonSerializable(typeof(List<ManualJobView>))]
+[JsonSerializable(typeof(IReadOnlyList<ManualJobView>))]
 [JsonSerializable(typeof(SearchResult))]
 [JsonSerializable(typeof(ServerView))]
 [JsonSerializable(typeof(StartedJob))]

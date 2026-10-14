@@ -6,6 +6,11 @@ namespace Soenneker.Flywheel.Dashboard.Consumers.Abstract;
 /// <summary>Typed dashboard operations. Results preserve status codes for sign-in, missing resources, and unsupported store capabilities.</summary>
 public interface IFlywheelDashboardConsumer
 {
+    /// <summary>Lists registered manual jobs and their latest execution status.</summary>
+    ValueTask<OperationResult<List<ManualJobView>>> GetManualJobs(CancellationToken cancellationToken = default);
+    /// <summary>Queues a fresh execution of a registered manual job.</summary>
+    ValueTask<OperationResult<StartedJob>> RunManual(string id, CancellationToken cancellationToken = default);
+
     /// <summary>Reads the authenticated dashboard identity.</summary>
     ValueTask<OperationResult<DashboardUser>> GetUser(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

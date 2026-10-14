@@ -31,6 +31,10 @@ public sealed class DemoTour(IJobClient client, IJobStore store, ILogger<DemoTou
             new WorkRequest(15), "fifteen-seconds", new JobPolicy { MaxAttempts = 1, Timeout = TimeSpan.FromSeconds(30) });
         await client.Recurring("demo-fifteen-seconds-v1", FlywheelJobs.LongRunningJobs_FifteenSeconds,
             new WorkRequest(15), TimeSpan.FromMinutes(2), cancellationToken: cancellationToken);
+        await client.Manual("demo-manual-work-v1", FlywheelJobs.LongRunningJobs_FifteenSeconds,
+            new WorkRequest(15), cancellationToken: cancellationToken);
+        await client.Manual("demo-manual-report-v1", FlywheelJobs.ReportJobs_Generate,
+            new ReportRequest("Operator-requested export", 10), cancellationToken: cancellationToken);
         await Add("Order event payload", FlywheelJobs.OrderJobs_OnPlaced, new OrderPlaced($"order-{batchId}", 3, 129.95m), "order");
         await Add("Transient delivery: succeeds on attempt 3", FlywheelJobs.DeliveryJobs_Send, new DeliveryRequest($"delivery-{batchId}"), "retry", retry);
         await Add("Permanent failure → dead letter", FlywheelJobs.FailureJobs_Reject, new FailureRequest("Unsupported demo document format"), "dead-letter", retry with { MaxAttempts = 3 });

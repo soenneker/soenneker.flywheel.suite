@@ -98,7 +98,7 @@ lifetime. The overview page changes its execution query; recurring and scheduled
 snapshots without loading the overview chart or executions. Navigation preserves the connection and header
 counters. Execution details and log components own their additional subscriptions and dispose them when closed.
 
-Overview, recurring jobs, scheduled jobs, and sign-in are separate pages with their own state and content.
+Overview, manual jobs, recurring jobs, scheduled jobs, and sign-in are separate pages with their own state and content.
 The sign-in page handles credentials; the layout redirects unauthenticated visitors there before mounting
 protected page content. Pages receive typed snapshots and call consumers rather than constructing HTTP
 requests, hub URLs, or protocol method names.
@@ -114,6 +114,7 @@ from `Soenneker.Flywheel.Dashboard.Responses` to `Soenneker.Flywheel.Communicati
 |---|---|
 | `/flywheel` | Activity and job search |
 | `/flywheel/signin` | Sign in, then return to the configured home page |
+| `/flywheel/manual` | Manual definitions, latest execution status, and Run now |
 | `/flywheel/recurring` | Recurring schedules and Run now |
 | `/flywheel/recurring/{ScheduleId}` | Recurring schedule details and Run now |
 | `/flywheel/scheduled` | Pending jobs and retries |
@@ -121,7 +122,11 @@ from `Soenneker.Flywheel.Dashboard.Responses` to `Soenneker.Flywheel.Communicati
 | `/flywheel/servers` | Active servers |
 | `/flywheel/servers/{ServerId}` | Server details |
 
-Page files are grouped by feature under `Pages`: `Schedules/Schedules.razor` and `Schedules/Schedule.razor`,
+The **Manual Jobs** page lists reusable definitions, searches their names, IDs, and descriptions, and queues a fresh execution with **Run now**. The last execution links to its details. The page refreshes every five seconds; search and paging cover the first 200 definitions. With the default engine prefix, `GET /flywheel/jobs/manual` lists definitions and `POST /flywheel/jobs/manual/{id}/run` queues one. Both require dashboard authentication; the run action also requires CSRF protection.
+
+![Manual Jobs with explicit run actions and latest execution status](images/manual-jobs.png)
+
+Page files are grouped by feature under `Pages`: `Manual/ManualJobs.razor`, `Schedules/Schedules.razor` and `Schedules/Schedule.razor`,
 `Jobs/Jobs.razor` and `Jobs/Job.razor`, and `Servers/Servers.razor` and `Servers/Server.razor`.
 The overview and sign-in pages live in `Dashboard` and `Authentication`; shared page behavior lives in `Shared`.
 The singular schedule and job pages also supply the detail content for their list drawers.

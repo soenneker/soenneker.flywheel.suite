@@ -40,10 +40,10 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     }
 
     public ValueTask<LibrarianEntry<TKey, TValue>?> First(IQueryable<LibrarianEntry<TKey, TValue>> query) =>
-        query.FirstOrDefaultAsync(_token);
+        query.FirstOrDefault(_token);
 
     public ValueTask<int> Count(Expression<Func<LibrarianEntry<TKey, TValue>, bool>> predicate) =>
-        Query().CountAsync(predicate, _token);
+        Query().Count(predicate, _token);
     private string Id(TKey key)
     {
         if (_ids.TryGetValue(key, out string? id)) return id;
@@ -76,7 +76,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         _token.ThrowIfCancellationRequested();
         string id = Id(key);
         string? order = value is JobRecord job ? SortKey(long.MaxValue - job.CreatedAt, job.Id) : null;
-        bool active = value is Schedule { DueAt: not null } or Schedule { Cron: JobSchedule.None };
+        bool active = value is Schedule { DueAt: not null };
         if (value is Schedule schedule && active) order = SortKey(schedule.DueAt ?? long.MaxValue, key.ToString()!);
         string? scheduled = value is JobRecord { State: var state } pending && state == JobState.Scheduled ? SortKey(pending.DueAt, pending.Id) : null;
         long? completedAt = value is JobRecord completed && (completed.State == JobState.Succeeded || completed.State == JobState.Cancelled || completed.State == JobState.DeadLettered)

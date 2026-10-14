@@ -39,7 +39,7 @@
     <Div Class="feature-grid" >
         <Div>
             <Icon Name="LucideIcon.Clock" Size="Size.Is5" />
-            <H3>Run on your schedule</H3><Paragraph>Queue work now, delay it until later, or use recurring cron schedules with time-zone support.</Paragraph>
+            <H3>Run on your schedule</H3><Paragraph>Queue work now, register manual jobs for operators, delay work until later, or use recurring cron schedules with time-zone support.</Paragraph>
         </Div>
         <Div>
             <Icon Name="LucideIcon.RotateCcw" Size="Size.Is5" />
@@ -78,6 +78,10 @@
             </Div><CodeExample Text="@ScheduleExample" Label="Scheduled job example" />
         </Div>
         <Div Class="example-row" >
+            <Div><H3>Manual Jobs</H3><Paragraph>Register reusable work, then launch it explicitly from code or the dashboard.</Paragraph></Div>
+            <CodeExample Text="@ManualExample" Label="Manual job registration and execution example" />
+        </Div>
+        <Div Class="example-row" >
             <Div>
                 <H3>Recurring</H3><Paragraph>Repeat a job at a fixed interval with a stable schedule ID.</Paragraph>
             </Div><CodeExample Text="@RecurringExample" Label="Recurring job example" />
@@ -88,7 +92,7 @@
             </Div><CodeExample Text="@CronExample" Label="Cron schedule example" />
         </Div>
     </Div>
-    <Paragraph Class="example-note" >These examples use the typed job from the <Anchor Href="/getting-started/" >setup guide</Anchor> and an injected <code>IJobClient</code>. Reusing a recurring or cron ID leaves the existing schedule unchanged.</Paragraph>
+    <Paragraph Class="example-note" >These examples use the typed job from the <Anchor Href="/getting-started/" >setup guide</Anchor> and an injected <code>IJobClient</code>. Reusing a manual, recurring, or cron ID leaves its existing definition unchanged.</Paragraph>
 </Section>
 
 <Section Class="execution-section" >
@@ -171,6 +175,13 @@
                                                 new Message("Every hour"),
                                                 TimeSpan.FromHours(1));
                                             """;
+
+    private const string ManualExample = """
+        await client.Manual("manual-message", FlywheelJobs.MessageJobs_Write,
+            new Message("Requested by an operator"));
+
+        await client.RunManual("manual-message");
+        """;
 
     private const string CronExample = """
                                        await client.Schedule(

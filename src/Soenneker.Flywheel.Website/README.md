@@ -34,6 +34,8 @@ The Worker is `soenneker-flywheel-website` in the Soenneker Cloudflare account, 
 
 `wwwroot/images/` contains captures of the real Flywheel dashboard with isolated illustrative demo data. Activity counts and logs are demonstration fixtures, not production usage or benchmark results. No production data or credentials are included.
 
+The `dashboard`, `execution`, and `manual-jobs` image pairs show the overview, execution details, and Manual Jobs page. The demo seeds two manual definitions; run one before capture so the page shows both a completed execution and an unused definition.
+
 The dashboard and core documentation use the same captures. Refresh them together when the UI changes.
 
 ## Continuous deployment

@@ -43,19 +43,19 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.29" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1567" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.31" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1573" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.773" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.775" />
         <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="4.0.95" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2602" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2604" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
-        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.288" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1531" />
+        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.289" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1533" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.100" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.295" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.297" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
     <ItemGroup>
@@ -63,7 +63,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
         <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.13" />
-        <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.478" />
-        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.79" />
+        <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.479" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.80" />
     </ItemGroup>
 </Project>

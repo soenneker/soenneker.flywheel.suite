@@ -156,7 +156,7 @@ public Task Import(ImportRequest request, CancellationToken cancellationToken) =
 
 ## Queue and schedule jobs
 
-Use `IJobClient` for immediate, delayed, scheduled, recurring, cron, or chained jobs:
+Use `IJobClient` for immediate, delayed, scheduled, manual, recurring, cron, or chained jobs:
 
 ```csharp
 await client.Enqueue(FlywheelJobs.MessageJobs_Write, new Message("Later"),
@@ -171,6 +171,23 @@ await client.Schedule("weekday-message", FlywheelJobs.MessageJobs_Write,
 ```
 
 See [IJobClient](src/Soenneker.Flywheel.Core/Services/Abstract/IJobClient.cs) for the full API.
+
+### Manual jobs
+
+Register a reusable definition without a clock or cron expression:
+
+```csharp
+// Register once; nothing is queued until explicitly requested.
+await client.Manual("manual-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Requested by an operator"));
+
+// Or choose Run now on the dashboard's Manual Jobs page.
+string? executionId = await client.RunManual("manual-message");
+```
+
+`Manual` returns `true` when created and `false` when the ID already exists; the first payload and policy remain unchanged. `RunManual` returns the new execution ID, or `null` for an unknown definition. Each request creates a fresh execution; normal retries, cancellation, and worker policies apply.
+
+Manual definitions use `IManualJobStore`, supported by all built-in storage providers. They are separate from recurring schedules and counts. Their latest execution status survives execution retention cleanup. Use `Manual` instead of `Schedule(..., "none")` or the former `JobSchedule.None`; the cron API accepts real cron expressions only. Update registrations explicitly; existing `none` schedules are not automatically migrated.
 
 Jobs can run more than once; make handlers safe to retry and pass cancellation tokens to async work. Keep job names stable. Reusing a recurring or cron schedule ID leaves the existing schedule unchanged.
 

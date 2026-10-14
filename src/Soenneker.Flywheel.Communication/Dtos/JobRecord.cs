@@ -14,6 +14,8 @@ public sealed record JobRecord
     /// <summary>Recurring schedule that created this execution, or null for non-recurring jobs.</summary>
     [JsonPropertyName("scheduleId")]
     public string? ScheduleId { get; init; }
+    /// <summary>Manual definition that created this execution, if any.</summary>
+    public string? ManualJobId { get; init; }
     /// <summary>Stable job name used for registration and persisted work.</summary>
     [JsonPropertyName("name")]
     public required string Name { get; init; }

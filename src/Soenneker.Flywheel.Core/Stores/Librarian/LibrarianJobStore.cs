@@ -13,7 +13,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
     IJobChainStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
-    IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
+    IManualJobStore, IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
 {
     // Attempts on one store share this gate; Librarian conditions coordinate independent stores.
@@ -57,6 +57,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _samples = new LibrarianTable<long, Sample>("samples");
         _logs = new LibrarianTable<string, LogBuffer>("logs");
         _nodes = new LibrarianTable<string, Node>("nodes");
+        _manualJobs = new LibrarianTable<string, ManualJob>("manualJobs");
         _schedules = new LibrarianTable<string, Schedule>("schedules");
         _chains = new LibrarianTable<string, string[]>("chains");
         _metadata = new LibrarianTable<string, long>("metadata");
@@ -65,7 +66,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _running = new LibrarianTable<string, RunningEntry>("running");
         _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce];
+        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 

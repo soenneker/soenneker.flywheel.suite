@@ -38,7 +38,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.401
+          dotnet-version: 11.0.100-rc.2.26504.105
       - name: Generate OpenAPI document
         run: dotnet build tools/Soenneker.Flywheel.OpenApi.Export -c Release
       - name: Validate generated document

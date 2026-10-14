@@ -16,6 +16,8 @@ internal readonly record struct DashboardRoute(DashboardPage Page, string? Id = 
             return new DashboardRoute(DashboardPage.Settings);
         if (TryReadId(path, prefix + "jobs/", out string? jobId))
             return new DashboardRoute(DashboardPage.Jobs, jobId);
+        if (path.Equals(prefix + "manual", StringComparison.OrdinalIgnoreCase))
+            return new DashboardRoute(DashboardPage.Manual);
         if (path.Equals(prefix + "recurring", StringComparison.OrdinalIgnoreCase))
             return new DashboardRoute(DashboardPage.Recurring);
         if (path.Equals(prefix + "scheduled", StringComparison.OrdinalIgnoreCase))

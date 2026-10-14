@@ -144,6 +144,13 @@ await client.Schedule(FlywheelJobs.MessageJobs_Write,
     new Message("Tomorrow's reminder"),
     DateTimeOffset.UtcNow.AddDays(1));
 
+// Register once; nothing is queued until explicitly requested.
+await client.Manual("manual-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Requested by an operator"));
+
+// Or choose Run now on the dashboard's Manual Jobs page.
+string? executionId = await client.RunManual("manual-message");
+
 // Repeat at a fixed interval.
 await client.Recurring("hourly-message", FlywheelJobs.MessageJobs_Write,
     new Message("Hourly check-in"), TimeSpan.FromHours(1));
@@ -154,9 +161,15 @@ await client.Schedule("weekday-message", FlywheelJobs.MessageJobs_Write,
     timeZoneId: "America/Chicago");
 ```
 
-Keep the host running so workers can process scheduled work. Reusing a recurring or cron schedule ID leaves the existing schedule unchanged.
+Keep the host running so workers can process scheduled work. Reusing a manual, recurring, or cron ID leaves its existing definition unchanged. Manual jobs never run automatically and have their own **Manual Jobs** dashboard page.
 
 Jobs can execute more than once, so make handlers safe to retry and pass the cancellation token to asynchronous work. See the [job execution guide](docs/core.md) and [client API](src/Soenneker.Flywheel.Core/Services/Abstract/IJobClient.cs) for chains, submission deduplication, progress reporting, and execution policies.
+
+### Run work on demand
+
+Register reusable work with `client.Manual(...)`, then open **Manual Jobs** and select **Run now**. Registration does not queue an execution. The page shows the latest execution status and links to its details.
+
+![Flywheel Manual Jobs with reusable definitions and Run now actions](docs/images/manual-jobs.png)
 
 ### Keep concurrency under control
 
@@ -203,7 +216,7 @@ The optional Blazor dashboard brings the runtime into view:
 - **Watch activity live:** see job states, execution activity, and active servers.
 - **Find the work that matters:** search jobs and inspect individual executions.
 - **Follow every attempt:** view timing, progress, and the logs your handlers write.
-- **Manage ongoing work:** inspect schedules, trigger recurring jobs with **Run now**, and cancel jobs.
+- **Manage ongoing work:** inspect schedules, launch registered manual jobs from **Manual Jobs**, trigger recurring jobs with **Run now**, and cancel executions.
 - **Work in light or dark mode:** follow your system theme or choose your own preference.
 
 <a href="docs/dashboard.md">
@@ -232,7 +245,7 @@ dotnet run --project test/Soenneker.Flywheel.Dashboard.Demo
 
 Open [the local dashboard](https://localhost:7039/) and sign in with `admin` / `flywheel-demo`. These demo credentials apply in Development when no password hash is configured. Stop both processes with **Ctrl+C**.
 
-The demo seeds sample jobs and recurring schedules so you have work to explore. See [demo configuration](test/Soenneker.Flywheel.Demo/README.md) for connection settings and how to start a fresh tour.
+The demo seeds sample jobs, manual definitions, and recurring schedules so you have work to explore. See [demo configuration](test/Soenneker.Flywheel.Demo/README.md) for connection settings and how to start a fresh tour.
 
 To add the dashboard to your own application, follow the [dashboard guide](docs/dashboard.md) for the Blazor host, backend API, and authentication setup.
 

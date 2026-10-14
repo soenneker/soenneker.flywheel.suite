@@ -76,12 +76,12 @@ public abstract partial class LibrarianJobStore
         ValidateId(id);
         if (request.IdempotencyKey is not null || request.Delay != TimeSpan.Zero)
             throw new ArgumentException("Invalid cron schedule.");
-        CronSchedule? cron = expression == JobSchedule.None ? null : CronParser.Parse(expression, timeZoneId, includeSeconds);
+        CronSchedule cron = CronParser.Parse(expression, timeZoneId, includeSeconds);
         JobRecord job = Create(request);
         return Mutate(cancellationToken, async now =>
         {
             if ((await _schedules.ContainsKey(id))) return false;
-            long? next = cron is null ? null : cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
+            long? next = cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
                 ?? throw new ArgumentException("Cron expression has no future occurrence.", nameof(expression));
             await _schedules.Set(id, new Schedule(job, 0, next, expression, timeZoneId, includeSeconds)).NoSync();
             return true;
@@ -168,6 +168,8 @@ public abstract partial class LibrarianJobStore
             {
                 if (job.ScheduleId is { } scheduleId && (await _schedules.GetEntry(scheduleId)) is { Value: var s } && s.LastExecutionId == job.Id)
                     await _schedules.Set(scheduleId, s with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
+                if (job.ManualJobId is { } manualId && await _manualJobs.Get(manualId) is { } manual && manual.LastExecutionId == job.Id)
+                    await _manualJobs.Set(manualId, manual with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
                 await _jobs.Remove(job.Id).NoSync();
                 await _logs.Remove(job.Id).NoSync();
                 foreach (var marker in await _dedupe.FindEntries("value", job.Id)) await _dedupe.Remove(marker.Key).NoSync();

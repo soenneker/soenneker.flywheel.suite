@@ -46,6 +46,11 @@ else if (Session.IsAuthenticated)
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
+                            <SidebarMenuButton Href="@DashboardNavigation.Path("manual")" Match="NavLinkMatch.All" Tooltip="Manual Jobs" aria-label="Manual Jobs">
+                                <Icon Name="LucideIcon.Play" Size="Size.Is4" /><Span>Manual Jobs</Span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
                             <SidebarMenuButton Href="@DashboardNavigation.Path("scheduled")" Match="NavLinkMatch.All" Tooltip="Scheduled jobs" aria-label="Scheduled jobs" >
                                 <Icon Name="LucideIcon.Clock" Size="Size.Is4" /><Span>Scheduled jobs</Span>
                             </SidebarMenuButton>

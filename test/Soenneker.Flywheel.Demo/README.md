@@ -35,6 +35,8 @@ Set these environment variables before running if you need different settings:
 | `Flywheel__Dashboard__Username` | `admin` | Login name |
 | `Flywheel__Dashboard__PasswordPhc` | Development demo password PHC string | Set your own PBKDF2 PHC string |
 
-Jobs and recurring schedules remain in Redis after shutdown. Use a new namespace for a fresh tour. Outside Development, a password hash is required.
+Jobs, manual definitions, and recurring schedules remain in Redis after shutdown. Use a new namespace for a fresh tour. Outside Development, a password hash is required.
 
 The tour includes `demo.work.fifteen-seconds.v1`, which runs for approximately 15 seconds and logs progress every three seconds. It is also registered as a recurring job every two minutes, so you can use **Run now** to watch it execute again.
+
+Open **Manual Jobs** to run `demo-manual-work-v1` (15-second work) or `demo-manual-report-v1` (an operator-requested export). These definitions never execute automatically. Select **Run now**, then follow the latest execution status to its logs.

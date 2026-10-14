@@ -1,0 +1,51 @@
+@page "/flywheel/manual"
+@namespace Soenneker.Flywheel.Dashboard.Pages.Manual
+@using Soenneker.Flywheel.Communication.Responses
+@using Soenneker.Quark
+@layout FlywheelLayout
+@inherits LeptonCancellable
+@inject IFlywheelDashboardConsumer Consumer
+@inject DashboardSessionState Session
+@inject DashboardNavigationOptions DashboardNavigation
+@inject ISonnerService Sonner
+
+<PageTitle>Manual Jobs · Flywheel</PageTitle>
+<Main Padding="Padding.Is4" Width="Width.IsFull">
+    <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Manual Jobs</H3>
+    <Paragraph TextColor="TextColor.MutedForeground">Registered jobs that run only when requested.</Paragraph>
+    @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
+    @if (_loadError is not null) { <Alert role="alert"><AlertDescription>@_loadError</AlertDescription></Alert> }
+    <DataTable AdaptiveLayout="true" LoadingAtTop="true" IsLoading="@(_jobs is null && _loadError is null)" Options="@_options" TotalRecords="@Filtered.Count" OnInteraction="Search">
+        <TopContent>
+            <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
+                <DataTableSearch Placeholder="Search" AriaLabel="Search manual jobs" />
+                <SidebarTrigger Display="Display.Flex.OnMd.None" aria-label="Open navigation menu"><Icon Name="Soenneker.Lucide.Enums.Icons.LucideIcon.Menu" Size="Size.Is5" /></SidebarTrigger>
+            </Div>
+        </TopContent>
+        <TableContent>
+            <Thead><Tr><Th>Job</Th><Th>Definition ID</Th><Th>Last execution</Th><Th>Action</Th></Tr></Thead>
+            <Tbody>
+                @foreach (ManualJobView job in Filtered.Skip(Offset).Take(_pageSize))
+                {
+                    <Tr @key="job.Id">
+                        <Td><Span>@job.Name</Span>@if (job.Description is { Length: > 0 }) { <Paragraph TextColor="TextColor.MutedForeground">@job.Description</Paragraph> }</Td>
+                        <Td>@job.Id</Td>
+                        <Td>
+                            @if (job.LastExecutionId is { } executionId && job.LastExecutionStatus is { } status)
+                            {
+                                <Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(executionId)}"))"><JobStatusBadge State="@status" /></Anchor>
+                            }
+                            else { <Span TextColor="TextColor.MutedForeground">No execution recorded</Span> }
+                        </Td>
+                        <Td><Button ButtonSize="ButtonSize.Sm" Variant="ButtonVariant.Secondary" Disabled="@_starting.Contains(job.Id)" OnClick="() => Run(job.Id)" aria-label="@($"Run {job.Name} now")">@(_starting.Contains(job.Id) ? "Queuing…" : "Run now")</Button></Td>
+                    </Tr>
+                }
+            </Tbody>
+        </TableContent>
+        <BottomContent>
+            @if (_jobs is not null && Filtered.Count == 0) { <Paragraph TextColor="TextColor.MutedForeground">No matching manual jobs.</Paragraph> }
+            <Div Display="Display.Flex" Justify="Justify.Between" Gap="Gap.Is4" Margin="Margin.FromTop.Is4"><DataTablePageSizeSelector Label="Rows per page" /><DataTablePagination /></Div>
+            @if (_jobs?.Count == 200) { <Small TextColor="TextColor.MutedForeground">Search and paging cover the first 200 manual jobs.</Small> }
+        </BottomContent>
+    </DataTable>
+</Main>

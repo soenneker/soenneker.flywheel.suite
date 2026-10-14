@@ -109,6 +109,17 @@ public sealed class JobClient : IJobClient
         return policies.ConfigureMethod(job.Name, policy, cancellationToken);
     }
 
+    public Task<bool> Manual<T>(string id, JobDefinition<T> job, T payload, JobPolicy? policy = null, CancellationToken cancellationToken = default)
+    {
+        EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
+        if (store is not IManualJobStore manual) throw new NotSupportedException("The job store does not support manual jobs.");
+        return manual.AddManual(id, request, cancellationToken);
+    }
+
+    public Task<string?> RunManual(string id, CancellationToken cancellationToken = default) =>
+        store is IManualJobStore manual ? manual.RunManual(id, cancellationToken) :
+            throw new NotSupportedException("The job store does not support manual jobs.");
+
     public Task<bool> Recurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval,
         JobPolicy? policy = null, CancellationToken cancellationToken = default) => store.AddRecurring(id,
         Request(job, payload, policy, TimeSpan.Zero, null), interval, cancellationToken);
@@ -117,8 +128,7 @@ public sealed class JobClient : IJobClient
         JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default)
     {
         EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
-        if (expression != JobSchedule.None)
-            _ = CronParser.Parse(expression, timeZoneId, includeSeconds);
+        _ = CronParser.Parse(expression, timeZoneId, includeSeconds);
         if (store is not ICronJobStore schedules)
             throw new NotSupportedException("The job store does not support cron schedules.");
         return schedules.AddCron(id, request, expression, timeZoneId, includeSeconds, cancellationToken);
