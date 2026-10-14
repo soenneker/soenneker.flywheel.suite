@@ -23,7 +23,6 @@ jobs:
   deploy:
     permissions:
       contents: read
-      id-token: write
     needs: validate
     runs-on: ubuntu-latest
     strategy:
@@ -38,16 +37,10 @@ jobs:
         with:
           name: flywheel-packages
           path: artifacts
-      - name: Log in to NuGet
-        uses: soenneker/nuget-resilient-login@v7
-        id: nuget-login
-        with:
-          user: soenneker
-
       - name: Deploy ${{ matrix.package }} to NuGet
         uses: soenneker/nuget-resilient-publish@v4
         with:
-          api-key: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          api-key: ${{ secrets.nuget__token }}
           packages: 'artifacts/Soenneker.Flywheel.${{ matrix.package }}.5.0.${{ github.run_number }}.nupkg'
 
       - name: Deploy ${{ matrix.package }} to GitHub Packages
