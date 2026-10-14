@@ -117,7 +117,8 @@ public sealed class JobClient : IJobClient
         JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default)
     {
         EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
-        _ = CronParser.Parse(expression, timeZoneId, includeSeconds);
+        if (expression != JobSchedule.None)
+            _ = CronParser.Parse(expression, timeZoneId, includeSeconds);
         if (store is not ICronJobStore schedules)
             throw new NotSupportedException("The job store does not support cron schedules.");
         return schedules.AddCron(id, request, expression, timeZoneId, includeSeconds, cancellationToken);

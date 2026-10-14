@@ -44,15 +44,15 @@
         <Grid Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, max-content)); gap: 1.5rem;" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
             <Div Space="Space.Y.Is2">
                 <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Frequency</Span>
-                <Span Display="Display.Block" FontWeight="FontWeight.Medium">@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : schedule.Cron)</Span>
-                @if (schedule.Cron is not null)
+                <Span Display="Display.Block" FontWeight="FontWeight.Medium">@(schedule.Cron == Soenneker.Flywheel.Communication.Dtos.JobSchedule.None ? "Manual only" : schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : schedule.Cron)</Span>
+                @if (schedule.Cron is not null && schedule.Cron != Soenneker.Flywheel.Communication.Dtos.JobSchedule.None)
                 {
                     <Span Display="Display.Block" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground" title="@schedule.TimeZoneId">@TimeZoneLabel(schedule.TimeZoneId, schedule.DueAt)</Span>
                 }
             </Div>
             <Div Space="Space.Y.Is2">
                 <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next execution</Span>
-                <JobTimestamp StartsAt="true" Value="@schedule.DueAt" ShowAbsolute="true" />
+                <JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" ShowAbsolute="true" />
             </Div>
         </Grid>
     }

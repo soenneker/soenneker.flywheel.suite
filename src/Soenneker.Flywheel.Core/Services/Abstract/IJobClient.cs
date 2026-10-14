@@ -45,7 +45,8 @@ public interface IJobClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Registers a cron schedule in the specified time zone (UTC by default). Existing schedule IDs are unchanged.
-    /// Use five fields, or six with includeSeconds. Missed occurrences coalesce; separate occurrences may overlap.</summary>
+    /// Use five fields, or six with includeSeconds. Missed occurrences coalesce; separate occurrences may overlap.
+    /// Use JobSchedule.None for a manual-only job with no next run; it remains available through RunRecurring.</summary>
     Task<bool> Schedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
         JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default);
 

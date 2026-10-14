@@ -2,12 +2,13 @@ namespace Soenneker.Flywheel.Dashboard.Pages.Schedules.Shared;
 
 internal static class ScheduleFormatting
 {
-    public static string TimeZoneLabel(string timeZoneId, long dueAt)
+    public static string TimeZoneLabel(string timeZoneId, long? dueAt)
     {
+        if (dueAt is null) return "—";
         try
         {
             TimeSpan offset = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId)
-                .GetUtcOffset(DateTimeOffset.FromUnixTimeMilliseconds(dueAt));
+                .GetUtcOffset(DateTimeOffset.FromUnixTimeMilliseconds(dueAt.Value));
             TimeSpan absolute = offset.Duration();
             string sign = offset < TimeSpan.Zero ? "-" : "+";
             return absolute.Minutes == 0

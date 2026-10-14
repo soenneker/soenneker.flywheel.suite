@@ -76,12 +76,12 @@ public abstract partial class LibrarianJobStore
         ValidateId(id);
         if (request.IdempotencyKey is not null || request.Delay != TimeSpan.Zero)
             throw new ArgumentException("Invalid cron schedule.");
-        CronSchedule cron = CronParser.Parse(expression, timeZoneId, includeSeconds);
+        CronSchedule? cron = expression == JobSchedule.None ? null : CronParser.Parse(expression, timeZoneId, includeSeconds);
         JobRecord job = Create(request);
         return Mutate(cancellationToken, async now =>
         {
             if ((await _schedules.ContainsKey(id))) return false;
-            long next = cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
+            long? next = cron is null ? null : cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
                 ?? throw new ArgumentException("Cron expression has no future occurrence.", nameof(expression));
             await _schedules.Set(id, new Schedule(job, 0, next, expression, timeZoneId, includeSeconds)).NoSync();
             return true;
@@ -121,7 +121,7 @@ public abstract partial class LibrarianJobStore
                 RecurringScheduleSummary s = pair.Value;
                 RecurringJobSummary? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
                 string? status = execution is null ? s.LastExecutionStatus : execution.DisplayState(now);
-                result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt!.Value, s.Cron,
+                result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt, s.Cron,
                     s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId);
             }
             return result;

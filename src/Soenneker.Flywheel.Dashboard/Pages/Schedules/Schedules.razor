@@ -27,7 +27,7 @@
                     {
                         <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="schedule.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowScheduleDrawer(schedule)" @onkeydown="e => OpenScheduleDrawer(e, schedule)">
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;"><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Style="white-space: normal; overflow-wrap: anywhere;" Href="@(DashboardNavigation.Path($"recurring/{Uri.EscapeDataString(schedule.Id)}"))">@schedule.Name</Anchor></span></Td>
-                            <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;">@(schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : $"{schedule.Cron} ({TimeZoneLabel(schedule.TimeZoneId, schedule.DueAt)})")</Td>
+                            <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;">@(schedule.Cron == Soenneker.Flywheel.Communication.Dtos.JobSchedule.None ? "Manual only" : schedule.Cron is null ? $"Every {IntervalLabel(schedule.Interval)}" : $"{schedule.Cron} ({TimeZoneLabel(schedule.TimeZoneId, schedule.DueAt)})")</Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal;">
                                 @if (schedule.LastExecutionStatus is { } status)
                                 {
@@ -47,7 +47,7 @@
                                     <Span TextColor="TextColor.MutedForeground">No execution recorded</Span>
                                 }
                             </Td>
-                            <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@schedule.DueAt" /></Td>
+                            <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" /></Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" class="px-3 py-1 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
                                 <Button ButtonSize="ButtonSize.Sm" OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Position="Position.Relative" aria-busy="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">
                                     <Span Style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</Span>

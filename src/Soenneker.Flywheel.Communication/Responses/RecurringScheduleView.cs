@@ -7,7 +7,7 @@ public sealed record RecurringScheduleView(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("interval")] long Interval,
-    [property: JsonPropertyName("dueAt")] long DueAt,
+    [property: JsonPropertyName("dueAt")] long? DueAt,
     [property: JsonPropertyName("cron")] string? Cron = null,
     [property: JsonPropertyName("timeZoneId")] string TimeZoneId = "UTC",
     [property: JsonPropertyName("includeSeconds")] bool IncludeSeconds = false,
