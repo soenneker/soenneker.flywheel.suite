@@ -54,7 +54,7 @@
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.288" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1531" />
-        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.99" />
+        <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.100" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.295" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup><InternalsVisibleTo Include="Soenneker.Flywheel.Dashboard.Tests" /></ItemGroup>
@@ -63,7 +63,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
         <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.13" />
-        <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.477" />
+        <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.478" />
         <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.79" />
     </ItemGroup>
 </Project>
