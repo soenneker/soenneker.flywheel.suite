@@ -50,7 +50,7 @@ jobs:
         uses: soenneker/release-notes-from-commits@v2
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.401
+          dotnet-version: 10.0.402
       - name: Install WebAssembly publishing tools
         run: dotnet workload install wasm-tools
       - name: Restore solution
