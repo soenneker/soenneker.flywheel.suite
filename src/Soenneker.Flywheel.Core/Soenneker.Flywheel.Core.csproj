@@ -51,6 +51,6 @@
         <PackageReference Include="Soenneker.Librarian.Abstractions" Version="4.0.96" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.Abstractions\Soenneker.Librarian.Abstractions.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
         <PackageReference Include="Soenneker.Cron.Parser" Version="4.0.23" />
-        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.58" />
+        <PackageReference Include="Soenneker.Hashing.Pbkdf2" Version="4.0.60" />
     </ItemGroup>
 </Project>
