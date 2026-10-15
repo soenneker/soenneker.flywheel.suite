@@ -44,16 +44,16 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="4.0.33" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1575" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1576" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.777" />
-        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="4.0.101" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.778" />
+        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="4.0.102" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2610" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="4.0.2611" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="4.0.293" PrivateAssets="all" />
-        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1535" />
+        <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="4.0.1536" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.100" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.300" PrivateAssets="all" />
     </ItemGroup>
