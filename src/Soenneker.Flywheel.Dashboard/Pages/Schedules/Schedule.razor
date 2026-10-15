@@ -34,7 +34,7 @@
                 <Badge Variant="BadgeVariant.Secondary">Recurring</Badge>
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" FlexWrap="FlexWrap.Wrap">
-                <Button OnClick="Run" Loading="@(_running || Running)" Disabled="@(_running || Running)" Variant="ButtonVariant.Secondary">Run now</Button>
+                <JobActions Id="@schedule.LastExecutionId" Name="@schedule.Name" State="@schedule.LastExecutionStatus" IsDefinition="true" Disabled="@(_running || Running)" RunRequested="Run" Changed="RefreshSchedules" />
                 @if (Embedded)
                 {
                     <DrawerClose AsChild="true"><Button Variant="ButtonVariant.Secondary" aria-label="Close recurring job">Close</Button></DrawerClose>

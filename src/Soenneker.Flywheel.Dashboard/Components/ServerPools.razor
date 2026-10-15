@@ -1,0 +1,29 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Flywheel.Communication.Dtos
+@using Soenneker.Flywheel.Communication.Responses
+
+@foreach (WorkerPoolCapacity pool in Pools)
+{
+    <div style="overflow-wrap: anywhere;">@pool.Name: @_busyCounts.GetValueOrDefault(pool.Name) / @pool.Workers</div>
+}
+
+@code {
+    /// <summary>The server whose pool capacities and active executions are displayed.</summary>
+    [Parameter, EditorRequired]
+    public ServerView Server { get; set; } = default!;
+
+    private readonly Dictionary<string, int> _busyCounts = new(StringComparer.Ordinal);
+
+    protected override void OnParametersSet()
+    {
+        _busyCounts.Clear();
+        foreach (JobView job in Server.RunningJobs)
+        {
+            string pool = job.WorkerPool ?? "default";
+            _busyCounts[pool] = _busyCounts.GetValueOrDefault(pool) + 1;
+        }
+    }
+
+    private IReadOnlyList<WorkerPoolCapacity> Pools => Server.Pools.Count == 0
+        ? [new("default", Server.Workers)] : Server.Pools;
+}

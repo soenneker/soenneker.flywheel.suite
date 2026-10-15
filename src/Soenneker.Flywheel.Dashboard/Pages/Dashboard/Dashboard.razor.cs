@@ -554,31 +554,6 @@ public partial class Dashboard
         await Task.WhenAll(ReloadHistory(CancellationToken), Reload());
     }
 
-    private readonly HashSet<string> _cancellingJobs = [];
-
-    private async Task Cancel(string id)
-    {
-        if (!_cancellingJobs.Add(id)) return;
-        try
-        {
-            OperationResult<object> response = await Consumer.CancelJob(id, CancellationToken);
-            if (response.StatusCode == (int)HttpStatusCode.Unauthorized) { Session.SetAuthenticated(false); return; }
-            if (response.StatusCode == (int)HttpStatusCode.Conflict)
-            {
-                await Reload();
-                _error = "This execution can no longer be cancelled. Its status may have changed.";
-                return;
-            }
-            response.EnsureSucceeded();
-            await Reload();
-        }
-        catch (Exception)
-        {
-            _error = "Cancellation was not confirmed. Retry if the job is still active.";
-        }
-        finally { _cancellingJobs.Remove(id); }
-    }
-
     private async Task SearchJobs(DataTableServerSideRequest request)
     {
         if ((_loaded || _loading) && _query == (request.Search?.Value ?? "") && _offset == request.Start && _pageSize == request.Length) return;

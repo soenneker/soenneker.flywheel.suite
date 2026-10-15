@@ -1,0 +1,50 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Flywheel.Communication.Enums
+@using Soenneker.Lucide.Enums.Icons
+@using Soenneker.Quark
+@inherits LeptonCancellable
+
+<span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
+    <Dropdown>
+        <DropdownToggle AsChild="true">
+            <Button Variant="ButtonVariant.Ghost" ButtonSize="ButtonSize.Sm" Disabled="@(Disabled || _busy)"
+                    aria-label="@($"Actions for {Name}")" title="Job actions" aria-busy="@_busy">
+                @if (_busy) { <Spinner Size="Size.Is4" /> }
+                else { <Icon Name="LucideIcon.Ellipsis" Size="Size.Is4" aria-hidden="true" /> }
+            </Button>
+        </DropdownToggle>
+        <DropdownMenu Role="menu" RightAligned="true">
+            @if (IsDefinition || State is "Succeeded" or "DeadLettered" or "Cancelled")
+            {
+                <DropdownItem Clicked="Run" Disabled="@_busy" CloseOnSelect="true" Role="menuitem">
+                    <Icon Name="LucideIcon.Play" Size="Size.Is4" /><Span>@(IsDefinition ? "Run now" : "Run again")</Span>
+                </DropdownItem>
+            }
+            @if (!IsDefinition && State == "Scheduled" && !CancelRequested)
+            {
+                <DropdownItem Clicked="() => Queue(JobQueueAction.RunNow)" Disabled="@_busy" CloseOnSelect="true" Role="menuitem">
+                    <Icon Name="LucideIcon.Play" Size="Size.Is4" /><Span>Run now</Span>
+                </DropdownItem>
+            }
+            @if (Id is not null && State == "Queued" && !CancelRequested)
+            {
+                <DropdownItem Clicked="() => Queue(JobQueueAction.MoveToTop)" Disabled="@_busy" CloseOnSelect="true" Role="menuitem">
+                    <Icon Name="LucideIcon.ArrowUpToLine" Size="Size.Is4" /><Span>@(IsDefinition ? "Move latest execution to top" : "Top of queue")</Span>
+                </DropdownItem>
+                <DropdownItem Clicked="() => Queue(JobQueueAction.MoveToBottom)" Disabled="@_busy" CloseOnSelect="true" Role="menuitem">
+                    <Icon Name="LucideIcon.ArrowDownToLine" Size="Size.Is4" /><Span>@(IsDefinition ? "Move latest execution to bottom" : "Bottom of queue")</Span>
+                </DropdownItem>
+            }
+            @if (IsDefinition && Id is not null)
+            {
+                <DropdownItem Clicked="ViewExecution" CloseOnSelect="true" Role="menuitem">View latest execution</DropdownItem>
+            }
+            @if (!IsDefinition && State is "Queued" or "Scheduled" or "Running" or "Waiting" or "Cancelling")
+            {
+                <DropdownItem Clicked="Cancel" Disabled="@(_busy || CancelRequested || State == "Cancelling")" Variant="destructive" CloseOnSelect="true" Role="menuitem">
+                    <Icon Name="LucideIcon.X" Size="Size.Is4" /><Span>@(CancelRequested || State == "Cancelling" ? "Cancellation requested" : "Cancel job")</Span>
+                </DropdownItem>
+            }
+        </DropdownMenu>
+    </Dropdown>
+</span>

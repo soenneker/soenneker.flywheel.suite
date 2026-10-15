@@ -46,6 +46,7 @@ public sealed partial class FlywheelDashboardTests
         Check((await client.GetAsync($"{prefix}/jobs", cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.Unauthorized, "Jobs unprotected");
         Check((await client.GetAsync($"{prefix}/jobs/search?q=test", cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.Unauthorized, "Search unprotected");
         Check(store.Calls == 0, "Unauthenticated search reached storage");
+        Check((await client.PostAsync($"{prefix}/jobs/one/queue/top", null, cancellationToken)).StatusCode == HttpStatusCode.Unauthorized, "Queue action unprotected");
         Check((await client.GetAsync($"{prefix}/jobs/one/logs", cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.Unauthorized, "Logs unprotected");
         Check((await client.PostAsync($"{prefix}/hub/negotiate?negotiateVersion=1", null, cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.Unauthorized, "Hub unprotected");
         Check((await client.PostAsJsonAsync($"{prefix}/login", new { Username = "admin", Password = password }, cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.BadRequest, "Missing CSRF accepted");
@@ -101,7 +102,9 @@ public sealed partial class FlywheelDashboardTests
         client.DefaultRequestHeaders.Remove("X-Flywheel-CSRF");
         Check((await client.PostAsync($"{prefix}/jobs/one/cancel", null, cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.BadRequest, "Cancellation accepted without CSRF");
         Check((await client.PostAsJsonAsync($"{prefix}/logout", new { }, cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.BadRequest, "Logout accepted without CSRF");
+        Check((await client.PostAsync($"{prefix}/jobs/one/queue/top", null, cancellationToken)).StatusCode == HttpStatusCode.BadRequest, "Queue action accepted without CSRF");
         client.DefaultRequestHeaders.Add("X-Flywheel-CSRF", authenticatedCsrf!.Token);
+        Check((await client.PostAsync($"{prefix}/jobs/one/queue/top", null, cancellationToken)).StatusCode == HttpStatusCode.NoContent, "Authorized queue action failed");
         Check((await client.PostAsJsonAsync($"{prefix}/logout", new { }, cancellationToken: cancellationToken)).StatusCode == HttpStatusCode.NoContent, "Logout failed");
         await app.StopAsync(cancellationToken: cancellationToken);
     }

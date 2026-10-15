@@ -36,7 +36,11 @@ public sealed class FlywheelOptions
             ? name + ".release-" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(ApplicationVersion)))
             : name;
     }
-    /// <summary>Number of concurrent worker loops on this host.</summary>
+    /// <summary>Workers reserved for named pools when the engine starts. Names are case-sensitive and default is reserved.
+    /// Each named pool needs at least one worker. The always-present default pool receives the remaining Workers,
+    /// which must include at least one worker. Named allocations must therefore total less than Workers.</summary>
+    public Dictionary<string, int> Pools { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>Total worker budget for this host, shared by the default pool and all named pools.</summary>
     public int Workers { get; set; } = 4;
     /// <summary>Duration of a job lease before it must be renewed.</summary>
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromSeconds(30);
@@ -51,7 +55,9 @@ public sealed class FlywheelOptions
         if (!Enum.IsDefined(MinimumJobLogLevel))
             throw new ArgumentOutOfRangeException(nameof(MinimumJobLogLevel));
 
-        if (Workers is < 1 or > 256 || LeaseDuration < TimeSpan.FromSeconds(3) || LeaseDuration > TimeSpan.FromHours(1) ||
+        if (Workers is < 1 or > 256 || Pools is null || Pools.Count >= Workers ||
+            Pools.Any(pool => string.IsNullOrWhiteSpace(pool.Key) || pool.Key == "default" || pool.Key.Length > 200 || pool.Value is < 1 or > 255) ||
+            Pools.Values.Sum(value => (long)value) >= Workers || LeaseDuration < TimeSpan.FromSeconds(3) || LeaseDuration > TimeSpan.FromHours(1) ||
             PollInterval < TimeSpan.FromMilliseconds(10) || PollInterval > TimeSpan.FromMinutes(5) ||
             MaintenanceInterval < TimeSpan.FromSeconds(1) || MaintenanceInterval > TimeSpan.FromMinutes(5) || string.IsNullOrWhiteSpace(NodeId) ||
             NodeId.Length > 200 || string.IsNullOrWhiteSpace(ApplicationVersion) || ApplicationVersion.Length > 200 ||

@@ -24,10 +24,10 @@
                 </Div>
             </TopContent>
             <TableContent>
-                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Server</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Workers</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Heartbeat valid until</Th></Tr></Thead><Tbody>
+                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Server</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Pools (busy / total)</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Workers</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Heartbeat valid until</Th></Tr></Thead><Tbody>
         @foreach (ServerView server in FilteredServers.Skip(ServerOffset).Take(_pageSize))
         {
-            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td Padding="Padding.OnX.Is3.OnY.Is1"><Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(server.Id)}"))">@server.Id</Anchor></Td><Td Padding="Padding.OnX.Is3.OnY.Is1">
+            <Tr @key="server.Id" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border"><Td Padding="Padding.OnX.Is3.OnY.Is1"><Anchor Href="@(DashboardNavigation.Path($"servers/{Uri.EscapeDataString(server.Id)}"))">@server.Id</Anchor></Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><ServerPools Server="@server" /></Td><Td Padding="Padding.OnX.Is3.OnY.Is1">
                 <Div Style="position: relative; display: inline-flex; width: 32px; height: 32px; flex-shrink: 0;"
                      title="@($"{server.RunningJobs.Count} of {server.Workers} workers busy")">
                     <Score Value="@(server.Workers > 0 ? (int)Math.Round(100d * server.RunningJobs.Count / server.Workers) : 0)"
@@ -58,7 +58,8 @@
     private string _search = "";
     private int _offset, _pageSize = 10;
     private IReadOnlyList<ServerView> FilteredServers => _servers is null ? [] : _search.Length == 0 ? _servers :
-        _servers.Where(server => server.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToArray();
+        _servers.Where(server => server.Id.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            server.Pools.Any(pool => pool.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToArray();
     private int ServerOffset => Math.Min(_offset, Math.Max(0, (FilteredServers.Count - 1) / _pageSize * _pageSize));
     private void SearchServers(DataTableServerSideRequest request)
     {

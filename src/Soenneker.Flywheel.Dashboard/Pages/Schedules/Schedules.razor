@@ -14,6 +14,10 @@
     <Drawer @bind-Visible="_drawerVisible" Direction="right" TrapFocus="true" ShowBackdrop="true">
         <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
             <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Recurring jobs</H3></Div>
+            @if (_schedules?.RecurringCount is { } total)
+            {
+                <Paragraph TextColor="TextColor.MutedForeground">@total.ToString("N0") recurring jobs</Paragraph>
+            }
             <DataTable AdaptiveLayout="true" LoadingAtTop="true" IsLoading="@(_schedules is null && _scheduleError is null)" Options="@_recurringTableOptions" TotalRecords="@FilteredRecurring.Count" OnInteraction="SearchRecurring">
                 <TopContent>
                     <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
@@ -49,13 +53,7 @@
                             </Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" /></Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" class="px-3 py-1 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
-                                <Button ButtonSize="ButtonSize.Sm" OnClick="() => RunRecurring(schedule.Id)" Disabled="@_startingSchedules.Contains(schedule.Id)" Position="Position.Relative" aria-busy="@_startingSchedules.Contains(schedule.Id)" Variant="ButtonVariant.Secondary" aria-label="@($"Run {schedule.Name} now")">
-                                    <Span Style="@(_startingSchedules.Contains(schedule.Id) ? "visibility: hidden;" : null)">Run now</Span>
-                                    @if (_startingSchedules.Contains(schedule.Id))
-                                    {
-                                        <Spinner Size="Size.Is4" Position="Position.Absolute" aria-label="Queuing job" />
-                                    }
-                                </Button>
+                                <JobActions Id="@schedule.LastExecutionId" Name="@schedule.Name" State="@schedule.LastExecutionStatus" IsDefinition="true" Disabled="@_startingSchedules.Contains(schedule.Id)" RunRequested="() => RunRecurring(schedule.Id)" Changed="RefreshSchedules" />
                             </Td>
                         </Tr>
                     }

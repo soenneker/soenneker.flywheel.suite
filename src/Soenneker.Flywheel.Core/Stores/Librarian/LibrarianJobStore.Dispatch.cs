@@ -16,16 +16,17 @@ public abstract partial class LibrarianJobStore
     private async IAsyncEnumerable<DispatchCandidate> Candidates(long now, string? version, string owner,
         IReadOnlySet<string>? jobNames, HashSet<string> blocked, HashSet<string> blockedPartitions, int pending)
     {
-        // Old workers omit the derived ordering field. Fall back whenever any queued document lacks it,
+        // Fall back whenever any queued document uses the older ordering layout,
         // so a rolling upgrade cannot hide work or change priority ordering.
-        if (!UseServerQueries || await _dispatch.CountRange("value.order", minimum: "") != pending)
+        if (!UseServerQueries || await _dispatch.CountRange("value.orderVersion", minimum: 2, maximum: 2) != pending ||
+            await _dispatch.CountRange("value.order", minimum: "") != pending)
         {
             var entries = await _dispatch.Range("value.dueAt", maximum: now);
             DispatchCandidate[] eligible = entries.Select(entry => entry.Value)
                 .Where(candidate => candidate.ApplicationVersion is null || candidate.ApplicationVersion == version)
                 .Where(candidate => candidate.TargetNodeId is null || candidate.TargetNodeId == owner)
                 .Where(candidate => jobNames is null || jobNames.Contains(candidate.Name))
-                .OrderByDescending(candidate => candidate.Priority).ThenBy(candidate => candidate.DueAt)
+                .OrderBy(candidate => candidate.QueueRank).ThenByDescending(candidate => candidate.Priority).ThenBy(candidate => candidate.DueAt)
                 .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray();
             var turns = new Dictionary<string, long>(StringComparer.Ordinal);
             foreach (string id in eligible.Where(candidate => candidate.PartitionId is not null).Select(candidate => candidate.PartitionId!).Distinct())
@@ -33,10 +34,10 @@ public abstract partial class LibrarianJobStore
             // Keep method/priority positions and unkeyed ordering intact. Within each keyed method and
             // priority, the least recently served partition goes first, then its oldest due job.
             var fair = eligible.Where(candidate => candidate.PartitionId is not null)
-                .GroupBy(candidate => (candidate.Name, candidate.Priority))
+                .GroupBy(candidate => (candidate.Name, candidate.Priority, candidate.QueueRank))
                 .ToDictionary(group => group.Key, group => new Queue<DispatchCandidate>(group.OrderBy(candidate => turns[candidate.PartitionId!])));
             foreach (DispatchCandidate candidate in eligible)
-                yield return candidate.PartitionId is null ? candidate : fair[(candidate.Name, candidate.Priority)].Dequeue();
+                yield return candidate.PartitionId is null ? candidate : fair[(candidate.Name, candidate.Priority, candidate.QueueRank)].Dequeue();
             yield break;
         }
 
@@ -82,8 +83,9 @@ public abstract partial class LibrarianJobStore
                     string key = partition.Key;
                     string name = selected.Name;
                     int priority = selected.Priority;
+                    long rank = selected.QueueRank;
                     var head = await _dispatch.First(query.Where(entry => entry.Value.Name == name &&
-                        entry.Value.Priority == priority && entry.Value.PartitionId == key).OrderBy(entry => entry.Value.Order));
+                        entry.Value.QueueRank == rank && entry.Value.Priority == priority && entry.Value.PartitionId == key).OrderBy(entry => entry.Value.Order));
                     if (head is null) continue;
                     if (partition.Value < selectedTurn || StringComparer.Ordinal.Compare(head.Value.Order, selected.Order) < 0)
                     {

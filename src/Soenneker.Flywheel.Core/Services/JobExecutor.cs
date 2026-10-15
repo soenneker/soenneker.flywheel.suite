@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
@@ -16,14 +17,18 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
 {
     private readonly Dictionary<string, IJobInvoker> _invokers = invokers.ToDictionary(x => x.Name, StringComparer.Ordinal);
     private readonly JobProgress _progress = progress ?? new JobProgress(store);
+    private IReadOnlySet<string>? _jobNames;
     private int _unhealthy;
 
-    public Task<bool> RunOnce(CancellationToken cancellationToken) => RunOnceCore(null, cancellationToken, cancellationToken);
-    public Task<bool> RunOnce(Action onClaimed, CancellationToken cancellationToken) => RunOnceCore(onClaimed, cancellationToken, cancellationToken);
+    public Task<bool> RunOnce(CancellationToken cancellationToken) => RunOnceCore("default", null, cancellationToken, cancellationToken);
+    public Task<bool> RunOnce(Action onClaimed, CancellationToken cancellationToken) => RunOnceCore("default", onClaimed, cancellationToken, cancellationToken);
     public Task<bool> RunOnce(Action onClaimed, CancellationToken claimingToken, CancellationToken executionToken) =>
-        RunOnceCore(onClaimed, claimingToken, executionToken);
+        RunOnceCore("default", onClaimed, claimingToken, executionToken);
 
-    private async Task<bool> RunOnceCore(Action? onClaimed, CancellationToken claimingToken, CancellationToken executionToken)
+    public Task<bool> RunOnce(string pool, Action onClaimed, CancellationToken claimingToken, CancellationToken executionToken) =>
+        RunOnceCore(pool, onClaimed, claimingToken, executionToken);
+
+    private async Task<bool> RunOnceCore(string pool, Action? onClaimed, CancellationToken claimingToken, CancellationToken executionToken)
     {
         if (Volatile.Read(ref _unhealthy) != 0) throw new JobExecutionUnresponsiveException("previous execution");
         if (store is not IWorkerJobStore workerStore)
@@ -34,7 +39,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         {
             deadline.CancelAfter(options.GetStorageOperationTimeout());
             lease = await workerStore.ClaimForWorker(options.NodeId, options.LeaseDuration, options.ApplicationVersion,
-                _invokers.Keys.ToHashSet(StringComparer.Ordinal), deadline.Token);
+                _jobNames ?? LazyInitializer.EnsureInitialized(ref _jobNames, () => _invokers.Keys.ToFrozenSet(StringComparer.Ordinal)), pool, deadline.Token);
         }
         if (lease is null) return false;
         onClaimed?.Invoke();

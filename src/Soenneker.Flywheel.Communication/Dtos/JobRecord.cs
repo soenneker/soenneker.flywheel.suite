@@ -55,6 +55,9 @@ public sealed record JobRecord
     /// <summary>Terminal completion time in UTC Unix milliseconds, or zero when unfinished or unavailable.</summary>
     [JsonPropertyName("completedAt")]
     public long CompletedAt { get; init; }
+    /// <summary>Durable dispatch ordering rank. Operator queue moves override normal priority ordering for the next attempt.</summary>
+    [JsonPropertyName("queueRank")]
+    public long QueueRank { get; init; }
     /// <summary>Next eligible execution time in UTC Unix milliseconds.</summary>
     [JsonPropertyName("dueAt")]
     public long DueAt { get; init; }
@@ -64,6 +67,9 @@ public sealed record JobRecord
     /// <summary>Identifier of the node owning the lease, or null when unowned.</summary>
     [JsonPropertyName("owner")]
     public string? Owner { get; init; }
+    /// <summary>Pool that claimed the latest attempt, or null for legacy or unstarted work.</summary>
+    [JsonPropertyName("workerPool")]
+    public string? WorkerPool { get; init; }
     /// <summary>Current lease ownership token, or null when unleased.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; init; }

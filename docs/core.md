@@ -197,3 +197,46 @@ Jobs can run more than once; make handlers safe to retry and pass cancellation t
 - [Generators](https://github.com/soenneker/soenneker.flywheel.suite): job method requirements.
 - [Dashboard](https://github.com/soenneker/soenneker.flywheel.suite): view jobs and logs.
 - [Demo](https://github.com/soenneker/soenneker.flywheel.suite/blob/main/test/Soenneker.Flywheel.Demo/README.md): run a complete app.
+
+## Worker pools
+
+Configure named pools when registering the engine. They share the server's `Workers` budget; `default` receives the remainder.
+
+```csharp
+builder.Services.AddFlywheel(options =>
+{
+    options.Workers = 8;
+    options.Pools["reports"] = 3;
+    options.Pools["imports"] = 2;
+})
+    .AddMemory()
+    .AddGeneratedJobs();
+```
+
+Route a method to one or more pools:
+
+```csharp
+[FlywheelJob("report.generate", Pools = new[] { "reports" })]
+```
+
+Omitting `Pools` means default only. Names are case-sensitive; `default` is reserved. At startup every pool needs at least one worker, including default, so named allocations must total less than `Workers` (1–256). A job remains pending until an eligible worker is available. Method concurrency and rate limits apply across pools sharing storage.
+
+Inject `IWorkerPool` to resize existing pools with `SetPoolWorkerCount("reports", count)`. Zero pauses new claims; retiring workers finish their current jobs. With named pools, total desired capacity cannot exceed the configured budget. Pool names are fixed at startup.
+
+## Queue controls
+
+```csharp
+using Soenneker.Flywheel.Communication.Enums;
+
+bool moved = await client.UpdateQueue(executionId, JobQueueAction.MoveToTop);
+```
+
+| Action | Effect |
+| --- | --- |
+| `MoveToTop` | Move an already-due execution ahead of queued work. |
+| `MoveToBottom` | Move it after current work, ahead of subsequent ordinary arrivals. |
+| `RunNow` | Release an existing execution's delay. |
+
+`UpdateQueue` returns false when the execution is missing or no longer eligible. Running, waiting, cancelled, and finished executions cannot be reordered. Moves override ordinary priority for the next attempt; retries return to ordinary order. Pool, version, instance, concurrency, and rate restrictions still apply.
+
+All built-in providers support queue controls. Upgrade all workers sharing storage before using queue actions or pool restrictions.

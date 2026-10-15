@@ -9,6 +9,6 @@ public sealed class MaintenanceRunner(IJobStore store, INodeStore nodes, IWorker
     public async Task RunOnce(CancellationToken cancellationToken)
     {
         await store.Maintain(100, cancellationToken);
-        await nodes.Heartbeat(options.NodeId, workers.WorkerCount, options.LeaseDuration, cancellationToken);
+        await nodes.Heartbeat(options.NodeId, workers.Pools, options.LeaseDuration, cancellationToken);
     }
 }

@@ -26,7 +26,7 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
         "Flywheel", DiagnosticSeverity.Error, true);
 
     private static readonly DiagnosticDescriptor _policy = new("FW004", "Invalid job policy declaration",
-        "Job '{0}' has invalid metadata; description must be at most 500 characters, concurrency and rate limit cannot be negative, and the rate window must be between 1 and 31,536,000 seconds",
+        "Job '{0}' has invalid metadata; pool names must be nonblank and at most 200 characters, description must be at most 500 characters, concurrency and rate limit cannot be negative, and the rate window must be between 1 and 31,536,000 seconds",
         "Flywheel", DiagnosticSeverity.Error, true);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -100,7 +100,11 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
             int rateLimit = NamedInt(jobAttribute, "RateLimit");
             int rateWindowSeconds = NamedInt(jobAttribute, "RateWindowSeconds", 60);
             string? description = NamedString(jobAttribute, "Description");
-            if (description?.Length > 500 || maxConcurrency < 0 || rateLimit < 0 || rateWindowSeconds is < 1 or > 31_536_000)
+            TypedConstant poolArgument = jobAttribute.NamedArguments.FirstOrDefault(a => a.Key == "Pools").Value;
+            string?[] pools = poolArgument.Kind == TypedConstantKind.Array && !poolArgument.IsNull
+                ? poolArgument.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string?>();
+            if (pools.Any(pool => string.IsNullOrWhiteSpace(pool) || pool!.Length > 200) ||
+                description?.Length > 500 || maxConcurrency < 0 || rateLimit < 0 || rateWindowSeconds is < 1 or > 31_536_000)
             {
                 context.ReportDiagnostic(Diagnostic.Create(_policy, m.Locations.FirstOrDefault(), name));
                 continue;
@@ -155,11 +159,13 @@ public sealed class FlywheelGenerator : IIncrementalGenerator
                    .Append(" : global::Soenneker.Flywheel.Core.Services.Abstract.IJobInvoker {\npublic string Name => ")
                    .Append(literal)
                    .Append(";\n");
-            if (maxConcurrency != 0 || rateLimit != 0)
+            if (maxConcurrency != 0 || rateLimit != 0 || pools.Length != 0)
                 invoker.Append("public global::Soenneker.Flywheel.Communication.Dtos.MethodPolicy Policy { get; } = new() { MaxConcurrency = ")
                        .Append(maxConcurrency == 0 ? "null" : maxConcurrency.ToString())
                        .Append(", RateLimit = ").Append(rateLimit == 0 ? "null" : rateLimit.ToString())
-                       .Append(", RateWindow = global::System.TimeSpan.FromSeconds(").Append(rateWindowSeconds).Append(") };\n");
+                       .Append(", RateWindow = global::System.TimeSpan.FromSeconds(").Append(rateWindowSeconds).Append("), Pools = new string[] { ")
+                       .Append(string.Join(", ", pools.Select(pool => SymbolDisplay.FormatLiteral(pool!, true))))
+                       .Append(" } };\n");
             invoker.Append(
                        "public async global::System.Threading.Tasks.Task Invoke(global::System.IServiceProvider services, string payload, global::System.Threading.CancellationToken ct) {\n")
                    .Append(

@@ -6,10 +6,14 @@
 @inherits JobsPageBase
 @layout FlywheelLayout
 
-<PageTitle>Scheduled jobs · Flywheel</PageTitle>
+<PageTitle>Scheduled jobs Â· Flywheel</PageTitle>
 <Div Width="Width.IsFull" MinWidth="MinWidth.Is0" Padding="Padding.Is4">
     <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
         <Div Space="Space.Y.Is1"><H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Scheduled jobs</H3></Div>
+        @if (_schedules?.QueueCounts is { } counts)
+        {
+            <Paragraph TextColor="TextColor.MutedForeground">@((counts.Queued + counts.Scheduled).ToString("N0")) pending executions · @counts.Queued.ToString("N0") queued · @counts.Scheduled.ToString("N0") scheduled</Paragraph>
+        }
         <DataTable AdaptiveLayout="true" LoadingAtTop="true" Options="@_scheduledTableOptions" TotalRecords="@FilteredScheduled.Count" OnInteraction="SearchScheduled">
             <TopContent>
                 <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" Margin="Margin.FromBottom.Is4">
@@ -18,10 +22,10 @@
                 </Div>
             </TopContent>
             <TableContent>
-                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Scheduled for</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th></Tr></Thead><Tbody>
+                <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border"><Tr><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Scheduled for</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Duration</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Actions</Th></Tr></Thead><Tbody>
                 @foreach (JobView job in FilteredScheduled.Skip(ScheduledOffset).Take(_scheduledPageSize))
                 {
-                    <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)"><Td Padding="Padding.OnX.Is3.OnY.Is1"><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span></Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@job.DueAt" /></Td><Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td></Tr>
+                    <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" Style="cursor: pointer;" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)"><Td Padding="Padding.OnX.Is3.OnY.Is1"><span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><Anchor Href="@(DashboardNavigation.Path($"jobs/{Uri.EscapeDataString(job.Id)}"))">@job.Name</Anchor></span></Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@job.DueAt" /></Td><Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.Attempt == 0 ? "â€”" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobDuration Job="@job" /></Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobActions Id="@job.Id" Name="@job.Name" State="@job.State" CancelRequested="@job.CancelRequested" Changed="RefreshSchedules" /></Td></Tr>
                 }
                 </Tbody>
             </TableContent>
@@ -32,7 +36,7 @@
                 }
                 else if (_schedules is null)
                 {
-                    <Spinner Size="Size.Is5" aria-label="Loading schedules…" />
+                    <Spinner Size="Size.Is5" aria-label="Loading schedulesâ€¦" />
                 }
                 else if (!FilteredScheduled.Any())
                 {

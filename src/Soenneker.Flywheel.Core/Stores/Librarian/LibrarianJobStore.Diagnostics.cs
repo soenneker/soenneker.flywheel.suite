@@ -62,15 +62,24 @@ public abstract partial class LibrarianJobStore
         foreach (string id in expired) await _nodes.Remove(id).NoSync();
     }
 
-    public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default)
+    public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default) =>
+        Heartbeat(node, [new WorkerPoolCapacity("default", workers)], ttl, cancellationToken);
+
+    public Task Heartbeat(string node, IReadOnlyList<WorkerPoolCapacity> pools, TimeSpan ttl, CancellationToken cancellationToken = default)
     {
         ValidateId(node);
-        if (workers is < 0 or > 256) throw new ArgumentOutOfRangeException(nameof(workers));
+        ArgumentNullException.ThrowIfNull(pools);
+        WorkerPoolCapacity[] capacities = pools.OrderBy(pool => pool.Name, StringComparer.Ordinal).ToArray();
+        if (capacities.Length is < 1 or > 256 || capacities.Any(pool => string.IsNullOrWhiteSpace(pool.Name) || pool.Name.Length > 200 || pool.Workers is < 0 or > 256) ||
+            capacities.Select(pool => pool.Name).Distinct(StringComparer.Ordinal).Count() != capacities.Length ||
+            capacities.Sum(pool => (long)pool.Workers) > 256)
+            throw new ArgumentOutOfRangeException(nameof(pools));
+        int workers = capacities.Sum(pool => pool.Workers);
         long milliseconds = Duration(ttl);
         return Mutate(cancellationToken, async now =>
         {
             Node previous = await _nodes.Get(node);
-            _notifyServers = previous.ExpiresAt <= now || previous.Workers != workers;
+            _notifyServers = previous.ExpiresAt <= now || previous.Workers != workers || !(previous.Pools ?? []).SequenceEqual(capacities);
             await PruneServers(now);
             int busy = (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
             long bucket = now / 5000 * 5000;
@@ -80,7 +89,7 @@ public abstract partial class LibrarianJobStore
             ServerWorkerHistoryPoint[] history = retained.Where(point => point.Timestamp < bucket - 300000).TakeLast(1)
                 .Concat(retained.Where(point => point.Timestamp >= bucket - 300000))
                 .Append(new ServerWorkerHistoryPoint(bucket, busy, now + milliseconds)).ToArray();
-            await _nodes.Set(node, new Node(now + milliseconds, workers) { WorkerHistory = history }).NoSync();
+            await _nodes.Set(node, new Node(now + milliseconds, workers) { WorkerHistory = history, Pools = capacities }).NoSync();
             return true;
         });
     }
@@ -88,7 +97,7 @@ public abstract partial class LibrarianJobStore
     private async Task<WorkerServerView> Server(string node, Node data, long now, bool includeHistory = false) =>
         new(node, data.ExpiresAt, data.Workers, (await _jobs.Find("owner", node)).Where(j =>
             j.State == JobState.Running && j.LeaseUntil > now).OrderBy(j => j.LeaseUntil).ToArray())
-        { WorkerHistory = includeHistory ? data.WorkerHistory ?? [] : [], ObservedAt = now };
+        { Pools = data.Pools ?? [new WorkerPoolCapacity("default", data.Workers)], WorkerHistory = includeHistory ? data.WorkerHistory ?? [] : [], ObservedAt = now };
 
     public Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default)
     {

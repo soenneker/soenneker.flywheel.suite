@@ -10,6 +10,13 @@ public interface IWorkerJobStore
     Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
         IReadOnlySet<string> jobNames, CancellationToken cancellationToken = default);
 
+    /// <summary>Claims an eligible job assigned to the specified case-sensitive pool. Empty method pool lists
+    /// belong to default. Pool mismatches must not consume attempts, rate limits, or concurrency permits.</summary>
+    Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
+        IReadOnlySet<string> jobNames, string pool, CancellationToken cancellationToken = default) =>
+        pool == "default" ? ClaimForWorker(owner, duration, applicationVersion, jobNames, cancellationToken)
+            : throw new NotSupportedException("This job store does not support worker pools.");
+
     /// <summary>Requeues a cooperatively interrupted execution without consuming its attempt budget.
     /// Durable cancellation takes precedence. Returns false if ownership has expired or changed.</summary>
     Task<bool> Interrupt(JobLease lease, string error, CancellationToken cancellationToken = default);

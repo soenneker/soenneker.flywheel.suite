@@ -15,6 +15,7 @@ public abstract class JobsPageBase : LeptonCancellable
     [Inject] private DashboardSessionState Session { get; set; } = null!;
     protected ScheduleView? _schedules;
     protected string? _scheduleError;
+    private long _scheduleRevision;
 
     protected override async Task OnInitializedAsync()
     {
@@ -36,6 +37,23 @@ public abstract class JobsPageBase : LeptonCancellable
         catch (Exception) { _scheduleError = "Unable to load schedules. Reload the page to retry."; }
     }
 
+    protected async Task RefreshSchedules()
+    {
+        long revision = _scheduleRevision;
+        try
+        {
+            var response = await Consumer.GetSchedules(CancellationToken);
+            if (response.StatusCode is 401 or 403) { Session.SetAuthenticated(false); return; }
+            response.EnsureSucceeded();
+            if (revision == _scheduleRevision) ApplySchedules(response.Value);
+        }
+        catch (OperationCanceledException) when (IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (revision == _scheduleRevision) _scheduleError = "Unable to refresh schedules. Reload the page to retry.";
+        }
+    }
+
     private Task OnSnapshot(LiveBoard snapshot) => InvokeAsync(() =>
     {
         if (IsDisposed || IsCancellationRequested) return;
@@ -45,6 +63,7 @@ public abstract class JobsPageBase : LeptonCancellable
 
     private void ApplySchedules(ScheduleView? schedules)
     {
+        _scheduleRevision++;
         _schedules = schedules;
         _scheduleError = schedules is null ? "Schedule information is unavailable from this job store." : null;
         SchedulesChanged();

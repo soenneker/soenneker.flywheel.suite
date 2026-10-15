@@ -184,6 +184,35 @@ Declare limits on the job method when a workload needs them:
 
 Applied to the quick start's `Write` method, this allows one execution at a time and up to ten execution starts per minute. With Redis or PostgreSQL, workers sharing the same job storage coordinate these limits across instances.
 
+### Worker pools
+
+Split a server's worker budget between workloads:
+
+```csharp
+builder.Services.AddFlywheel(options =>
+{
+    options.Workers = 8;
+    options.Pools["reports"] = 3;
+    options.Pools["imports"] = 2;
+})
+    .AddMemory()
+    .AddGeneratedJobs();
+```
+
+The remaining three workers belong to `default`. Route job methods with `[FlywheelJob("report.generate", Pools = new[] { "reports" })]`; methods without a pool list use `default`. The Servers page shows capacity and active work per pool.
+
+### Queue controls
+
+The **…** menu offers **Top of queue**, **Bottom of queue**, **Run now**, and cancellation where applicable. Queue moves affect the next attempt and still respect pool, concurrency, and rate limits.
+
+```csharp
+await client.UpdateQueue(executionId, JobQueueAction.MoveToTop);
+```
+
+`JobQueueAction` is in `Soenneker.Flywheel.Communication.Enums`. Use `MoveToBottom` to defer queued work or `RunNow` to release a delayed execution. Run now on a manual or recurring definition creates a fresh execution.
+
+See [pool configuration and queue controls](docs/core.md#worker-pools) for the API details.
+
 ## Choose your storage
 
 Choose one provider when registering Flywheel. Your job methods and submission API stay the same.
@@ -216,7 +245,7 @@ The optional Blazor dashboard brings the runtime into view:
 - **Watch activity live:** see job states, execution activity, and active servers.
 - **Find the work that matters:** search jobs and inspect individual executions.
 - **Follow every attempt:** view timing, progress, and the logs your handlers write.
-- **Manage ongoing work:** inspect schedules, launch registered manual jobs from **Manual Jobs**, trigger recurring jobs with **Run now**, and cancel executions.
+- **Manage ongoing work:** inspect schedules, launch registered manual jobs from **Manual Jobs**, trigger recurring jobs with **Run now**, move queued executions to the top or bottom, and cancel executions.
 - **Work in light or dark mode:** follow your system theme or choose your own preference.
 
 <a href="docs/dashboard.md">

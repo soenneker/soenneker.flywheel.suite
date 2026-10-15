@@ -46,7 +46,7 @@ public partial class Job
     private IFlywheelLiveSubscription? _connection;
     private int _version;
     private Task? _connecting;
-    private bool _loading, _login, _missing, _cancelling;
+    private bool _loading, _login, _missing;
     private string? _error;
     private void RefreshPage() => Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
 
@@ -152,28 +152,6 @@ public partial class Job
         catch (OperationCanceledException) when (IsCancellationRequested) { }
         catch (Exception) { _error = "The run could not be confirmed. Check recent job activity before trying again."; }
         finally { _runningAgain = false; }
-    }
-
-    private async Task Cancel()
-    {
-        if (_cancelling) return;
-        _cancelling = true;
-        try
-        {
-            OperationResult<object> response = await Consumer.CancelJob(JobId, CancellationToken);
-            if (response.StatusCode == (int)HttpStatusCode.Unauthorized) { Session.SetAuthenticated(false); _login = true; _job = null; return; }
-            if (response.StatusCode == (int)HttpStatusCode.Conflict)
-            {
-                await Reload();
-                _error = "This execution can no longer be cancelled. Its status may have changed.";
-                return;
-            }
-            response.EnsureSucceeded();
-            await Reload();
-        }
-        catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
-        catch (Exception) { _error = "Cancellation was not confirmed. Refresh and retry if the job is still active."; }
-        finally { _cancelling = false; }
     }
 
     public override async ValueTask DisposeAsync()

@@ -10,11 +10,11 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
     public JobView Job(JobRecord job) => new(job.Id, job.Name, job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), job.Attempt, job.UpdatedAt, job.CancelRequested,
         job.Error, job.Version, job.CreatedAt, job.DueAt, job.LeaseUntil, job.Owner, job.ParentJobId, job.NextJobId,
         job.Policy.MaxAttempts, job.Policy.Timeout.TotalSeconds, job.Policy.Priority.Name, job.Progress, job.ProgressMessage,
-        job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt);
+        job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt, job.WorkerPool);
 
     public Communication.Responses.ServerView Server(Communication.Responses.WorkerServerView server) =>
         new(server.Id, server.ExpiresAt, server.Workers, server.RunningJobs.Select(Job).ToList())
-        { WorkerHistory = server.WorkerHistory, ObservedAt = server.ObservedAt };
+        { Pools = server.Pools, WorkerHistory = server.WorkerHistory, ObservedAt = server.ObservedAt };
 
     public ScheduleView Schedules(IEnumerable<RecurringJobView> recurring, IEnumerable<JobRecord> scheduled) =>
         new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus, s.LastExecutionId)).ToList(),

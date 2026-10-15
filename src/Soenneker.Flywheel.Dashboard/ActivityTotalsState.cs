@@ -33,8 +33,8 @@ internal sealed class ActivityTotalsState
 
     public void UpdateSnapshot(LiveBoard snapshot)
     {
-        long? scheduled = snapshot.Schedules?.Scheduled.Count(job => job.State == "Scheduled");
-        long? queued = snapshot.Schedules?.Scheduled.Count(job => job.State == "Queued");
+        long? scheduled = snapshot.Schedules?.QueueCounts?.Scheduled;
+        long? queued = snapshot.Schedules?.QueueCounts?.Queued;
         double[]? values = Totals;
         if (LastHour && snapshot.History is { } history)
         {

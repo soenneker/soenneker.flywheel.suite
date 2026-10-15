@@ -25,6 +25,9 @@ public sealed partial class RuntimeTests
         public Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
             IReadOnlySet<string> jobNames, CancellationToken cancellationToken = default) =>
             jobNames.Contains("test") ? Claim(owner, duration, cancellationToken) : Task.FromResult<JobLease?>(null);
+        public Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
+            IReadOnlySet<string> jobNames, string pool, CancellationToken cancellationToken = default) =>
+            pool == "default" ? ClaimForWorker(owner, duration, applicationVersion, jobNames, cancellationToken) : Task.FromResult<JobLease?>(null);
         public Task<bool> Interrupt(JobLease lease, string error, CancellationToken cancellationToken = default)
         { Interruptions++; Error = error; return Task.FromResult(true); }
         public Task<bool> Quarantine(JobLease lease, string error, CancellationToken cancellationToken = default)

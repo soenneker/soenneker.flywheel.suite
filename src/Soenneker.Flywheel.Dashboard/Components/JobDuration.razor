@@ -1,0 +1,65 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Flywheel.Communication.Responses
+@inherits LeptonCancellable
+
+<span style="white-space: nowrap;" title="Latest execution attempt">@DurationLabel</span>
+
+@code {
+    /// <summary>The execution whose latest attempt duration is displayed.</summary>
+    [Parameter, EditorRequired]
+    public JobView Job { get; set; } = default!;
+
+    private Task? _refreshLoop;
+    private bool IsRunning => (Job.State is "Running" or "Cancelling") && Job.StartedAt > 0 && Job.CompletedAt == 0;
+
+    private string DurationLabel
+    {
+        get
+        {
+            if (Job.StartedAt <= 0) return "—";
+            long end = IsRunning ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : Job.CompletedAt;
+            if (end < Job.StartedAt) return "—";
+
+            TimeSpan duration = TimeSpan.FromMilliseconds(end - Job.StartedAt);
+            if (duration.TotalSeconds < 1) return $"{duration.TotalMilliseconds:0} ms";
+            if (duration.TotalMinutes < 1) return $"{duration.TotalSeconds:0.##} s";
+            if (duration.TotalHours < 1) return $"{duration.Minutes}m {duration.Seconds}s";
+            if (duration.TotalDays < 1) return $"{duration.Hours}h {duration.Minutes}m {duration.Seconds}s";
+            return $"{duration.Days}d {duration.Hours}h {duration.Minutes}m";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsRunning && (_refreshLoop is null || _refreshLoop.IsCompleted))
+            _refreshLoop = RefreshDuration();
+    }
+
+    private async Task RefreshDuration()
+    {
+        CancellationToken cancellationToken = CancellationToken;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                bool keepRefreshing = false;
+                await InvokeAsync(() =>
+                {
+                    keepRefreshing = IsRunning;
+                    // Reset on the renderer context so a new execution can start its timer safely.
+                    if (!keepRefreshing) _refreshLoop = null;
+                    StateHasChanged();
+                });
+                if (!keepRefreshing) return;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (_refreshLoop is not null) await _refreshLoop;
+    }
+}

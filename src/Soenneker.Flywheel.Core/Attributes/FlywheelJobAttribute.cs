@@ -8,6 +8,8 @@ public sealed class FlywheelJobAttribute(string name) : Attribute
     public string Name { get; } = name;
     /// <summary>Optional human-readable description displayed by dashboard clients.</summary>
     public string? Description { get; set; }
+    /// <summary>Case-sensitive worker pools allowed to execute this job. Empty uses only the default pool.</summary>
+    public string[] Pools { get; set; } = [];
     /// <summary>Maximum simultaneous executions across all servers. Zero uses the unlimited default.</summary>
     public int MaxConcurrency { get; set; }
     /// <summary>Maximum execution starts during the configured rate window. Zero disables rate limiting.</summary>

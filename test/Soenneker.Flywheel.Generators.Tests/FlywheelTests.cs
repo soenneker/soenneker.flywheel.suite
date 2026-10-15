@@ -22,6 +22,41 @@ public sealed class FlywheelTests
         return (output, driver.GetRunResult());
     }
     [Test]
+    public void GeneratesPoolRoutingWithoutOtherLimits()
+    {
+        var result = Generate("""
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Soenneker.Flywheel.Core.Attributes;
+            public sealed class Jobs {
+                [FlywheelJob("pooled", Pools = new[] { "X", "Y" })]
+                public Task Run(string value, CancellationToken token) => Task.CompletedTask;
+            }
+            """);
+        Diagnostic[] errors = result.Compilation.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error).ToArray();
+        if (errors.Length != 0) throw new Exception(string.Join("\n", errors.Select(x => x.ToString())));
+        string text = string.Join("\n", result.Result.GeneratedTrees.Select(tree => tree.ToString()));
+        if (!text.Contains("Pools = new string[] { \"X\", \"Y\" }"))
+            throw new Exception("Pool assignments were not emitted into the generated method policy.");
+    }
+
+    [Test]
+    public void RejectsBlankPoolNames()
+    {
+        var result = Generate("""
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Soenneker.Flywheel.Core.Attributes;
+            public sealed class Jobs {
+                [FlywheelJob("pooled", Pools = new[] { " " })]
+                public Task Run(string value, CancellationToken token) => Task.CompletedTask;
+            }
+            """);
+        if (!result.Result.Diagnostics.Any(diagnostic => diagnostic.Id == "FW004" && diagnostic.Severity == DiagnosticSeverity.Error))
+            throw new Exception("Invalid pools were accepted.");
+    }
+
+    [Test]
     public void DisambiguatesHandlerNamesAcrossNamespaces()
     {
         (Compilation Compilation, GeneratorDriverRunResult Result) result = Generate("""

@@ -9,7 +9,7 @@ namespace Soenneker.Flywheel.Dashboard.Tests;
 
 public sealed partial class FlywheelDashboardTests
 {
-    private sealed class SearchStore : IJobStore, IJobLogStore, IJobChangeFeed, INodeStore, IServerStore
+    private sealed class SearchStore : IJobStore, IJobLogStore, IJobChangeFeed, INodeStore, IServerStore, IJobQueueStore
     {
         public readonly System.Threading.Channels.Channel<JobChange> Changes = System.Threading.Channels.Channel.CreateUnbounded<JobChange>();
         public readonly TaskCompletionSource Subscribed = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,6 +38,13 @@ public sealed partial class FlywheelDashboardTests
         public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> Finish(JobLease lease, JobOutcome outcome, string? error, TimeSpan retryDelay, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public bool AcceptQueueAction = true;
+        public JobQueueAction? LastQueueAction;
+        public Task<bool> UpdateQueue(string id, JobQueueAction action, CancellationToken cancellationToken = default)
+        {
+            LastQueueAction = action;
+            return Task.FromResult(AcceptQueueAction);
+        }
         public Task<bool> Cancel(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Maintain(int batchSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default) => throw new NotSupportedException();

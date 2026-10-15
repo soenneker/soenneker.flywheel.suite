@@ -88,13 +88,13 @@
                     <TableContent>
                         <Thead BackgroundColor="BackgroundColor.Secondary" Border="Border.FromBottom.Is2" BorderColor="BorderColor.Border">
                             <Tr>
-                                <Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Updated</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Action</Th>
+                                <Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Status</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Duration</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Updated</Th><Th FontWeight="FontWeight.Semibold" TextColor="TextColor.Foreground" TextSize="TextSize.Xs" TextTransform="TextTransform.Uppercase" Tracking="Tracking.Wide" Padding="Padding.OnX.Is3.OnY.Is2">Action</Th>
                             </Tr>
                         </Thead>
                         <Tbody>
                             @foreach (JobView job in _jobs)
                             {
-                                <DashboardJobRow @key="job.Id" Job="job" Cancelling="@_cancellingJobs.Contains(job.Id)">
+                                <DashboardJobRow @key="job.Id" Job="job">
                                 <Tr Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border" @key="job.Id" tabindex="0" style="cursor: pointer;" aria-label="@($"View details for {job.Name}")" @onclick="() => ShowJobDrawer(job)" @onkeydown="e => OpenJobDrawer(e, job)">
                                         <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="white-space: normal; overflow-wrap: anywhere;">
                                             <Div Display="Display.Flex" MinWidth="MinWidth.Is0" ItemsAlign="Items.Center" Gap="Gap.Is2">
@@ -111,20 +111,9 @@
                                         <Td Padding="Padding.OnX.Is3.OnY.Is1">
                                             <JobStatusBadge State="@job.State" CancelRequested="@job.CancelRequested" />
                                         </Td>
-                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp Value="@job.UpdatedAt" /></Td>
+                                        <Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.Attempt == 0 ? "—" : job.MaxAttempts is { } max ? $"{job.Attempt} / {max}" : job.Attempt.ToString())</Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobDuration Job="@job" /></Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp Value="@job.UpdatedAt" /></Td>
                                         <Td Padding="Padding.OnX.Is3.OnY.Is1" Style="height: 2.5rem;">
-                                            @if (job.State is "Queued" or "Scheduled" or "Running" or "Waiting")
-                                            {
-                                                <span @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
-                                                    <Button ButtonSize="ButtonSize.Sm" Disabled="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" Position="Position.Relative" aria-busy="@(job.CancelRequested || _cancellingJobs.Contains(job.Id))" OnClick="() => Cancel(job.Id)" Variant="ButtonVariant.Default" aria-label="@($"{(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "Canceling" : "Cancel")} {job.Name}")">
-                                                        <Span Style="@(job.CancelRequested || _cancellingJobs.Contains(job.Id) ? "visibility: hidden;" : null)">Cancel</Span>
-                                                        @if (job.CancelRequested || _cancellingJobs.Contains(job.Id))
-                                                        {
-                                                            <Spinner Size="Size.Is4" Position="Position.Absolute" aria-label="Canceling job" />
-                                                        }
-                                                    </Button>
-                                                </span>
-                                            }
+                                            <JobActions Id="@job.Id" Name="@job.Name" State="@job.State" CancelRequested="@job.CancelRequested" Changed="Reload" />
                                         </Td>
                                 </Tr>
                                 </DashboardJobRow>

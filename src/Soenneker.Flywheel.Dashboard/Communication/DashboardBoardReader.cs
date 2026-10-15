@@ -21,7 +21,12 @@ internal static class DashboardBoardReader
         {
             List<RecurringScheduleView> recurring = await ReadArray(scheduleElement.GetProperty("recurring"), json.RecurringScheduleView, budget);
             List<JobView> scheduled = await ReadArray(scheduleElement.GetProperty("scheduled"), json.JobView, budget);
-            schedules = new ScheduleView(recurring, scheduled);
+            schedules = new ScheduleView(recurring, scheduled)
+            {
+                QueueCounts = Property(scheduleElement, "queueCounts") is { } counts
+                    ? new JobQueueCounts(counts.GetProperty("queued").GetInt64(), counts.GetProperty("scheduled").GetInt64()) : null,
+                RecurringCount = Property(scheduleElement, "recurringCount")?.GetInt64()
+            };
         }
 
         cancellationToken.ThrowIfCancellationRequested();

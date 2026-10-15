@@ -44,7 +44,7 @@
                             }
                             else { <Span TextColor="TextColor.MutedForeground">No execution recorded</Span> }
                         </Td>
-                        <Td Padding="Padding.OnX.Is3.OnY.Is1"><Button ButtonSize="ButtonSize.Sm" Variant="ButtonVariant.Secondary" Disabled="@_starting.Contains(job.Id)" OnClick="() => Run(job.Id)" aria-label="@($"Run {job.Name} now")">@(_starting.Contains(job.Id) ? "Queuing…" : "Run now")</Button></Td>
+                        <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobActions Id="@job.LastExecutionId" Name="@job.Name" State="@job.LastExecutionStatus" IsDefinition="true" Disabled="@_starting.Contains(job.Id)" RunRequested="() => Run(job.Id)" Changed="Refresh" /></Td>
                     </Tr>
                 }
             </Tbody>

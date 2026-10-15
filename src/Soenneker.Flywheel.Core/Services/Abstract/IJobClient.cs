@@ -38,7 +38,11 @@ public interface IJobClient
     /// <summary>Persists a job for execution at or after the given time; past times enqueue immediately.</summary>
     Task<string> Schedule<T>(JobDefinition<T> job, T payload, DateTimeOffset scheduledAt, JobPolicy? policy = null,
         string? idempotencyKey = null, CancellationToken cancellationToken = default);
-    /// <summary>Updates distributed limits for a registered method at runtime. Requires a provider supporting method policies.</summary>
+    /// <summary>Changes queue position or releases a pending execution's delay. Returns false when the execution is no longer pending.
+    /// Pool and execution limits still apply; waiting chain steps cannot be released.</summary>
+    Task<bool> UpdateQueue(string id, Communication.Enums.JobQueueAction action, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support queue actions.");
+    /// <summary>Updates pool assignments and distributed limits for a registered method at runtime. Requires a provider supporting method policies.</summary>
     Task ConfigureMethod<T>(JobDefinition<T> job, MethodPolicy policy, CancellationToken cancellationToken = default);
     /// <summary>Registers a reusable manual job without scheduling an execution. Existing definitions remain unchanged.</summary>
     Task<bool> Manual<T>(string id, JobDefinition<T> job, T payload, JobPolicy? policy = null, CancellationToken cancellationToken = default);

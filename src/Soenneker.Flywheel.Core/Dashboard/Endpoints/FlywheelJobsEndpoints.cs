@@ -67,7 +67,7 @@ public static class FlywheelJobsEndpoints
             .WithName("FlywheelJobs_Schedules")
             .WithTags("Flywheel jobs")
             .WithSummary("Returns the next 200 recurring schedules and pending executions independently of activity search.")
-            .WithDescription("Returns up to 200 recurring schedules and 200 pending executions. Requires schedule query support.")
+            .WithDescription("Returns up to 200 recurring schedules and 200 pending executions, plus exact queue and recurring totals when supported by the store. Requires schedule query support.")
             .Produces<ScheduleView>()
             .Produces(StatusCodes.Status501NotImplemented)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -123,6 +123,13 @@ public static class FlywheelJobsEndpoints
             .Produces(StatusCodes.Status501NotImplemented)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden);
+        group.MapPost("/jobs/{id}/queue/{action}", UpdateQueue)
+            .WithName("FlywheelJobs_UpdateQueue").WithTags("Flywheel jobs")
+            .WithSummary("Moves a queued execution to the top or bottom, or makes a scheduled execution eligible now.")
+            .WithDescription("Actions: top, bottom, run-now. Pool and execution limits still apply. Requires antiforgery protection; stale or ineligible executions return 409.")
+            .Produces(StatusCodes.Status204NoContent).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound).Produces(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status501NotImplemented).Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden);
         group.MapPost("/jobs/{id}/cancel", Cancel)
             .WithName("FlywheelJobs_Cancel")
             .WithTags("Flywheel jobs")
@@ -198,9 +205,7 @@ public static class FlywheelJobsEndpoints
     {
         if (store is not IJobScheduleStore schedules)
             return TypedResults.StatusCode(501);
-        IReadOnlyList<RecurringJobView> recurring = await schedules.ListRecurring(200, cancellationToken);
-        IReadOnlyList<JobRecord> scheduled = await schedules.ListScheduled(200, cancellationToken);
-        return DashboardResults.Json(snapshots.Schedules(recurring, scheduled));
+        return DashboardResults.Json(await DashboardSchedules.Read(schedules, snapshots, cancellationToken));
     }
 
     /// <summary>Returns a page of jobs without payloads or lease tokens.</summary>
@@ -268,6 +273,24 @@ public static class FlywheelJobsEndpoints
                 new Communication.Requests.EnqueueRequest(job.Name, job.Payload, job.Policy, TimeSpan.Zero,
                     Description: job.Description), cancellationToken);
         return DashboardResults.Json(new StartedJob(jobId));
+    }
+
+    /// <summary>Atomically changes the queue position or due time of an existing pending execution.</summary>
+    public static async ValueTask<IResult> UpdateQueue([FromServices] IJobStore store, [FromRoute] string id,
+        [FromRoute] string action, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 200) return TypedResults.BadRequest();
+        Communication.Enums.JobQueueAction? operation = action switch
+        {
+            "top" => Communication.Enums.JobQueueAction.MoveToTop,
+            "bottom" => Communication.Enums.JobQueueAction.MoveToBottom,
+            "run-now" => Communication.Enums.JobQueueAction.RunNow,
+            _ => null
+        };
+        if (operation is null) return TypedResults.BadRequest();
+        if (store is not IJobQueueStore queue) return TypedResults.StatusCode(501);
+        if (await store.Get(id, cancellationToken) is null) return TypedResults.NotFound();
+        return await queue.UpdateQueue(id, operation.Value, cancellationToken) ? TypedResults.NoContent() : TypedResults.Conflict();
     }
 
     /// <summary>Requests cancellation of pending or running work.</summary>

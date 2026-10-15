@@ -98,6 +98,10 @@ public sealed class JobClient : IJobClient
             cancellationToken);
     }
 
+    public Task<bool> UpdateQueue(string id, Communication.Enums.JobQueueAction action, CancellationToken cancellationToken = default) =>
+        store is IJobQueueStore queue ? queue.UpdateQueue(id, action, cancellationToken)
+            : throw new NotSupportedException("The job store does not support queue actions.");
+
     public Task ConfigureMethod<T>(JobDefinition<T> job, MethodPolicy policy,
         CancellationToken cancellationToken = default)
     {

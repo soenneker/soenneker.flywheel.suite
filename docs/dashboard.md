@@ -175,3 +175,13 @@ Remove any server-side `app.MapGet("/", ... Results.Redirect("/flywheel"))` mapp
 Updates use SignalR. Job logs come from `ILogger<T>` and are visible to signed-in dashboard users.
 
 See [Core usage](core.md#usage) to define and enqueue jobs.
+
+## Queue actions and worker pools
+
+Use a job's **…** menu to move queued work to the top or bottom, release a scheduled execution with **Run now**, cancel active work, or run a completed job again. Available actions follow the job's state.
+
+On manual and recurring definitions, **Run now** creates a fresh execution; **Move latest execution to top/bottom** reorders the existing one. Queue moves affect the next attempt and respect execution limits.
+
+**Servers** shows capacity and active jobs per pool; server details identify the pool running each execution. Duration columns show the latest attempt's elapsed or completed time.
+
+See [worker pools](core.md#worker-pools) and [queue controls](core.md#queue-controls) for configuration and API behavior.

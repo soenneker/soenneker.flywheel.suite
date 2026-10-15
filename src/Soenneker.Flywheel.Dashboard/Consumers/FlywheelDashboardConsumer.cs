@@ -58,6 +58,19 @@ public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILog
     public ValueTask<OperationResult<object>> Logout(CancellationToken cancellationToken = default) =>
         Write<object>("logout", null, cancellationToken);
 
+    public ValueTask<OperationResult<object>> UpdateQueue(string id, Soenneker.Flywheel.Communication.Enums.JobQueueAction action,
+        CancellationToken cancellationToken = default)
+    {
+        string path = action switch
+        {
+            Soenneker.Flywheel.Communication.Enums.JobQueueAction.MoveToTop => "top",
+            Soenneker.Flywheel.Communication.Enums.JobQueueAction.MoveToBottom => "bottom",
+            Soenneker.Flywheel.Communication.Enums.JobQueueAction.RunNow => "run-now",
+            _ => throw new ArgumentOutOfRangeException(nameof(action))
+        };
+        return Write<object>($"jobs/{Uri.EscapeDataString(id)}/queue/{path}", null, cancellationToken);
+    }
+
     public ValueTask<OperationResult<object>> CancelJob(string id, CancellationToken cancellationToken = default) =>
         Write<object>($"jobs/{Uri.EscapeDataString(id)}/cancel", null, cancellationToken);
 

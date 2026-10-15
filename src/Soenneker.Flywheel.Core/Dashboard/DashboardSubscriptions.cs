@@ -100,7 +100,7 @@ public sealed partial class DashboardSubscriptions(
                 ? await liveStore.GetLiveActivity(ct)
                 : null;
             if (summary && store is IJobScheduleStore scheduleStore)
-                schedules = snapshots.Schedules(await scheduleStore.ListRecurring(200, ct), await scheduleStore.ListScheduled(200, ct));
+                schedules = await DashboardSchedules.Read(scheduleStore, snapshots, ct);
             await client.SendAsync(nameof(IFlywheelDashboardClient.BoardSnapshot), new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
                 result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
                 liveActivity?.ToList(), recurringCount, failedCount, succeededCount), ct);

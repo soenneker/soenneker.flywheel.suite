@@ -36,6 +36,9 @@ public interface IFlywheelDashboardConsumer
     ValueTask<OperationResult<object>> Login(string username, string password, CancellationToken cancellationToken = default);
     /// <summary>Signs out the current dashboard session.</summary>
     ValueTask<OperationResult<object>> Logout(CancellationToken cancellationToken = default);
+    /// <summary>Moves a queued execution or makes a scheduled execution eligible now, preserving dispatch restrictions.</summary>
+    ValueTask<OperationResult<object>> UpdateQueue(string id, Soenneker.Flywheel.Communication.Enums.JobQueueAction action, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Queue actions are not supported.");
     /// <summary>Requests cancellation of an execution.</summary>
     ValueTask<OperationResult<object>> CancelJob(string id, CancellationToken cancellationToken = default);
     /// <summary>Queues a fresh standalone execution using a finished job's payload and policy.</summary>

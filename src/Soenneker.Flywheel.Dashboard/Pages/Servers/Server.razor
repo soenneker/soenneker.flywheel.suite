@@ -29,7 +29,7 @@
     }
     else
     {
-        <Grid Columns="GridCols.Is1.OnMd.Is3" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Workers (busy / total)</Span><Span>@($"{_server.RunningJobs.Count:N0}/{_server.Workers:N0}")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div></Grid>
+        <Grid Columns="GridCols.Is1.OnMd.Is4" Gap="Gap.Is5" Margin="Margin.FromBottom.Is6"><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Heartbeat valid until</Span><JobTimestamp Value="@_server.ExpiresAt" /></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Workers (busy / total)</Span><Span>@($"{_server.RunningJobs.Count:N0}/{_server.Workers:N0}")</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Running jobs</Span><Span>@_server.RunningJobs.Count</Span></Div><Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Pools (busy / total)</Span><ServerPools Server="@_server" /></Div></Grid>
         <Div Margin="Margin.FromBottom.Is6">
             <Chart @key="DisplayTimeZone" Type="ChartType.Line" Series="@_workers.Data.Series" Labels="@TimeZone.ChartLabels(_workers.Data.XValues, true)"
                    XValues="@_workers.Data.XValues" DataVersion="@_workers.Data.Version" Options="@_workers.Options"
@@ -39,7 +39,7 @@
         @if (_server.RunningJobs.Count == 0) { <Paragraph role="status">This server is live and currently idle.</Paragraph> }
         else
         {
-            <Table AdaptiveLayout="true"><Thead><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th></Tr></Thead><Tbody>
+            <Table AdaptiveLayout="true"><Thead><Tr><Th Padding="Padding.OnX.Is3.OnY.Is2">Job</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Pool</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Attempt</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Duration</Th><Th Padding="Padding.OnX.Is3.OnY.Is2">Actions</Th></Tr></Thead><Tbody>
             @foreach (JobView job in _server.RunningJobs)
             {
                 <Tr @key="job.Id">
@@ -55,7 +55,9 @@
                             }
                         </Div>
                     </Td>
-                    <Td Padding="Padding.OnX.Is3.OnY.Is1">@job.Attempt</Td>
+                    <Td Padding="Padding.OnX.Is3.OnY.Is1">@(job.WorkerPool ?? "default")</Td>
+                    <Td Padding="Padding.OnX.Is3.OnY.Is1">@job.Attempt</Td><Td Padding="Padding.OnX.Is3.OnY.Is1"><JobDuration Job="@job" /></Td>
+                    <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobActions Id="@job.Id" Name="@job.Name" State="@job.State" CancelRequested="@job.CancelRequested" Changed="Refresh" /></Td>
                 </Tr>
             }
             </Tbody></Table>

@@ -12,7 +12,7 @@ using Soenneker.Flywheel.Core.Services.Abstract;
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
-    IJobChainStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
+    IJobChainStore, IJobQueueStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
     IManualJobStore, IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
 {
@@ -107,10 +107,12 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     {
         previous ??= await _jobs.Get(job.Id);
         bool transition = previous is null || previous.State != job.State;
+        if (transition && job.State == JobState.Scheduled)
+            job = job with { QueueRank = await _metadata.Get("queueBack") };
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
         await _jobs.Set(job.Id, job).NoSync();
         if (job.State == JobState.Scheduled)
-            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId, PartitionId(job))).NoSync();
+            await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId, PartitionId(job), job.QueueRank)).NoSync();
         else await _dispatch.Remove(job.Id).NoSync();
         if (job.State == JobState.Running)
             await _running.Set(job.Id, new RunningEntry(job.Name, job.LeaseUntil, PartitionId(job))).NoSync();
@@ -168,7 +170,8 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         policy.Validate();
         return Mutate(cancellationToken, async _ =>
         {
-            if ((await _policies.GetEntry(name)) is not { Value: var previous } || previous != policy)
+            if ((await _policies.GetEntry(name)) is not { Value: var previous } || (previous with { Pools = policy.Pools }) != policy ||
+                !previous.Pools.ToHashSet(StringComparer.Ordinal).SetEquals(policy.Pools))
             {
                 await _policies.Set(name, policy).NoSync();
                 await _rates.Remove(name).NoSync();
@@ -192,11 +195,20 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     {
         ValidateId(applicationVersion);
         ArgumentNullException.ThrowIfNull(jobNames);
-        return ClaimCore(owner, duration, applicationVersion, jobNames, cancellationToken);
+        return ClaimForWorker(owner, duration, applicationVersion, jobNames, "default", cancellationToken);
+    }
+
+    public Task<JobLease?> ClaimForWorker(string owner, TimeSpan duration, string applicationVersion,
+        IReadOnlySet<string> jobNames, string pool, CancellationToken cancellationToken = default)
+    {
+        ValidateId(applicationVersion);
+        ValidateId(pool);
+        ArgumentNullException.ThrowIfNull(jobNames);
+        return ClaimCore(owner, duration, applicationVersion, jobNames, cancellationToken, pool);
     }
 
     private Task<JobLease?> ClaimCore(string owner, TimeSpan duration, string? applicationVersion,
-        IReadOnlySet<string>? jobNames, CancellationToken ct)
+        IReadOnlySet<string>? jobNames, CancellationToken ct, string pool = "default")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         long milliseconds = Duration(duration);
@@ -213,6 +225,11 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 if (blocked.Contains(candidate.Name)) continue;
                 if (candidate.PartitionId is { } partition && blockedPartitions.Contains(partition)) continue;
                 MethodPolicy? configured = await _policies.Get(candidate.Name);
+                if (configured?.Pools is { Length: > 0 } pools ? !pools.Contains(pool, StringComparer.Ordinal) : pool != "default")
+                {
+                    blocked.Add(candidate.Name);
+                    continue;
+                }
                 Rate usage = default;
                 if (configured is not null)
                 {
@@ -233,7 +250,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 JobRecord job = await _jobs.Get(candidate.Id) ?? throw new InvalidDataException("Dispatch document has no job.");
                 if (job.State != JobState.Scheduled || job.DueAt != candidate.DueAt || job.Name != candidate.Name ||
                     job.ApplicationVersion != candidate.ApplicationVersion || job.TargetNodeId != candidate.TargetNodeId || job.Policy.Priority.Value != candidate.Priority ||
-                    PartitionId(job) != candidate.PartitionId)
+                    PartitionId(job) != candidate.PartitionId || job.QueueRank != candidate.QueueRank)
                     throw new InvalidDataException("Dispatch document does not match its job.");
                 if (configured is { RateLimit: not null })
                 {
@@ -241,7 +258,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                     await _rates.Set(job.Name, new Rate(usage.Until, usage.Count + 1)).NoSync();
                 }
                 JobRecord claimed = job with { State = JobState.Running, Attempt = job.Attempt + 1,
-                    Version = job.Version + 1, Token = Guid.NewGuid().ToString("N"), Owner = owner,
+                    Version = job.Version + 1, Token = Guid.NewGuid().ToString("N"), Owner = owner, WorkerPool = pool,
                     LeaseUntil = now + milliseconds, StartedAt = now, UpdatedAt = now, CompletedAt = 0,
                     Progress = null, ProgressMessage = null, ProgressUpdatedAt = 0 };
                 await Save(claimed, now, job);

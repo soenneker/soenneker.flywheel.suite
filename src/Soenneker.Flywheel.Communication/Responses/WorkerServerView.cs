@@ -13,6 +13,10 @@ public sealed record WorkerServerView(
     [property: JsonPropertyName("workers")] int Workers,
     [property: JsonPropertyName("runningJobs")] IReadOnlyList<Dtos.JobRecord> RunningJobs)
 {
+    /// <summary>Desired capacity for each worker pool on this server. Empty means legacy default-pool metadata.</summary>
+    [JsonPropertyName("pools")]
+    public IReadOnlyList<Dtos.WorkerPoolCapacity> Pools { get; init; } = [];
+
     /// <summary>Recent worker counts recorded by server heartbeats, ordered oldest first.</summary>
     [JsonPropertyName("workerHistory")]
     public IReadOnlyList<ServerWorkerHistoryPoint> WorkerHistory { get; init; } = [];

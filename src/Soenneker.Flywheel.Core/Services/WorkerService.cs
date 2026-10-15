@@ -6,7 +6,6 @@ using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Atomics.ValueInts;
 using Soenneker.Flywheel.Communication.Dtos;
-using System.Threading.Channels;
 
 namespace Soenneker.Flywheel.Core.Services;
 
@@ -14,11 +13,17 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
 {
     private readonly AsyncLock _lock = new();
     private readonly List<WorkerState> _workers = [];
-    private readonly Channel<byte> _pending = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
-        { FullMode = BoundedChannelFullMode.DropWrite });
-    private Action _signalWork = null!;
+    private readonly Dictionary<string, WorkerPoolState> _pools = CreatePools(options);
+
+    private static Dictionary<string, WorkerPoolState> CreatePools(FlywheelOptions options)
+    {
+        options.Validate();
+        Dictionary<string, WorkerPoolState> pools = options.Pools.ToDictionary(pair => pair.Key,
+            pair => new WorkerPoolState(pair.Key, pair.Value), StringComparer.Ordinal);
+        pools.Add("default", new WorkerPoolState("default", options.Workers - options.Pools.Values.Sum()));
+        return pools;
+    }
     private CancellationToken _stoppingToken;
-    private ValueAtomicInt _workerCount = new(options.Workers);
     private ValueAtomicInt _started;
     private readonly CancellationTokenSource _executionStop = new();
     private int _draining;
@@ -65,22 +70,30 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
             }
     }
 
-    public int WorkerCount => _workerCount.Read();
+    public int WorkerCount => _pools.Values.Sum(pool => pool.WorkerCount.Read());
+    public IReadOnlyList<WorkerPoolCapacity> Pools => _pools.Values
+        .Select(pool => new WorkerPoolCapacity(pool.Name, pool.WorkerCount.Read())).ToArray();
 
-    public async ValueTask SetWorkerCount(int count, CancellationToken cancellationToken = default)
+    public ValueTask SetWorkerCount(int count, CancellationToken cancellationToken = default) =>
+        _pools.Count == 1 ? SetPoolWorkerCount(_pools.Keys.Single(), count, cancellationToken)
+            : throw new InvalidOperationException("Select a pool with SetPoolWorkerCount when multiple pools are configured.");
+
+    public async ValueTask SetPoolWorkerCount(string pool, int count, CancellationToken cancellationToken = default)
     {
-        if (count is < 0 or > 256)
-            throw new ArgumentOutOfRangeException(nameof(count));
-        _workerCount.Write(count);
+        if (!_pools.TryGetValue(pool, out WorkerPoolState? state)) throw new ArgumentException("Unknown worker pool.", nameof(pool));
+        if (count is < 0 or > 256) throw new ArgumentOutOfRangeException(nameof(count));
         using (await _lock.Lock(cancellationToken))
+        {
+            if (WorkerCount - state.WorkerCount.Read() + count > (_pools.Count == 1 ? 256 : options.Workers)) throw new ArgumentOutOfRangeException(nameof(count));
+            state.WorkerCount.Write(count);
             if (_started.Read() != 0) ResizeLocked();
-        Pulse();
+        }
+        state.Pulse();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
-        _signalWork = Pulse;
         using (await _lock.Lock(stoppingToken))
         {
             _started.Write(1);
@@ -101,8 +114,13 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
     private void ResizeLocked()
     {
         if (Volatile.Read(ref _draining) != 0 || _stoppingToken.IsCancellationRequested) return;
-        int desired = WorkerCount;
-        WorkerState[] available = _workers.Where(x => x.Retiring.Read() == 0).ToArray();
+        foreach (WorkerPoolState pool in _pools.Values) ResizePoolLocked(pool);
+    }
+
+    private void ResizePoolLocked(WorkerPoolState pool)
+    {
+        int desired = pool.WorkerCount.Read();
+        WorkerState[] available = _workers.Where(x => x.Pool == pool && x.Retiring.Read() == 0).ToArray();
         for (int i = desired; i < available.Length; i++)
         {
             available[i].Retiring.Write(1);
@@ -110,7 +128,7 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         }
         for (int i = available.Length; i < desired; i++)
         {
-            var worker = new WorkerState(_stoppingToken);
+            var worker = new WorkerState(pool, _stoppingToken);
             _workers.Add(worker);
             worker.Task = Task.Run(() => Run(worker, _stoppingToken), CancellationToken.None);
         }
@@ -124,10 +142,10 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
             {
                 // One idle worker probes storage. A successful claim wakes the next worker before execution,
                 // filling the pool without having every idle worker race the same revision or empty queue.
-                try { await _pending.Reader.ReadAsync(worker.Wake.Token); }
+                try { await worker.Pool.Pending.Reader.ReadAsync(worker.Wake.Token); }
                 catch (OperationCanceledException) when (worker.Wake.IsCancellationRequested) { break; }
                 if (worker.Retiring.Read() != 0) break;
-                try { if (await executor.RunOnce(_signalWork, token, _executionStop.Token)) Pulse(); }
+                try { if (await executor.RunOnce(worker.Pool.Name, worker.Pool.Pulse, token, _executionStop.Token)) worker.Pool.Pulse(); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
                 catch (JobExecutionUnresponsiveException ex)
                 {
@@ -147,7 +165,7 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
                 if (!token.IsCancellationRequested && Volatile.Read(ref _draining) == 0)
                 {
                     ResizeLocked();
-                    Pulse(); // Preserve a hint consumed by a worker racing retirement.
+                    worker.Pool.Pulse(); // Preserve a hint consumed by a worker racing retirement.
                 }
             }
             worker.Wake.Dispose();
@@ -181,5 +199,8 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
-    private void Pulse() => _pending.Writer.TryWrite(0);
+    private void Pulse()
+    {
+        foreach (WorkerPoolState pool in _pools.Values) pool.Pulse();
+    }
 }

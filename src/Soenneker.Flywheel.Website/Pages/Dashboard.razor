@@ -12,6 +12,9 @@
 <H2>Find and inspect work</H2>
 <ol><li>Use the overview to search jobs and filter by state.</li><li>Open a job to inspect its attempts, timing, and captured <code>ILogger</code> output.</li><li>Open Manual Jobs to launch a registered job on demand and inspect its latest execution.</li><li>Open Scheduled for pending jobs and retries, or Recurring to inspect schedules and run one now.</li></ol>
 <ThemedScreenshot LightSrc="/images/manual-jobs.png" DarkSrc="/images/manual-jobs-dark.png" Label="Manual Jobs" Alt="Flywheel Manual Jobs page with reusable demo definitions, latest execution status, and Run now actions" Loading="lazy" />
+<H2>Manage work</H2>
+<Paragraph>The … menu offers Top of queue, Bottom of queue, Run now, cancellation, or Run again according to the job's state. On manual and recurring definitions, Run now creates a fresh execution; queue moves target the latest queued execution.</Paragraph>
+<Paragraph>Servers shows capacity and active work per pool. Execution tables show the latest attempt's duration, and server details identify its worker pool. <Anchor Href="/getting-started/#worker-pools">Configure pools</Anchor> to reserve workers for specific workloads.</Paragraph>
 <H2>Add it to your application</H2>
 <Paragraph>Install the package in a Blazor WebAssembly app:</Paragraph>
 <CodeExample Text="@InstallExample" Label="Install the dashboard package command" Language="shell" />
