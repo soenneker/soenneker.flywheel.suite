@@ -13,7 +13,6 @@
 <Main Padding="Padding.Is4" Width="Width.IsFull" MinWidth="MinWidth.Is0" Space="Space.Y.Is4">
     <Div Space="Space.Y.Is1">
         <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold">Manual Jobs</H3>
-        <Paragraph TextColor="TextColor.MutedForeground">Registered jobs that run only when requested.</Paragraph>
     </Div>
     @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
     @if (_loadError is not null) { <Alert role="alert"><AlertDescription>@_loadError</AlertDescription></Alert> }
