@@ -171,7 +171,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         return Mutate(cancellationToken, async _ =>
         {
             if ((await _policies.GetEntry(name)) is not { Value: var previous } || (previous with { Pools = policy.Pools }) != policy ||
-                !previous.Pools.ToHashSet(StringComparer.Ordinal).SetEquals(policy.Pools))
+                !(previous.Pools ?? []).ToHashSet(StringComparer.Ordinal).SetEquals(policy.Pools))
             {
                 await _policies.Set(name, policy).NoSync();
                 await _rates.Remove(name).NoSync();

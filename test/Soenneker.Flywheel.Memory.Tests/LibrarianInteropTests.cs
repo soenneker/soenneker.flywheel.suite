@@ -105,6 +105,31 @@ public sealed class LibrarianInteropTests
         Check(history.Sum(point => point.Scheduled) == 2, "Retry reused stale history from its rejected attempt.");
     }
 
+    [Test]
+    public async Task Null_stored_pools_preserve_default_rate_limits_and_allow_named_pools(CancellationToken cancellationToken)
+    {
+        await using var database = new MemoryLibrarianDatabase(NullLogger<MemoryLibrarianDatabase>.Instance);
+        await using var store = new Store(database);
+        var policy = new MethodPolicy { RateLimit = 1, RateWindow = TimeSpan.FromHours(1) };
+        await store.ConfigureMethod("job", policy, cancellationToken);
+        await store.Enqueue(Request("job"), cancellationToken: cancellationToken);
+        await store.Enqueue(Request("job"), cancellationToken: cancellationToken);
+        JobLease lease = (await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken))!;
+        await store.Finish(lease, Soenneker.Flywheel.Communication.Enums.JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken);
+
+        string id = new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash("\"job\"");
+        var container = await database.GetContainer("flywheel.policies", cancellationToken);
+        var document = System.Text.Json.Nodes.JsonNode.Parse((await container.GetItem(id, cancellationToken))!)!;
+        document["value"]!["pools"] = null;
+        Check(await database.Execute(new LibrarianBatch([new LibrarianWrite("flywheel.policies", id, document.ToJsonString())]), cancellationToken), "Could not seed null pools.");
+
+        await store.ConfigureMethod("job", policy, cancellationToken);
+        Check(await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken) is null, "Equivalent default registration reset the rate limit.");
+        await store.ConfigureMethod("job", policy with { Pools = ["named"] }, cancellationToken);
+        Check(await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken) is null, "Default worker claimed named-pool work.");
+        Check(await store.ClaimForWorker("worker", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "job" }, "named", cancellationToken) is not null, "Named-pool policy was not applied.");
+    }
+
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
