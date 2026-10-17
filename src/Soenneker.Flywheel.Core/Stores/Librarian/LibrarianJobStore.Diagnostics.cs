@@ -34,12 +34,19 @@ public abstract partial class LibrarianJobStore
         });
     }
 
-    public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default, string? beforeId = null)
     {
         ValidateId(jobId);
         ValidatePage(0, count);
+        if (beforeId is not null) ValidateId(beforeId);
         return Mutate<IReadOnlyList<JobLogEntry>>(cancellationToken, async now =>
-            (await _logs.GetEntry(jobId)) is { Value: var buffer } && buffer.ExpiresAt > now ? buffer.Entries.TakeLast(count).ToArray() : []);
+        {
+            if ((await _logs.GetEntry(jobId)) is not { Value: var buffer } || buffer.ExpiresAt <= now) return [];
+            int end = beforeId is null ? buffer.Entries.Count : buffer.Entries.FindIndex(entry => entry.Id == beforeId);
+            if (end <= 0) return [];
+            int start = Math.Max(0, end - count);
+            return buffer.Entries.Skip(start).Take(end - start).ToArray();
+        });
     }
 
     public Task<bool> SetProgress(JobLease lease, double percentage, string? message, CancellationToken cancellationToken = default)

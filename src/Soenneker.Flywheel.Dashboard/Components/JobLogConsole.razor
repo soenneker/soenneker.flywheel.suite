@@ -7,35 +7,42 @@
 @inject NavigationManager Navigation
 @inject ActivityTotalsState ConnectionState
 @inject IFlywheelLiveClient Live
+@inject IFlywheelDashboardConsumer Consumer
 
 <Section aria-label="Job execution logs" MinWidth="MinWidth.Is0" Style="max-width: 100%;" Margin="Margin.FromTop.Is3">
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is3" Margin="Margin.FromBottom.Is3">
         <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold" Margin="Margin.Is0">Execution log</H3>
-        <Field Style="width: 20rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" Placeholder="Search logs…" aria-label="Search logs" /></Field>
+        <Field Style="width: 20rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" @bind-Value:after="RefreshEntries" Placeholder="Search loaded logs..." aria-label="Search loaded logs" /></Field>
     </Div>
     @if (_error is not null)
     {
         <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
     }
-    <ConsolePanel Text="@ConsoleText" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
-        @if (_loading && _entries.Count == 0)
-        {
-            <Div Display="Display.Flex" Justify="Justify.Center" Width="Width.IsFull">
-                <Spinner Size="Size.Is5" aria-label="Loading logs…" />
-            </Div>
-        }
-        else if (!_loading && _entries.Count == 0 && _error is null && _receivedSnapshot)
-        {
-            <Paragraph Margin="Margin.Is0">No logs recorded for this execution.</Paragraph>
-        }
-        else if (_entries.Count > 0 && !FilteredEntries.Any())
-        {
-            <Paragraph Margin="Margin.Is0">No matching logs.</Paragraph>
-        }
-        @foreach (LogEntry entry in FilteredEntries)
-        {
+    <ConsolePanel TextProvider="@(() => ConsoleText)" ItemKeys="@_keys" HasOlderItems="@(_hasOlder && string.IsNullOrWhiteSpace(_filter))" LoadOlder="LoadOlder" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
+        <ChildContent>
+            @if (_loadingOlder)
+            {
+                <Paragraph Margin="Margin.Is0" Role="status">Loading older logs...</Paragraph>
+            }
+            @if (_loading && _entries.Count == 0)
+            {
+                <Div Display="Display.Flex" Justify="Justify.Center" Width="Width.IsFull">
+                    <Spinner Size="Size.Is5" aria-label="Loading logs…" />
+                </Div>
+            }
+            else if (!_loading && _entries.Count == 0 && _error is null && _receivedSnapshot)
+            {
+                <Paragraph Margin="Margin.Is0">No logs recorded for this execution.</Paragraph>
+            }
+            else if (_entries.Count > 0 && _filteredEntries.Count == 0)
+            {
+                <Paragraph Margin="Margin.Is0">No matching logs.</Paragraph>
+            }
+        </ChildContent>
+        <ItemTemplate Context="index">
+            @{ var entry = _filteredEntries[index]; }
             <ConsoleLogEntry @key="entry.Id" Text="@FormatEntry(entry)" TextColor="@(entry.Level is "Error" or "Critical" ? TextColor.Destructive : entry.Level == "Warning" ? TextColor.Token("amber-700").OnDark.Token("amber-400") : TextColor.Token("inherit"))" />
-        }
+        </ItemTemplate>
     </ConsolePanel>
 </Section>
 
@@ -45,7 +52,7 @@
     [Parameter, EditorRequired]
     public string JobId { get; set; } = "";
 
-    private readonly string _signalId = $"flywheel-logs-{Guid.NewGuid():N}";
+    private readonly string _signalId = $"flywheel-logs-{Guid.NewGuid()}";
     private List<LogEntry> _entries = [];
     private IFlywheelLiveSubscription? _connection;
     private Task? _connecting;
@@ -55,21 +62,64 @@
     private bool _receivedSnapshot;
     private string? _error;
     private string _filter = "";
-    private IEnumerable<LogEntry> FilteredEntries => _entries.Where(entry =>
-        string.IsNullOrWhiteSpace(_filter) ||
-        $"{FormatEntry(entry)} {entry.Category} Attempt {entry.Attempt}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+    private List<LogEntry> _filteredEntries = [];
+    private string[] _keys = [];
+    private bool _hasOlder;
+    private bool _loadingOlder;
+
+    private void RefreshEntries()
+    {
+        _filteredEntries = _entries.Where(entry => string.IsNullOrWhiteSpace(_filter) ||
+            $"{FormatEntry(entry)} {entry.Category} Attempt {entry.Attempt}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+        _keys = _filteredEntries.Select(entry => entry.Id).ToArray();
+    }
+
+    private async Task LoadOlder()
+    {
+        if (_loadingOlder || !_hasOlder || _entries.Count == 0) return;
+        int version = _version;
+        string jobId = JobId;
+        string beforeId = _entries[0].Id;
+        _loadingOlder = true;
+        _error = null;
+        try
+        {
+            var response = await Consumer.GetLogs(jobId, beforeId, CancellationToken);
+            if (IsDisposed || version != _version) return;
+            if (!response.Succeeded || response.Value is null)
+            {
+                _error = "Could not load older logs. Scroll up again to retry.";
+                return;
+            }
+            _entries = response.Value.Concat(_entries).DistinctBy(entry => entry.Id).TakeLast(1000).ToList();
+            _hasOlder = response.Value.Count == 200 && _entries.Count < 1000;
+            RefreshEntries();
+        }
+        catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!IsDisposed && version == _version) _error = "Could not load older logs. Scroll up again to retry.";
+        }
+        finally
+        {
+            if (version == _version) _loadingOlder = false;
+        }
+    }
 
     private string FormatEntry(LogEntry entry) =>
         $"{TimeZone.Format(entry.Timestamp, "yyyy-MM-dd HH:mm:ss.fff")} [{entry.Level}] {TimeZone.FormatMessage(entry.Message)}";
 
-    private string ConsoleText => string.Join(Environment.NewLine, FilteredEntries.Select(FormatEntry));
+    private string ConsoleText => string.Join(Environment.NewLine, _filteredEntries.Select(FormatEntry));
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_jobId == JobId) return;
+        if (_jobId == JobId) { RefreshEntries(); return; }
         _jobId = JobId;
         _version++;
         _entries = [];
+        RefreshEntries();
+        _hasOlder = false;
+        _loadingOlder = false;
         _receivedSnapshot = false;
         _error = null;
         _filter = "";
@@ -90,8 +140,16 @@
             {
                 if (IsDisposed || IsCancellationRequested || snapshot.Version != _version || snapshot.JobId != JobId) return;
                 ConnectionState.UpdateConnection(_signalId, true);
+                if (!_receivedSnapshot) _hasOlder = snapshot.Entries?.Count == 200;
                 _receivedSnapshot = true;
-                _entries = snapshot.Entries ?? [];
+                if (snapshot.Entries is { Count: > 0 } incoming)
+                {
+                    var ids = incoming.Select(entry => entry.Id).ToHashSet();
+                    _entries = _entries.Where(entry => !ids.Contains(entry.Id)).Concat(incoming).TakeLast(1000).ToList();
+                }
+                else _entries = [];
+                if (_entries.Count >= 1000) _hasOlder = false;
+                RefreshEntries();
                 _error = snapshot.Entries is null ? "Logs are unavailable from this job store." : null;
                 _loading = false;
                 StateHasChanged();

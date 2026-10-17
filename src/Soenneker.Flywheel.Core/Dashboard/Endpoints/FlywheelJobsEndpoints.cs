@@ -234,13 +234,14 @@ public static class FlywheelJobsEndpoints
 
     /// <summary>Returns a bounded page of execution logs for an existing job.</summary>
     public static async ValueTask<IResult> GetLogs([FromServices] IJobStore store, [FromServices] IDashboardSnapshotFactory snapshots, [FromRoute] string id, [FromServices] IJobLogStore logs,
-        CancellationToken cancellationToken, [FromQuery] int count = 200)
+        CancellationToken cancellationToken, [FromQuery] int count = 200, [FromQuery] string? beforeId = null)
     {
-        if (count is < 1 or > 200 || string.IsNullOrWhiteSpace(id) || id.Length > 200)
+        if (count is < 1 or > 200 || string.IsNullOrWhiteSpace(id) || id.Length > 200 ||
+            beforeId is not null && (string.IsNullOrWhiteSpace(beforeId) || beforeId.Length > 200))
             return TypedResults.BadRequest();
         if (await store.Get(id, cancellationToken) is null)
             return TypedResults.NotFound();
-        return DashboardResults.Json(snapshots.Logs(await logs.GetLogs(id, count, cancellationToken)));
+        return DashboardResults.Json(snapshots.Logs(await logs.GetLogs(id, count, cancellationToken, beforeId)));
     }
 
     /// <summary>Returns a job snapshot without its payload or lease token.</summary>

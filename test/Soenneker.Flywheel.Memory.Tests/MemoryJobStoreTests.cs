@@ -326,6 +326,21 @@ public sealed class MemoryJobStoreTests
             await store.AppendLogs(lease, Enumerable.Range(0, 50).Select(n => new JobLogMessage("Info", "test", $"{i * 50 + n}")).ToArray(), cancellationToken: cancellationToken);
         IReadOnlyList<JobLogEntry> logs = await store.GetLogs(id, cancellationToken: cancellationToken);
         Check(logs.Count == 200 && logs[0].Message == "850" && logs[^1].Message == "1049", "Logs were not latest-first selection in chronological order.");
+        IReadOnlyList<JobLogEntry> older = await store.GetLogs(id, cancellationToken: cancellationToken, beforeId: logs[0].Id);
+        Check(older.Count == 200 && older[0].Message == "650" && older[^1].Message == "849", "History page skipped or repeated entries.");
+        await store.AppendLogs(lease, [new JobLogMessage("Info", "test", "1050")], cancellationToken: cancellationToken);
+        IReadOnlyList<JobLogEntry> stable = await store.GetLogs(id, cancellationToken: cancellationToken, beforeId: logs[0].Id);
+        Check(stable.Select(entry => entry.Id).SequenceEqual(older.Select(entry => entry.Id)), "Concurrent append shifted a history cursor.");
+        Check((await store.GetLogs(id, cancellationToken: cancellationToken, beforeId: "expired-cursor")).Count == 0, "Expired cursor returned unrelated logs.");
+        var page = older;
+        var retained = new List<JobLogEntry>(logs);
+        while (page.Count != 0)
+        {
+            retained.InsertRange(0, page);
+            page = await store.GetLogs(id, cancellationToken: cancellationToken, beforeId: page[0].Id);
+        }
+        Check(retained.Count == 999 && retained[0].Message == "51" && retained.Select(entry => entry.Id).Distinct().Count() == 999,
+            "Paging did not terminate at the retention boundary or duplicated logs.");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken);
         Check((await store.Get(id, cancellationToken: cancellationToken))!.Progress == 100 && await store.GetRunningCount(cancellationToken: cancellationToken) == 0, "Completion diagnostics mismatch.");
         clock.Advance(TimeSpan.FromSeconds(10));

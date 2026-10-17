@@ -11,7 +11,7 @@ public interface IJobLogStore
     Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Returns the latest retained entries in chronological order. Count must be between 1 and 200.</summary>
+    /// <summary>Returns retained entries in chronological order, optionally strictly before an entry ID. A missing or expired cursor returns an empty page. Count must be between 1 and 200.</summary>
     Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, string? beforeId = null);
 }

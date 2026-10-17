@@ -12,6 +12,9 @@ namespace Soenneker.Flywheel.Dashboard.Consumers;
 public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILogger<FlywheelDashboardConsumer> logger, DashboardNavigationOptions navigation)
     : CoreConsumer(apiClient, logger, navigation.EnginePath == "/" ? "./" : navigation.EnginePath.Trim('/')), IFlywheelDashboardConsumer
 {
+    public ValueTask<OperationResult<List<LogEntry>>> GetLogs(string id, string beforeId, CancellationToken cancellationToken = default) =>
+        Read<List<LogEntry>>($"jobs/{Uri.EscapeDataString(id)}/logs?beforeId={Uri.EscapeDataString(beforeId)}", cancellationToken);
+
     public ValueTask<OperationResult<List<ManualJobView>>> GetManualJobs(CancellationToken cancellationToken = default) =>
         Read<List<ManualJobView>>("jobs/manual", cancellationToken);
 

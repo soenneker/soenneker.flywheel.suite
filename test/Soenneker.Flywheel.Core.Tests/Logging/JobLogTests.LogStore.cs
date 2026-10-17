@@ -21,6 +21,6 @@ public sealed partial class JobLogTests
             foreach (JobLogMessage message in messages) Entries.Add((lease.Job.Id, message));
             return Task.FromResult(true);
         }
-        public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default, string? beforeId = null) => throw new NotSupportedException();
     }
 }

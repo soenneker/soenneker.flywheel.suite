@@ -6,6 +6,9 @@ namespace Soenneker.Flywheel.Dashboard.Consumers.Abstract;
 /// <summary>Typed dashboard operations. Results preserve status codes for sign-in, missing resources, and unsupported store capabilities.</summary>
 public interface IFlywheelDashboardConsumer
 {
+    /// <summary>Reads up to 200 retained logs before a stable entry ID, in chronological order.</summary>
+    ValueTask<OperationResult<List<LogEntry>>> GetLogs(string id, string beforeId, CancellationToken cancellationToken = default);
+
     /// <summary>Lists registered manual jobs and their latest execution status.</summary>
     ValueTask<OperationResult<List<ManualJobView>>> GetManualJobs(CancellationToken cancellationToken = default);
     /// <summary>Queues a fresh execution of a registered manual job.</summary>
