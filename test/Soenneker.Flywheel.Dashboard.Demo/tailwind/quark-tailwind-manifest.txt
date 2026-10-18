@@ -2,7 +2,6 @@
 # Do not edit manually. Class names for Tailwind @source to scan.
 [&_svg:not([class*='size-'])]:size-3.5
 [&_svg[data-slot=icon]]:size-3.5
-absolute
 bg-amber-600
 bg-green-600
 bg-secondary
@@ -54,7 +53,6 @@ mb-4
 mb-5
 mb-6
 md:block
-md:grid-cols-3
 md:grid-cols-4
 md:hidden
 md:p-6
