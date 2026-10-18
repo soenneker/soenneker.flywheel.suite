@@ -12,8 +12,8 @@ public sealed class DashboardTimeZoneTests
         var reloaded = new DashboardTimeZone(browser.Reopen());
         await reloaded.Initialize();
         Check(reloaded.Id == "America/Chicago", "Saved timezone was not restored.");
-        Check(reloaded.Format(DateTimeOffset.Parse("2026-01-01T02:00:00Z")) == "2025-12-31 20:00:00 CT", "Winter conversion or date rollover failed.");
-        Check(reloaded.Format(DateTimeOffset.Parse("2026-07-01T02:00:00Z")) == "2026-06-30 21:00:00 CT", "Summer conversion failed.");
+        Check(reloaded.Format(DateTimeOffset.Parse("2026-01-01T02:00:00Z")) == "2025-12-31 20:00:00 -06:00", "Winter conversion or date rollover failed.");
+        Check(reloaded.Format(DateTimeOffset.Parse("2026-07-01T02:00:00Z")) == "2026-06-30 21:00:00 -05:00", "Summer conversion failed.");
         Check((reloaded.StartOfDay(new(2026, 3, 9)) - reloaded.StartOfDay(new(2026, 3, 8))).TotalHours == 23, "Spring calendar range must span 23 hours.");
         Check((reloaded.StartOfDay(new(2026, 11, 2)) - reloaded.StartOfDay(new(2026, 11, 1))).TotalHours == 25, "Fall calendar range must span 25 hours.");
     }
@@ -27,7 +27,7 @@ public sealed class DashboardTimeZoneTests
         await zone.Initialize();
         Check(zone.Id == "UTC", "Invalid preference should fall back to UTC.");
         await zone.Select("Asia/Kathmandu");
-        Check(zone.Format(DateTimeOffset.Parse("2026-01-01T00:00:00Z")) == "2026-01-01 05:45:00 NPT", "Fractional timezone offset was lost.");
+        Check(zone.Format(DateTimeOffset.Parse("2026-01-01T00:00:00Z")) == "2026-01-01 05:45:00 +05:45", "Fractional timezone offset was lost.");
     }
 
     [Test]
@@ -72,25 +72,25 @@ public sealed class DashboardTimeZoneTests
         Check(!restored.Enabled && restored.SelectedId == "America/Chicago" && restored.Id == "UTC", "Disabled preference or selected timezone was not restored.");
         const string message = "Due 2026-07-01T02:00:00Z";
         Check(restored.FormatMessage(message) == message, "Disabled conversion modified the log message.");
-        Check(restored.Format(DateTimeOffset.Parse("2026-07-01T02:00:00Z")) == "2026-07-01 02:00:00 UTC", "Disabled timestamps must use UTC.");
+        Check(restored.Format(DateTimeOffset.Parse("2026-07-01T02:00:00Z")) == "2026-07-01 02:00:00 +00:00", "Disabled timestamps must use UTC.");
         await restored.SetEnabled(true);
         Check(restored.FormatMessage(message) == "Due 2026-06-30T21:00:00-05:00", "Re-enabling did not restore the selected timezone.");
         Check(await restoredDatabase.Reopen().GetPreference("flywheel.timezone.enabled") == "true", "Enabled preference was not saved.");
     }
 
     [Test]
-    [Arguments("America/New_York", "ET")]
-    [Arguments("America/Chicago", "CT")]
-    [Arguments("America/Denver", "MT")]
-    [Arguments("America/Los_Angeles", "PT")]
-    [Arguments("America/Toronto", "ET")]
-    [Arguments("America/Phoenix", "MT")]
-    public async ValueTask DisplayUsesRegionalAbbreviations(string id, string label, CancellationToken cancellationToken)
+    [Arguments("America/New_York", "ET", "-04:00")]
+    [Arguments("America/Chicago", "CT", "-05:00")]
+    [Arguments("America/Denver", "MT", "-06:00")]
+    [Arguments("America/Los_Angeles", "PT", "-07:00")]
+    [Arguments("America/Toronto", "ET", "-04:00")]
+    [Arguments("America/Phoenix", "MT", "-07:00")]
+    public async ValueTask TimestampsUseOffsetsWhileZoneLabelsRetainAbbreviations(string id, string label, string offset, CancellationToken cancellationToken)
     {
         var zone = new DashboardTimeZone(new TestPreferenceDatabase());
         await zone.Select(id);
         Check(zone.ZoneLabel == label, "Unexpected regional abbreviation.");
-        Check(zone.Format(DateTimeOffset.Parse("2026-07-01T00:00:00Z")).EndsWith(" " + label), "Timestamp did not use the abbreviation.");
+        Check(zone.Format(DateTimeOffset.Parse("2026-07-01T00:00:00Z")).EndsWith(" " + offset), "Timestamp did not use the numeric offset.");
     }
 
     [Test]

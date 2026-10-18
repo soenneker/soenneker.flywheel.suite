@@ -64,7 +64,7 @@ public sealed class DashboardTimeZone([FromKeyedServices(DashboardPreferenceStor
     {
         DateTimeOffset local = Convert(value);
         string timestamp = local.ToString(format, CultureInfo.InvariantCulture);
-        return $"{timestamp} {ZoneLabel}";
+        return $"{timestamp} {local.ToString("zzz", CultureInfo.InvariantCulture)}";
     }
     /// <summary>Short display label for the selected zone, independent of daylight-saving time.</summary>
     public string ZoneLabel
