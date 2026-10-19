@@ -209,6 +209,7 @@ public sealed class FlywheelRouterTests
             await component.QuiescenceTask;
             Check(navigation.Uri == "https://example.test/signin", "Expired session did not redirect to the sign-in page.");
             Check(live.Transport.Disposed, "Expired session retained the connection.");
+            Check(component.ToHtmlString().Contains("Your session timed out. Please sign in again."), "Expired session did not explain the redirect.");
             Check(component.ToHtmlString().Contains("flywheel-password"), "Standalone sign-in form was not rendered.");
             Check(!component.ToHtmlString().Contains("Search recurring jobs"), "Protected page content remained mounted.");
             Check(!handler.Paths.Any(path => path.Contains("/history")), "Sign-in loaded overview history.");

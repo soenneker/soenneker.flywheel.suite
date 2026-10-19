@@ -17,6 +17,12 @@
             <Span>Flywheel</Span>
         </Anchor>
     </H1>
+    @if (Session.HasTimedOut)
+    {
+        <Alert role="status" Margin="Margin.FromBottom.Is4">
+            <AlertDescription>Your session timed out. Please sign in again.</AlertDescription>
+        </Alert>
+    }
     <form @onsubmit="Login" @onsubmit:preventDefault aria-busy="@_busy">
         @if (_error is not null)
         {

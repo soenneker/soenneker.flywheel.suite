@@ -10,6 +10,8 @@ namespace Soenneker.Flywheel.Dashboard.Communication;
 
 public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigation, DashboardNavigationOptions dashboard) : IFlywheelApiClient
 {
+    internal DashboardSessionState? Session { get; init; }
+
     public Uri BaseAddress { get; private set; } = http.BaseAddress ?? new Uri(navigation.BaseUri);
 
     public void Initialize(string baseAddress, bool requestResponseLogging)
@@ -67,7 +69,10 @@ public sealed class FlywheelApiClient(HttpClient http, NavigationManager navigat
                         ?? throw new InvalidOperationException("Missing Flywheel antiforgery token.");
             request.Headers.Add("X-Flywheel-CSRF", csrf.Token);
         }
-        return await http.SendAsync(request, cancellationToken);
+        HttpResponseMessage result = await http.SendAsync(request, cancellationToken);
+        if (result.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            Session?.Expire();
+        return result;
     }
 
     private static StringContent CreateJsonContent(object value) =>

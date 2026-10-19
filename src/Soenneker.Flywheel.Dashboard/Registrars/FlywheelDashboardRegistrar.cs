@@ -49,7 +49,9 @@ public static class FlywheelDashboardRegistrar
 
         return services.AddSingleton(options).AddScoped<ActivityTotalsState>().AddScoped<DashboardSessionState>().AddScoped<DashboardTimeZone>().AddScoped<DashboardBoardConnection>()
             .AddScoped<DashboardLogOptions>()
-            .AddScoped<IFlywheelApiClient, FlywheelApiClient>()
+            .AddScoped<IFlywheelApiClient>(provider => new FlywheelApiClient(
+                provider.GetRequiredService<HttpClient>(), provider.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>(), options)
+                { Session = provider.GetRequiredService<DashboardSessionState>() })
             .AddScoped<IFlywheelDashboardConsumer, FlywheelDashboardConsumer>()
             .AddScoped<IFlywheelLiveClient, FlywheelLiveClient>()
             .AddLocalStorageLibrarianDatabaseAsScoped(DashboardPreferenceStorage.ServiceKey)

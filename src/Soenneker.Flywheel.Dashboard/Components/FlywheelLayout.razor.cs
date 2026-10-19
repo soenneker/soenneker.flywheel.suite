@@ -66,11 +66,24 @@ public partial class FlywheelLayout
     {
         if (_checking || _disposed) return;
         if (Session.IsAuthenticated) _connecting = StartConnection();
-        else await BoardConnection.Stop();
+        else
+        {
+            EnforceAuthentication();
+            StateHasChanged();
+            await BoardConnection.Stop();
+        }
         if (_disposed) return;
         EnforceAuthentication();
         StateHasChanged();
     });
+
+    private async Task Timeout()
+    {
+        Session.Expire();
+        try { await Consumer.Logout(_stop.Token); }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception) { /* The local session remains expired if the server is unavailable. */ }
+    }
 
     private async Task Logout()
     {
