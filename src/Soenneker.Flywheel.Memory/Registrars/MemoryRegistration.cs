@@ -24,7 +24,7 @@ public static class MemoryRegistration
             (sp, _) => new MemoryLibrarianDatabase(sp.GetRequiredService<ILogger<MemoryLibrarianDatabase>>()));
         builder.Services.AddSingleton(sp => new MemoryJobStore(
             sp.GetRequiredKeyedService<MemoryLibrarianDatabase>(LibrarianServiceKey),
-            sp.GetRequiredService<FlywheelMemoryOptions>(), sp.GetService<TimeProvider>(), sp.GetService<FlywheelOptions>()) { LogArchive = sp.GetService<LogArchiveOptions>() });
+            sp.GetRequiredService<FlywheelMemoryOptions>(), sp.GetService<TimeProvider>(), sp.GetService<FlywheelOptions>()));
         builder.Services.AddHostedService<MemoryLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<MemoryJobStore>());

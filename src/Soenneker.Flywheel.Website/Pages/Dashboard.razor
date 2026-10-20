@@ -28,7 +28,6 @@
 <Paragraph>Serve the client and API over the same HTTPS origin. Static WebAssembly files can be delivered by a CDN or Cloudflare Worker, with API and WebSocket traffic routed to the ASP.NET Core backend. Static hosting alone does not run Flywheel or connect to job storage.</Paragraph>
 <Paragraph>UI rendering stays in the browser. API queries and live updates still consume backend resources.</Paragraph>
 <H2>System jobs</H2>
-<Paragraph>Built-in maintenance jobs are labeled <strong>System job</strong> in execution and recurring-job lists and details. When log archival is enabled, <code>Flywheel.LogArchive.Export</code> appears with run history, failures, and manual execution. See <Anchor Href="/getting-started/#log-archival">log archival setup</Anchor> for filesystem and blob destinations.</Paragraph>
 <H2>Built-in routes</H2>
 <table><thead><tr><th>Route</th><th>Page</th></tr></thead><tbody>
 <tr><td><code>/flywheel</code></td><td>Activity and job search</td></tr>

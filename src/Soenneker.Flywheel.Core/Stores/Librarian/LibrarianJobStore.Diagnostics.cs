@@ -27,7 +27,6 @@ public abstract partial class LibrarianJobStore
             var accepted = new List<JobLogEntry>(messages.Count);
             foreach (JobLogMessage message in messages)
                 accepted.Add(new JobLogEntry($"{now}-{++sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
-            await QueueArchive(job.Id, accepted, now);
             buffer.Entries.AddRange(accepted);
             while (buffer.Entries.Count > 200)
             {

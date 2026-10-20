@@ -139,6 +139,16 @@ public abstract partial class LibrarianJobStore
                 maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, take: batchSize)).Select(e => e.Value).ToList();
             var expiredHistory = await _history.Range("key", maximum: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize);
             var expiredLogs = await _logs.Range("value.expiresAt", minimum: long.MinValue, maximum: now, take: batchSize);
+            // Retire persisted schedules and queued executions from the removed archive exporter.
+            const string retiredExporter = "Flywheel.LogArchive.Export";
+            if (await _schedules.Get(retiredExporter) is { Job.IsSystem: true })
+                await _schedules.Remove(retiredExporter);
+            foreach (var pending in await _dispatch.Range("value.name", minimum: retiredExporter, maximum: retiredExporter, take: batchSize))
+            {
+                if (await _jobs.Get(pending.Key) is { IsSystem: true } job)
+                    await Save(job with { State = JobState.Cancelled, CancelRequested = true, Version = job.Version + 1,
+                        Error = "Log archiving has been removed." }, now);
+            }
             foreach (var lease in expiredLeases)
             {
                 JobRecord job = await _jobs.Get(lease.Key) ?? throw new InvalidDataException("Running metadata has no job.");
@@ -160,6 +170,7 @@ public abstract partial class LibrarianJobStore
             foreach (var pair in dueSchedules)
             {
                 Schedule s = pair.Value;
+                if (pair.Key == retiredExporter && s.Job.IsSystem) continue;
                 long due = s.DueAt!.Value;
                 long? next = s.Cron is null ? due + ((now - due) / s.Interval + 1) * s.Interval :
                     CronParser.Parse(s.Cron, s.TimeZoneId, s.IncludeSeconds)

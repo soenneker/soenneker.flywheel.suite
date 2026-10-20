@@ -42,7 +42,7 @@ public static class FilesystemRegistration
         builder.Services.AddSingleton(sp => new FilesystemJobStore(
             sp.GetRequiredKeyedService<FileSystemLibrarianDatabase>(LibrarianServiceKey),
             sp.GetRequiredKeyedService<FilesystemStorageOwnership>(LibrarianServiceKey),
-            sp.GetRequiredService<FlywheelFilesystemOptions>(), sp.GetService<TimeProvider>(), sp.GetService<FlywheelOptions>()) { LogArchive = sp.GetService<LogArchiveOptions>() });
+            sp.GetRequiredService<FlywheelFilesystemOptions>(), sp.GetService<TimeProvider>(), sp.GetService<FlywheelOptions>()));
         builder.Services.AddHostedService<FilesystemLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<FilesystemJobStore>());

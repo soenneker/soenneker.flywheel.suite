@@ -33,7 +33,7 @@ public static class PostgresRegistration
         builder.Services.AddSingleton(sp => new PostgresJobStore(
             sp.GetRequiredKeyedService<PostgresLibrarianDatabase>(LibrarianServiceKey),
             sp.GetRequiredKeyedService<NpgsqlDataSource>(LibrarianServiceKey),
-            sp.GetRequiredService<FlywheelPostgresOptions>(), sp.GetService<FlywheelOptions>()) { LogArchive = sp.GetService<LogArchiveOptions>() });
+            sp.GetRequiredService<FlywheelPostgresOptions>(), sp.GetService<FlywheelOptions>()));
         builder.Services.AddHostedService<PostgresLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<PostgresJobStore>());
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<PostgresJobStore>());
