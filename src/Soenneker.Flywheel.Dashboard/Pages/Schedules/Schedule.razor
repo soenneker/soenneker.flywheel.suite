@@ -31,6 +31,7 @@
                     <Button Href="@DashboardNavigation.Path("recurring")" Variant="ButtonVariant.Secondary" aria-label="Back to recurring jobs" title="Back"><Icon Name="LucideIcon.ArrowLeft" Size="Size.Is4" aria-hidden="true" /></Button>
                 }
                 <H2 Margin="Margin.Is0" TextSize="TextSize.Xl" TextBreak="TextBreak.Words">@schedule.Name</H2>
+                <SystemJobBadge IsSystem="@schedule.IsSystem" />
                 <Badge Variant="BadgeVariant.Secondary">Recurring</Badge>
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" FlexWrap="FlexWrap.Wrap">

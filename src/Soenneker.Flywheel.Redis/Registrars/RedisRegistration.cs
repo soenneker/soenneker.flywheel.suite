@@ -34,7 +34,8 @@ public static class RedisRegistration
         });
         builder.Services.AddSingleton(sp => new RedisJobStore(
             sp.GetRequiredKeyedService<RedisLibrarianDatabase>(LibrarianServiceKey),
-            sp.GetRequiredService<FlywheelRedisOptions>(), sp.GetService<FlywheelOptions>()));
+            sp.GetRequiredService<FlywheelRedisOptions>(), sp.GetService<FlywheelOptions>())
+            { LogArchive = sp.GetService<LogArchiveOptions>() });
         builder.Services.AddHostedService<RedisLiveActivityRecorder>();
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<RedisJobStore>());

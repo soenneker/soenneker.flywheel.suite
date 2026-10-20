@@ -23,8 +23,11 @@ public abstract partial class LibrarianJobStore
             if ((await _logs.GetEntry(job.Id)) is not { Value: var buffer } || buffer.ExpiresAt <= now)
                 buffer = new LogBuffer();
             long sequence = (await _metadata.Get("logSequence"));
+            var accepted = new List<JobLogEntry>(messages.Count);
             foreach (JobLogMessage message in messages)
-                buffer.Entries.Add(new JobLogEntry($"{now}-{++sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
+                accepted.Add(new JobLogEntry($"{now}-{++sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
+            await QueueArchive(job.Id, accepted, now);
+            buffer.Entries.AddRange(accepted);
             if (buffer.Entries.Count > 1000) buffer.Entries.RemoveRange(0, buffer.Entries.Count - 1000);
             buffer.ExpiresAt = now + (long)(_retainCompletedJobs && HistoryRetention > TimeSpan.FromDays(30)
                 ? HistoryRetention : TimeSpan.FromDays(30)).TotalMilliseconds;

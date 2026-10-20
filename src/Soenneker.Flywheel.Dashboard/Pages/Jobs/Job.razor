@@ -28,6 +28,7 @@ else
                 <H2 Margin="Margin.Is0" style="border: 0; padding: 0; min-width: 0; overflow-wrap: anywhere;" TextSize="TextSize.Xl" FontWeight="FontWeight.Semibold" TextBreak="TextBreak.All">@(_job?.Name ?? (_missing ? "Job not found" : "Job details"))</H2>
                 @if (_job is not null)
                 {
+                    <SystemJobBadge IsSystem="@_job.IsSystem" />
                     <JobStatusBadge State="@_job.State" CancelRequested="@_job.CancelRequested" />
                     @if (_job.State == "Running" && _job.Progress is { } progress && progress < 100)
                     {

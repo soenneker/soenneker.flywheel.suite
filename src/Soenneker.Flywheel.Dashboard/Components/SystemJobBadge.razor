@@ -1,0 +1,11 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+
+@if (IsSystem)
+{
+    <Badge>System job</Badge>
+}
+
+@code {
+    [Parameter] public bool IsSystem { get; set; }
+}

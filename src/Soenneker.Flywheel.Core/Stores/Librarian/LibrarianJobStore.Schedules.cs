@@ -122,7 +122,7 @@ public abstract partial class LibrarianJobStore
                 RecurringJobSummary? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
                 string? status = execution is null ? s.LastExecutionStatus : execution.DisplayState(now);
                 result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt, s.Cron,
-                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId);
+                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId, s.Job.IsSystem);
             }
             return result;
         });

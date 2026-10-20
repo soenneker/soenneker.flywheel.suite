@@ -26,6 +26,7 @@ namespace Soenneker.Flywheel.Communication.Responses;
 /// <param name="StartedAt">Start of the latest attempt in UTC Unix milliseconds, or zero when unavailable.</param>
 /// <param name="WorkerPool">Pool that claimed the latest attempt, or null when unavailable.</param>
 /// <param name="CompletedAt">Terminal completion time in UTC Unix milliseconds, or zero when unavailable.</param>
+/// <param name="IsSystem">Whether this job is maintained by the Flywheel runtime.</param>
 public sealed record JobView(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
@@ -50,4 +51,5 @@ public sealed record JobView(
     [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("startedAt")] long StartedAt = 0,
     [property: JsonPropertyName("completedAt")] long CompletedAt = 0,
-    [property: JsonPropertyName("workerPool")] string? WorkerPool = null);
+    [property: JsonPropertyName("workerPool")] string? WorkerPool = null,
+    [property: JsonPropertyName("isSystem")] bool IsSystem = false);

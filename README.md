@@ -59,6 +59,100 @@ builder.Logging.AddFilter<Soenneker.Flywheel.Core.Logging.JobLogCapture>(null, L
 
 `MinimumJobLogLevel` accepts `Trace` through `Critical`; `None` disables handler log capture. It does not disable Flywheel's own execution lifecycle messages. This applies to future executions; previously filtered messages cannot be recovered.
 
+### Archive logs beyond dashboard retention
+
+Log archival is optional and disabled by default. Enable it to preserve newly accepted job logs beyond Redis history expiration and the dashboard's 1,000-entry limit. Files combine logs from multiple jobs; each entry retains its job ID, timestamp, attempt, level, category, and message. Previously expired, filtered, or dropped messages are not recovered.
+
+Files rotate at **200 MiB of UTF-8 JSON** or **midnight UTC**, whichever comes first. The size limit excludes the Librarian provider's storage envelope. A size-triggered rollover does not reset the daily boundary, and idle days produce no empty files.
+
+#### Filesystem destination
+
+Install `Soenneker.Librarian.FileSystem` alongside your Flywheel packages. Add `AddLogArchive` to your existing Flywheel registration; do not register a second runtime. This example uses Redis for job state and the filesystem for archives:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Soenneker.Flywheel.Core.Logging;
+using Soenneker.Flywheel.Core.Registrars;
+using Soenneker.Flywheel.Redis;
+using Soenneker.Librarian.Abstractions;
+using Soenneker.Librarian.FileSystem;
+using Soenneker.Utils.File.Abstract;
+using Soenneker.Utils.File.Registrars;
+using Soenneker.Utils.MemoryStream.Abstract;
+using Soenneker.Utils.MemoryStream.Registrars;
+
+// Add to your existing host setup, before builder.Build().
+string archiveDirectory = Path.GetFullPath("archives/production");
+Directory.CreateDirectory(archiveDirectory);
+builder.Services.AddFileUtilAsSingleton().AddMemoryStreamUtilAsSingleton();
+
+builder.Services.AddFlywheel()
+    .AddRedis(options => options.ConnectionString = "localhost:6379")
+    .AddLogArchive((services, fileId, cancellationToken) =>
+        ValueTask.FromResult<ILibrarianDatabase>(new FileSystemLibrarianDatabase(
+            Path.Combine(archiveDirectory, fileId + ".json"),
+            services.GetRequiredService<IFileUtil>(),
+            services.GetRequiredService<IMemoryStreamUtil>(),
+            services.GetRequiredService<ILogger<LibrarianJobLogArchive>>())),
+        options =>
+        {
+            options.Enabled = true;
+            options.MaxFileSizeBytes = 200 * 1024 * 1024;
+            options.RotationInterval = TimeSpan.FromDays(1);
+            options.ExportInterval = TimeSpan.FromSeconds(10);
+            options.ExportTimeout = TimeSpan.FromMinutes(1);
+        });
+// Keep your existing generated job registrations on this same builder chain.
+```
+
+For multiple workers sharing Redis, use the same archive settings and a shared durable directory, or choose blob storage. A machine-local directory is appropriate only when all exporters can access it. Keep archive paths separate from runtime storage and isolate environments and runtime namespaces.
+
+#### Azure Blob destination
+
+Install `Soenneker.Librarian.AzureBlob`. As an alternative to the filesystem factory above, use a fresh `AzureBlobLibrarianDatabase` for each file ID:
+
+```csharp
+using Azure.Storage.Blobs;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Soenneker.Flywheel.Core.Registrars;
+using Soenneker.Flywheel.Redis;
+using Soenneker.Librarian.Abstractions;
+using Soenneker.Librarian.AzureBlob;
+
+// Provision the container and configure credentials outside the source code.
+var archiveContainer = new BlobContainerClient(
+    builder.Configuration["LogArchive:ConnectionString"]!,
+    builder.Configuration["LogArchive:ContainerName"]!);
+
+builder.Services.AddFlywheel()
+    .AddRedis(options => options.ConnectionString = "localhost:6379")
+    .AddLogArchive((services, fileId, cancellationToken) =>
+        ValueTask.FromResult<ILibrarianDatabase>(new AzureBlobLibrarianDatabase(
+            archiveContainer.GetBlobClient($"production/flywheel/{fileId}.json"),
+            services.GetRequiredService<ILogger<AzureBlobLibrarianDatabase>>())),
+        options => options.Enabled = true);
+```
+
+The factory must return a **fresh, owned database** mapped to a stable, dedicated address for that file ID. Flywheel saves and disposes it; do not return your shared runtime database. Other Librarian snapshot destinations can use the same pattern. Custom destinations can implement `IJobLogArchive`; `Save` must be durable, safe to repeat for the same file ID, and throw on failure.
+
+#### Configuration and dashboard behavior
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `Enabled` | `false` | Capture new logs for archival and register the export schedule. |
+| `MaxFileSizeBytes` | `200 * 1024 * 1024` | Maximum archive JSON size; valid range 32 KiB–1 GiB. |
+| `RotationInterval` | 1 day | UTC-aligned rotation, measured from the Unix epoch; valid range 1 second–31 days. |
+| `ExportInterval` | 10 seconds | Recurring job frequency; valid range 1 second–1 hour. This does not close a file early. |
+| `ExportTimeout` | 1 minute | Timeout for saving one file; valid range 1 second–1 hour. |
+
+When enabled, `Flywheel.LogArchive.Export` appears in the dashboard as a **System job**. It uses the normal workers, allows one execution at a time, and exports one ready file per run. You can inspect its run history, failures, and logs or run it manually. Normal Flywheel workers must be running for exports to occur.
+
+Accepted logs are queued atomically in runtime storage before dashboard trimming. Archives are exported only after rotation; pending data survives history cleanup and storage failures. Subsequent runs retry unacknowledged files after their export claim expires. Persistent failures can grow the pending queue, so monitor failed system-job runs and provision runtime storage accordingly. With the memory provider, pending data is lost on process exit.
+
+Set `Enabled = false` and restart all workers to remove the recurring schedule and stop new archival. Existing pending data remains for later re-enabling; already exported files remain in their destination. Configure filesystem cleanup or blob lifecycle policies separately—Flywheel does not automatically delete archives. Archive files use Librarian's JSON snapshot format and are not automatically loaded back into the dashboard.
+
 ## Get started
 
 Run your first job with **.NET 10**, using in-memory storage so no external database is needed.

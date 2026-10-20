@@ -5,6 +5,10 @@ namespace Soenneker.Flywheel.Communication.Dtos;
 /// <summary>A durable snapshot. Millisecond timestamps are UTC Unix time from storage.</summary>
 public sealed record JobRecord
 {
+    /// <summary>Whether this job is maintained by the Flywheel runtime.</summary>
+    [JsonPropertyName("isSystem")]
+    public bool IsSystem { get; init; }
+
     /// <summary>Returns Queued for eligible pending work, or the durable state name otherwise.</summary>
     public string DisplayState(long now) => State == Enums.JobState.Scheduled && DueAt <= now ? "Queued" : State.Name;
 
