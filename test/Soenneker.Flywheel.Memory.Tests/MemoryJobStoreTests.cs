@@ -308,7 +308,7 @@ public sealed class MemoryJobStoreTests
     }
 
     [Test]
-    public async ValueTask SearchDiagnosticsAndBoundedLogsUseCurrentState(CancellationToken cancellationToken)
+    public async ValueTask SearchDiagnosticsAndPagedLogsUseCurrentState(CancellationToken cancellationToken)
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
@@ -339,8 +339,8 @@ public sealed class MemoryJobStoreTests
             retained.InsertRange(0, page);
             page = await store.GetLogs(id, cancellationToken: cancellationToken, beforeId: page[0].Id);
         }
-        Check(retained.Count == 999 && retained[0].Message == "51" && retained.Select(entry => entry.Id).Distinct().Count() == 999,
-            "Paging did not terminate at the retention boundary or duplicated logs.");
+        Check(retained.Count == 1050 && retained[0].Message == "0" && retained.Select(entry => entry.Id).Distinct().Count() == 1050,
+            "Paging discarded earlier logs or duplicated entries.");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken);
         Check((await store.Get(id, cancellationToken: cancellationToken))!.Progress == 100 && await store.GetRunningCount(cancellationToken: cancellationToken) == 0, "Completion diagnostics mismatch.");
         clock.Advance(TimeSpan.FromSeconds(10));

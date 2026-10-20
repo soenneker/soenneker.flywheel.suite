@@ -259,6 +259,38 @@ Keep the host running so workers can process scheduled work. Reusing a manual, r
 
 Jobs can execute more than once, so make handlers safe to retry and pass the cancellation token to asynchronous work. See the [job execution guide](docs/core.md) and [client API](src/Soenneker.Flywheel.Core/Services/Abstract/IJobClient.cs) for chains, submission deduplication, progress reporting, and execution policies.
 
+## Chain jobs
+
+Using the quick-start job, submit an ordered workflow before `app.RunAsync()`:
+
+```csharp
+IReadOnlyList<string> jobIds = await client.Chain([
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("First step"), MessageJsonContext.Default.Message),
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("Second step"), MessageJsonContext.Default.Message,
+        delay: TimeSpan.FromSeconds(10))
+], idempotencyKey: "message-workflow-123");
+```
+
+Add `MessageJsonContext.cs` to provide the source-generated JSON metadata required by `With(...)`:
+
+```csharp
+using System.Text.Json.Serialization;
+
+[JsonSourceGenerationOptions(System.Text.Json.JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(Message))]
+internal partial class MessageJsonContext : JsonSerializerContext;
+```
+
+- A chain atomically saves 1–100 steps and returns their job IDs in order. Submission completes when saved; workers execute the jobs afterward.
+- Each step waits for predecessor success. Retries keep successors waiting; final failure or cancellation cancels the remaining steps. The default is one attempt. Pass `policy: new JobPolicy { MaxAttempts = 3 }` to `With(...)` to allow three attempts for that step (`JobPolicy` is in `Soenneker.Flywheel.Communication.Dtos`).
+- A first-step delay starts at submission. Later delays start after predecessor success; here, the second step becomes eligible ten seconds later. Worker, concurrency, and rate limits still apply.
+- Reuse a stable chain `idempotencyKey` when retrying an uncertain submission to get the original IDs while the deduplication record is retained. Use a new key for a new workflow. Individual step idempotency keys are unsupported.
+- Steps can use different registered jobs and payload types; supply JSON metadata for each type. All payloads are supplied upfront; results are not automatically passed between steps.
+
+All built-in storage providers support chains. Custom stores must implement `IJobChainStore`. Handlers must still be safe to retry.
+
 ### Run work on demand
 
 Register reusable work with `client.Manual(...)`, then open **Manual Jobs** and select **Run now**. Registration does not queue an execution. The page shows the latest execution status and links to its details.

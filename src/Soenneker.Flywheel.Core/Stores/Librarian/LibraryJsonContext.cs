@@ -24,6 +24,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 [JsonSerializable(typeof(LibrarianEntry<string, IdleSample>))]
 [JsonSerializable(typeof(LibrarianEntry<string, JobRecord>))]
 [JsonSerializable(typeof(LibrarianEntry<string, LogBuffer>))]
+[JsonSerializable(typeof(LibrarianEntry<string, Soenneker.Flywheel.Communication.Logging.Dtos.JobLogEntry[]>))]
 [JsonSerializable(typeof(LibrarianEntry<string, MethodPolicy>))]
 [JsonSerializable(typeof(LibrarianEntry<string, Node>))]
 [JsonSerializable(typeof(LibrarianEntry<string, Rate>))]

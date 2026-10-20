@@ -59,12 +59,13 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         var cancelled = 0;
         var unresponsive = false;
         var interrupted = false;
-        Task renewTask = Renew();
+        DateTimeOffset? lastRenewedAt = null;
         JobOutcome outcome = Communication.Enums.JobOutcome.Succeeded;
         string? error = null;
         JobLogCapture.Session? logSession = logCapture is not null && logStore is not null ? logCapture.Begin(lease, logStore) : null;
         logSession?.Write("Information", "Flywheel", $"Starting attempt {lease.Job.Attempt} on server {options.NodeId}; timeout {lease.Job.Policy.Timeout}.");
         if (lease.Job.Attempt > 1) logSession?.Write("Information", "Flywheel", $"Retrying with attempt {lease.Job.Attempt} on server {options.NodeId}.");
+        Task renewTask = Renew();
         // The invocation owns its scope until it actually exits, even when cancellation is ignored.
         Task invocation = Task.Run(async () =>
         {
@@ -162,8 +163,10 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
                     {
                         Interlocked.Exchange(ref lost, 1);
                         await stop.CancelAsync();
+                        await ReportLeaseLoss("Storage rejected renewal because the lease expired or is no longer owned.", null);
                         return;
                     }
+                    lastRenewedAt = DateTimeOffset.UtcNow;
                     if (status == Communication.Enums.LeaseStatus.CancellationRequested)
                     {
                         Interlocked.Exchange(ref cancelled, 1);
@@ -175,8 +178,34 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
             catch (Exception ex)
             {
                 Interlocked.Exchange(ref lost, 1);
-                logger.LogWarning(ex, "Lease renewal failed for {JobId}", lease.Job.Id);
                 await stop.CancelAsync();
+                await ReportLeaseLoss(ex is OperationCanceledException
+                    ? $"Lease renewal did not complete within its {options.LeaseDuration / 3} deadline."
+                    : $"Lease renewal failed: {ex.GetType().Name}: {ex.Message}", ex);
+            }
+        }
+
+        async Task ReportLeaseLoss(string reason, Exception? exception)
+        {
+            reason = reason[..Math.Min(reason.Length, 1024)];
+            logger.LogWarning(exception,
+                "Lease renewal failed for {JobId}, attempt {Attempt}, server {NodeId}, lease version {LeaseVersion}. Last successful renewal observed at {LastRenewedAt}; claimed deadline {ClaimedLeaseUntil}. {Reason}",
+                lease.Job.Id, lease.Job.Attempt, options.NodeId, lease.Version, lastRenewedAt,
+                lease.Job.LeaseUntil, reason);
+            logSession?.Write("Warning", "Flywheel", reason);
+            if (store is not IJobLeaseDiagnosticsStore diagnostics) return;
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                bool recorded = await diagnostics.RecordLeaseLoss(lease, reason, deadline.Token).WaitAsync(deadline.Token);
+                if (!recorded)
+                    logger.LogWarning("Lease diagnostics for {JobId}, attempt {Attempt}, server {NodeId} were not saved because the lease generation changed",
+                        lease.Job.Id, lease.Job.Attempt, options.NodeId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not persist lease diagnostics for {JobId}, attempt {Attempt}, server {NodeId}",
+                    lease.Job.Id, lease.Job.Attempt, options.NodeId);
             }
         }
     }

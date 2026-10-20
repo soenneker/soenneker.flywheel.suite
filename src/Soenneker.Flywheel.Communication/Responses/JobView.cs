@@ -52,4 +52,18 @@ public sealed record JobView(
     [property: JsonPropertyName("startedAt")] long StartedAt = 0,
     [property: JsonPropertyName("completedAt")] long CompletedAt = 0,
     [property: JsonPropertyName("workerPool")] string? WorkerPool = null,
-    [property: JsonPropertyName("isSystem")] bool IsSystem = false);
+    [property: JsonPropertyName("isSystem")] bool IsSystem = false)
+{
+    /// <summary>Node that claimed the latest attempt, retained after ownership ends.</summary>
+    [JsonPropertyName("lastOwner")]
+    public string? LastOwner { get; init; }
+    /// <summary>Latest successful lease renewal in UTC Unix milliseconds, or zero when unavailable.</summary>
+    [JsonPropertyName("lastLeaseRenewedAt")]
+    public long LastLeaseRenewedAt { get; init; }
+    /// <summary>Latest granted lease deadline in UTC Unix milliseconds, retained after ownership ends.</summary>
+    [JsonPropertyName("lastLeaseUntil")]
+    public long LastLeaseUntil { get; init; }
+    /// <summary>Observed lease loss reason, or an explicit explanation that the cause is unknown.</summary>
+    [JsonPropertyName("leaseLossReason")]
+    public string? LeaseLossReason { get; init; }
+}

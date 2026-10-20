@@ -10,7 +10,13 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
     public JobView Job(JobRecord job) => new(job.Id, job.Name, job.DisplayState(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), job.Attempt, job.UpdatedAt, job.CancelRequested,
         job.Error, job.Version, job.CreatedAt, job.DueAt, job.LeaseUntil, job.Owner, job.ParentJobId, job.NextJobId,
         job.Policy.MaxAttempts, job.Policy.Timeout.TotalSeconds, job.Policy.Priority.Name, job.Progress, job.ProgressMessage,
-        job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt, job.WorkerPool, job.IsSystem);
+        job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt, job.WorkerPool, job.IsSystem)
+    {
+        LastOwner = job.LastOwner,
+        LastLeaseRenewedAt = job.LastLeaseRenewedAt,
+        LastLeaseUntil = job.LastLeaseUntil,
+        LeaseLossReason = job.LeaseLossReason
+    };
 
     public Communication.Responses.ServerView Server(Communication.Responses.WorkerServerView server) =>
         new(server.Id, server.ExpiresAt, server.Workers, server.RunningJobs.Select(Job).ToList())

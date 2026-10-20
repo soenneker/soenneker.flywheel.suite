@@ -51,6 +51,24 @@ public sealed partial class RuntimeTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await executor.RunOnce(deadline.Token);
         if (!invoker.Cancelled || store.Commits != 0) throw new Exception("Lease loss did not prevent commit");
+        string expectedReason = stalledRenewal ? "did not complete within" : "Storage rejected renewal";
+        if (store.LeaseLossReason?.Contains(expectedReason, StringComparison.Ordinal) != true)
+            throw new Exception("The renewal failure reason was not recorded.");
+    }
+
+    [Test]
+    public async ValueTask DiagnosticFailureDoesNotPreventLeaseLossCancellation(CancellationToken cancellationToken)
+    {
+        var store = new StubStore { Status = Communication.Enums.LeaseStatus.Lost, FailDiagnostics = true };
+        await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        var invoker = new WaitingInvoker();
+        var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [invoker],
+            new FlywheelOptions { LeaseDuration = TimeSpan.FromMilliseconds(90) }, NullLogger<JobExecutor>.Instance);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        await executor.RunOnce(deadline.Token);
+        if (!invoker.Cancelled || store.Commits != 0 || store.LeaseLossReason is null)
+            throw new Exception("Diagnostic storage failure changed lease loss handling.");
     }
 
     [Test]

@@ -12,17 +12,21 @@
 <Section aria-label="Job execution logs" MinWidth="MinWidth.Is0" Style="max-width: 100%;" Margin="Margin.FromTop.Is3">
     <Div Display="Display.Flex" ItemsAlign="Items.Center" Justify="Justify.Between" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is3" Margin="Margin.FromBottom.Is3">
         <H3 TextSize="TextSize.Lg" FontWeight="FontWeight.Semibold" Margin="Margin.Is0">Execution log</H3>
-        <Field Style="width: 20rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" @bind-Value:after="RefreshEntries" Placeholder="Search loaded logs..." aria-label="Search loaded logs" /></Field>
+        <Field Style="width: 20rem; max-width: 100%;"><TextInput Id="@($"{_signalId}-search")" @bind-Value="_filter" @bind-Value:after="RefreshEntries" Placeholder="Search logs..." aria-label="Search logs" /></Field>
     </Div>
     @if (_error is not null)
     {
         <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert>
+        @if (_historyCursors.Count > 0)
+        {
+            <Button OnClick="LoadAllHistory">Retry loading logs</Button>
+        }
     }
-    <ConsolePanel TextProvider="@(() => ConsoleText)" ItemKeys="@_keys" HasOlderItems="@(_hasOlder && string.IsNullOrWhiteSpace(_filter))" LoadOlder="LoadOlder" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
+    <ConsolePanel TextProvider="@(() => ConsoleText)" ItemKeys="@_keys" HasOlderItems="@(_historyCursors.Count > 0 && string.IsNullOrWhiteSpace(_filter) && _error is null)" LoadOlder="LoadOlder" ActionsDisabled="@(_loading || _loadingOlder || _historyCursors.Count > 0)" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
         <ChildContent>
             @if (_loadingOlder)
             {
-                <Paragraph Margin="Margin.Is0" Role="status">Loading older logs...</Paragraph>
+                <Paragraph Margin="Margin.Is0" Role="status">Loading log history...</Paragraph>
             }
             @if (_loading && _entries.Count == 0)
             {
@@ -64,7 +68,7 @@
     private string _filter = "";
     private List<LogEntry> _filteredEntries = [];
     private string[] _keys = [];
-    private bool _hasOlder;
+    private readonly Queue<string> _historyCursors = new();
     private bool _loadingOlder;
 
     private void RefreshEntries()
@@ -76,35 +80,65 @@
 
     private async Task LoadOlder()
     {
-        if (_loadingOlder || !_hasOlder || _entries.Count == 0) return;
+        if (_loadingOlder || _historyCursors.Count == 0) return;
         int version = _version;
         string jobId = JobId;
-        string beforeId = _entries[0].Id;
         _loadingOlder = true;
         _error = null;
+        string? activeCursor = null;
         try
         {
-            var response = await Consumer.GetLogs(jobId, beforeId, CancellationToken);
-            if (IsDisposed || version != _version) return;
-            if (!response.Succeeded || response.Value is null)
+            if (_historyCursors.TryDequeue(out string? beforeId))
             {
-                _error = "Could not load older logs. Scroll up again to retry.";
-                return;
+                activeCursor = beforeId;
+                var known = _entries.Select(entry => entry.Id).ToHashSet();
+                var response = await Consumer.GetLogs(jobId, beforeId, CancellationToken);
+                if (IsDisposed || version != _version) return;
+                if (!response.Succeeded || response.Value is null)
+                {
+                    _historyCursors.Enqueue(beforeId);
+                    _error = "Could not load the complete log history. Retry to include all retained logs.";
+                    return;
+                }
+                var page = response.Value;
+                bool reachedKnown = page.Any(entry => known.Contains(entry.Id));
+                MergeEntries(page);
+                if (page.Count == 200 && !reachedKnown && page[0].Id != beforeId)
+                    _historyCursors.Enqueue(page[0].Id);
+                RefreshEntries();
+                StateHasChanged();
             }
-            _entries = response.Value.Concat(_entries).DistinctBy(entry => entry.Id).TakeLast(1000).ToList();
-            _hasOlder = response.Value.Count == 200 && _entries.Count < 1000;
-            RefreshEntries();
         }
         catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }
         catch (Exception)
         {
-            if (!IsDisposed && version == _version) _error = "Could not load older logs. Scroll up again to retry.";
+            if (!IsDisposed && version == _version)
+            {
+                if (activeCursor is not null) _historyCursors.Enqueue(activeCursor);
+                _error = "Could not load the complete log history. Retry to include all retained logs.";
+            }
         }
         finally
         {
             if (version == _version) _loadingOlder = false;
         }
     }
+
+    private async Task LoadAllHistory()
+    {
+        int version = _version;
+        do
+        {
+            if (_loadingOlder || IsDisposed || IsCancellationRequested || version != _version) return;
+            await LoadOlder();
+        }
+        while (_historyCursors.Count > 0 && _error is null);
+    }
+
+    private void MergeEntries(IEnumerable<LogEntry> entries) =>
+        _entries = _entries.Concat(entries).DistinctBy(entry => entry.Id)
+            .OrderBy(entry => long.TryParse(entry.Id.AsSpan(entry.Id.LastIndexOf('-') + 1), out long sequence) ? sequence : entry.Timestamp)
+            .ToList();
 
     private string FormatEntry(LogEntry entry) =>
         $"{TimeZone.Format(entry.Timestamp, "yyyy-MM-dd HH:mm:ss.fff")} [{entry.Level}] {TimeZone.FormatMessage(entry.Message)}";
@@ -118,7 +152,7 @@
         _version++;
         _entries = [];
         RefreshEntries();
-        _hasOlder = false;
+        _historyCursors.Clear();
         _loadingOlder = false;
         _receivedSnapshot = false;
         _error = null;
@@ -136,23 +170,22 @@
         ConnectionState.UpdateConnection(_signalId, false);
         try
         {
-            _connection = await Live.Logs(_signalId, snapshot => InvokeAsync(() =>
+            _connection = await Live.Logs(_signalId, snapshot => InvokeAsync(async () =>
             {
                 if (IsDisposed || IsCancellationRequested || snapshot.Version != _version || snapshot.JobId != JobId) return;
                 ConnectionState.UpdateConnection(_signalId, true);
-                if (!_receivedSnapshot) _hasOlder = snapshot.Entries?.Count == 200;
                 _receivedSnapshot = true;
                 if (snapshot.Entries is { Count: > 0 } incoming)
                 {
-                    var ids = incoming.Select(entry => entry.Id).ToHashSet();
-                    _entries = _entries.Where(entry => !ids.Contains(entry.Id)).Concat(incoming).TakeLast(1000).ToList();
+                    if (incoming.Count == 200 && !_entries.Any(entry => entry.Id == incoming[0].Id))
+                        _historyCursors.Enqueue(incoming[0].Id);
+                    MergeEntries(incoming);
                 }
-                else _entries = [];
-                if (_entries.Count >= 1000) _hasOlder = false;
                 RefreshEntries();
                 _error = snapshot.Entries is null ? "Logs are unavailable from this job store." : null;
                 _loading = false;
                 StateHasChanged();
+                await LoadAllHistory();
             }), () => InvokeAsync(SubscribeLive),
                 () => InvokeAsync(() => { ConnectionState.UpdateConnection(_signalId, false); _loading = false; StateHasChanged(); }), CancellationToken);
             await _connection.Start(CancellationToken);

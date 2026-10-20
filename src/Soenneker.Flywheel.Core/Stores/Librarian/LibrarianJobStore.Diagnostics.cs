@@ -9,6 +9,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 public abstract partial class LibrarianJobStore
 {
     private readonly LibrarianTable<string, LogBuffer> _logs;
+    private readonly LibrarianTable<string, JobLogEntry[]> _logPages = new("logPages");
     private readonly LibrarianTable<string, Node> _nodes;
     private readonly LibrarianTable<string, long> _metadata;
 
@@ -20,7 +21,7 @@ public abstract partial class LibrarianJobStore
         {
             JobRecord? job = await Owned(lease, now);
             if (job is null) return false;
-            if ((await _logs.GetEntry(job.Id)) is not { Value: var buffer } || buffer.ExpiresAt <= now)
+            if ((await _logs.GetEntry(job.Id)) is not { Value: var buffer })
                 buffer = new LogBuffer();
             long sequence = (await _metadata.Get("logSequence"));
             var accepted = new List<JobLogEntry>(messages.Count);
@@ -28,7 +29,11 @@ public abstract partial class LibrarianJobStore
                 accepted.Add(new JobLogEntry($"{now}-{++sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
             await QueueArchive(job.Id, accepted, now);
             buffer.Entries.AddRange(accepted);
-            if (buffer.Entries.Count > 1000) buffer.Entries.RemoveRange(0, buffer.Entries.Count - 1000);
+            while (buffer.Entries.Count > 200)
+            {
+                await _logPages.Set($"{job.Id}:{buffer.PageCount++}", buffer.Entries.Take(200).ToArray());
+                buffer.Entries.RemoveRange(0, 200);
+            }
             buffer.ExpiresAt = now + (long)(_retainCompletedJobs && HistoryRetention > TimeSpan.FromDays(30)
                 ? HistoryRetention : TimeSpan.FromDays(30)).TotalMilliseconds;
             await _metadata.Set("logSequence", sequence).NoSync();
@@ -45,11 +50,55 @@ public abstract partial class LibrarianJobStore
         return Mutate<IReadOnlyList<JobLogEntry>>(cancellationToken, async now =>
         {
             if ((await _logs.GetEntry(jobId)) is not { Value: var buffer } || buffer.ExpiresAt <= now) return [];
-            int end = beforeId is null ? buffer.Entries.Count : buffer.Entries.FindIndex(entry => entry.Id == beforeId);
-            if (end <= 0) return [];
-            int start = Math.Max(0, end - count);
-            return buffer.Entries.Skip(start).Take(end - start).ToArray();
+            IReadOnlyList<JobLogEntry> entries = buffer.Entries;
+            int page = buffer.PageCount;
+            int end = beforeId is null ? entries.Count : buffer.Entries.FindIndex(entry => entry.Id == beforeId);
+            if (end < 0)
+            {
+                if (!TryLogSequence(beforeId!, out long sequence)) return [];
+                int low = buffer.DeletedPageCount, high = buffer.PageCount - 1;
+                while (low <= high)
+                {
+                    int middle = low + (high - low) / 2;
+                    var candidate = await _logPages.Get($"{jobId}:{middle}") ?? [];
+                    if (candidate.Length == 0) return [];
+                    if (!TryLogSequence(candidate[^1].Id, out long last)) return [];
+                    if (last < sequence) low = middle + 1;
+                    else high = middle - 1;
+                }
+                if (low >= buffer.PageCount) return [];
+                page = low;
+                entries = await _logPages.Get($"{jobId}:{page}") ?? [];
+                end = entries.ToList().FindIndex(entry => entry.Id == beforeId);
+                if (end < 0) return [];
+            }
+            var result = new List<JobLogEntry>(count);
+            while (true)
+            {
+                int start = Math.Max(0, end - (count - result.Count));
+                result.InsertRange(0, entries.Skip(start).Take(end - start));
+                if (result.Count == count || page <= buffer.DeletedPageCount) break;
+                entries = await _logPages.Get($"{jobId}:{--page}") ?? [];
+                end = entries.Count;
+            }
+            return result;
         });
+    }
+
+    private static bool TryLogSequence(string id, out long sequence) =>
+        long.TryParse(id.AsSpan(id.LastIndexOf('-') + 1), out sequence);
+
+    private async Task PruneLogPages(string jobId, LogBuffer buffer, long now)
+    {
+        int end = Math.Min(buffer.PageCount, buffer.DeletedPageCount + 10);
+        while (buffer.DeletedPageCount < end)
+            await _logPages.Remove($"{jobId}:{buffer.DeletedPageCount++}");
+        if (buffer.DeletedPageCount == buffer.PageCount) await _logs.Remove(jobId);
+        else
+        {
+            buffer.ExpiresAt = Math.Min(buffer.ExpiresAt, now);
+            await _logs.Set(jobId, buffer);
+        }
     }
 
     public Task<bool> SetProgress(JobLease lease, double percentage, string? message, CancellationToken cancellationToken = default)

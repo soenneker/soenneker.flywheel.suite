@@ -71,6 +71,18 @@ public sealed record JobRecord
     /// <summary>Identifier of the node owning the lease, or null when unowned.</summary>
     [JsonPropertyName("owner")]
     public string? Owner { get; init; }
+    /// <summary>Node that claimed the latest attempt, retained after ownership ends.</summary>
+    [JsonPropertyName("lastOwner")]
+    public string? LastOwner { get; init; }
+    /// <summary>Latest successful renewal in UTC Unix milliseconds, or zero if none was recorded.</summary>
+    [JsonPropertyName("lastLeaseRenewedAt")]
+    public long LastLeaseRenewedAt { get; init; }
+    /// <summary>Latest granted lease deadline, retained after ownership ends.</summary>
+    [JsonPropertyName("lastLeaseUntil")]
+    public long LastLeaseUntil { get; init; }
+    /// <summary>Observed lease loss reason for the latest attempt, when available.</summary>
+    [JsonPropertyName("leaseLossReason")]
+    public string? LeaseLossReason { get; init; }
     /// <summary>Pool that claimed the latest attempt, or null for legacy or unstarted work.</summary>
     [JsonPropertyName("workerPool")]
     public string? WorkerPool { get; init; }

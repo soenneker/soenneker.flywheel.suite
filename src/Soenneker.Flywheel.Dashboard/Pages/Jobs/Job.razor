@@ -59,7 +59,7 @@ else
             <Div MinWidth="MinWidth.Is0" Display="Display.Flex" ItemsAlign="Items.End" FlexWrap="FlexWrap.Wrap" Gap="Gap.Is5">
                 <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is2" Style="width: 24rem; max-width: 100%;">
                     <Span TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground" id="job-id-label" >Job ID</Span>
-                    <CopyField Value="@JobId" AriaLabelledBy="job-id-label" CopyLabel="Copy job ID" CopyButtonVariant="ButtonVariant.Secondary" />
+                    <CopyableText FieldAppearance="true" Text="@JobId" AriaLabelledBy="job-id-label" CopyLabel="Copy job ID" CopyButtonVariant="ButtonVariant.Secondary" />
                 </Div>
                 @if (_job is not null)
                 {
@@ -72,6 +72,7 @@ else
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Priority</Span><Span Display="Display.Block">@(_job.Priority ?? "Unavailable")</Span></Div>
                     <Div MinWidth="MinWidth.Is0"><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Pool</Span><Span Display="Display.Block" TextBreak="TextBreak.All">@(_job.WorkerPool ?? (_job.Attempt == 0 ? "Not assigned" : "Unavailable"))</Span></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Duration</Span><JobDuration Job="@_job" /></Div>
+                    <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Updated</Span><JobTimestamp Value="@_job.UpdatedAt" ShowAbsolute="true" /></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
                     @if (_job.State == "Running")
                     {
@@ -124,6 +125,7 @@ else
             {
                 <Alert role="alert"><AlertTitle>Last execution error</AlertTitle><AlertDescription><Div Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" FontFamily="FontFamily.Mono" TextSize="TextSize.Sm">@_job.Error</Div></AlertDescription></Alert>
             }
+            <JobLeaseDiagnostics Job="@_job" />
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div><JobLogConsole @key="_job.Id" JobId="@_job.Id" /></Div></Div>
         }
     </Main>

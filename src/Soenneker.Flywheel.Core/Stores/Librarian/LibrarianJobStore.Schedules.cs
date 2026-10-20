@@ -149,6 +149,8 @@ public abstract partial class LibrarianJobStore
                 long delay = (long)Math.Min(job.Policy.MaxBackoff.TotalMilliseconds,
                     job.Policy.InitialBackoff.TotalMilliseconds * Math.Pow(2, Math.Min(job.Attempt - 1, 30)));
                 JobRecord recovered = job with { State = state, Token = null, Owner = null, LeaseUntil = 0,
+                    LastOwner = job.Owner, LastLeaseUntil = job.LeaseUntil,
+                    LeaseLossReason = job.LeaseLossReason ?? "The lease deadline passed without a successful renewal. The worker did not record a cause; check its host logs for shutdown, restart, or storage failures.",
                     Version = job.Version + 1, Error = "Lease expired", DueAt = state == JobState.Scheduled ? now + delay : job.DueAt };
                 await Save(recovered, now);
                 await AdvanceChain(recovered, now);
@@ -171,7 +173,7 @@ public abstract partial class LibrarianJobStore
                 if (job.ManualJobId is { } manualId && await _manualJobs.Get(manualId) is { } manual && manual.LastExecutionId == job.Id)
                     await _manualJobs.Set(manualId, manual with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
                 await _jobs.Remove(job.Id).NoSync();
-                await _logs.Remove(job.Id).NoSync();
+                if (await _logs.Get(job.Id) is { } jobLogs) await PruneLogPages(job.Id, jobLogs, now);
                 foreach (var marker in await _dedupe.FindEntries("value", job.Id)) await _dedupe.Remove(marker.Key).NoSync();
                 if (await _chainMembership.Get(job.Id) is { } chain)
                 {
@@ -183,7 +185,8 @@ public abstract partial class LibrarianJobStore
             await PruneLive(now);
             await PruneServers(now);
             foreach (var rate in await _rates.Range("value.until", minimum: long.MinValue, maximum: now, take: batchSize)) await _rates.Remove(rate.Key).NoSync();
-            foreach (var log in expiredLogs) await _logs.Remove(log.Key).NoSync();
+            foreach (var log in expiredLogs)
+                if (await _logs.Get(log.Key) is { } remaining) await PruneLogPages(log.Key, remaining, now);
             return true;
         });
     }

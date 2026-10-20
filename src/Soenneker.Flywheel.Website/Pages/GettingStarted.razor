@@ -16,6 +16,15 @@
 <CodeExample Text="@RunExample" Label="Run the application command" Language="shell" />
 <Paragraph>Look for “Hello from Flywheel” in the console. Enqueue saves the job to your configured storage; a background worker executes it. In your application services, inject <code>IJobClient</code> to submit work.</Paragraph>
 <Paragraph>Jobs can run more than once. Make handlers safe to retry and pass cancellation tokens through to async work.</Paragraph>
+<H2 id="chain-jobs">Chain jobs</H2>
+<Paragraph>Using the job above, submit an ordered workflow before <code>app.RunAsync()</code>:</Paragraph>
+<CodeExample Text="@ChainExample" Label="Submit an ordered job chain" Language="csharp" />
+<Paragraph>Add <code>MessageJsonContext.cs</code> to supply the source-generated JSON metadata required by <code>With(...)</code>:</Paragraph>
+<CodeExample Text="@ChainJsonExample" Label="JSON metadata for chain payloads" Language="csharp" />
+<Paragraph>A chain atomically saves 1–100 steps and returns their job IDs in order. Submission completes when saved; workers execute the jobs afterward. Each step waits for predecessor success. Retries keep successors waiting, while final failure or cancellation cancels the remaining steps. The default is one attempt. Pass <code>policy: new JobPolicy { MaxAttempts = 3 }</code> to <code>With(...)</code> to allow three attempts for that step; <code>JobPolicy</code> is in <code>Soenneker.Flywheel.Communication.Dtos</code>.</Paragraph>
+<Paragraph>A first-step delay starts at submission. Later delays start after predecessor success, so the second step here becomes eligible ten seconds later. Worker, concurrency, and rate limits still apply.</Paragraph>
+<Paragraph>Reuse a stable <code>idempotencyKey</code> when retrying an uncertain submission to get the original IDs while the deduplication record is retained. Use a new key for a new workflow. Individual step idempotency keys are unsupported.</Paragraph>
+<Paragraph>Steps can use different registered jobs and payload types; supply JSON metadata for each type. All payloads are supplied upfront, and results are not automatically passed between steps. All built-in storage providers support chains; custom stores must implement <code>IJobChainStore</code>. Handlers must still be safe to retry.</Paragraph>
 <H2 id="worker-pools">Worker pools</H2>
 <Paragraph>Reserve workers for specific workloads. Named pools share the server's worker budget; default receives the remainder.</Paragraph>
 <CodeExample Text="@PoolsExample" Label="Worker pool configuration" Language="csharp" />
@@ -52,6 +61,24 @@
 </article>
 
 @code {
+    private const string ChainExample = """
+IReadOnlyList<string> jobIds = await client.Chain([
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("First step"), MessageJsonContext.Default.Message),
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("Second step"), MessageJsonContext.Default.Message,
+        delay: TimeSpan.FromSeconds(10))
+], idempotencyKey: "message-workflow-123");
+""";
+
+    private const string ChainJsonExample = """
+using System.Text.Json.Serialization;
+
+[JsonSourceGenerationOptions(System.Text.Json.JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(Message))]
+internal partial class MessageJsonContext : JsonSerializerContext;
+""";
+
     private const string ArchiveFilesystemExample = """
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

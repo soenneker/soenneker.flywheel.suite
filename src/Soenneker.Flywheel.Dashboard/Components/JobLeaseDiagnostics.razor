@@ -1,0 +1,33 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@using Soenneker.Flywheel.Communication.Responses
+@inject DashboardTimeZone TimeZone
+
+@if (Job.LastOwner is not null || Job.LeaseLossReason is not null)
+{
+    <Section aria-label="Lease diagnostics" Style="margin: 1rem 0; overflow-wrap: anywhere;">
+        <H3 TextSize="TextSize.Lg">Lease diagnostics</H3>
+        <dl>
+            <dt>Latest attempt worker</dt>
+            <dd>@(Job.LastOwner ?? "Unavailable")</dd>
+            <dt>Last successful renewal</dt>
+            <dd>@FormatTime(Job.LastLeaseRenewedAt)</dd>
+            <dt>Last granted lease deadline</dt>
+            <dd>@FormatTime(Job.LastLeaseUntil)</dd>
+            @if (Job.LeaseLossReason is { } reason)
+            {
+                <dt>Lease loss reason</dt>
+                <dd>@reason</dd>
+            }
+        </dl>
+    </Section>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public JobView Job { get; set; } = default!;
+
+    private string FormatTime(long value) => value > 0
+        ? TimeZone.Convert(DateTimeOffset.FromUnixTimeMilliseconds(value)).ToString("yyyy-MM-dd HH:mm:ss.fff zzz", System.Globalization.CultureInfo.InvariantCulture)
+        : "Not recorded";
+}

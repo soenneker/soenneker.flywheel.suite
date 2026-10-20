@@ -12,11 +12,19 @@ namespace Soenneker.Flywheel.Core.Tests.Runtime;
 
 public sealed partial class RuntimeTests
 {
-    private sealed class StubStore : IJobStore, IJobChangeFeed, IWorkerJobStore
+    private sealed class StubStore : IJobStore, IJobChangeFeed, IWorkerJobStore, IJobLeaseDiagnosticsStore
     {
         private readonly Channel<JobChange> _changes = Channel.CreateUnbounded<JobChange>();
         public Communication.Enums.LeaseStatus Status;
         public bool StalledRenewal;
+        public bool FailDiagnostics;
+        public string? LeaseLossReason;
+        public Task<bool> RecordLeaseLoss(JobLease lease, string reason, CancellationToken cancellationToken = default)
+        {
+            LeaseLossReason = reason;
+            if (FailDiagnostics) throw new InvalidOperationException("diagnostic storage unavailable");
+            return Task.FromResult(true);
+        }
         public int Commits;
         public string? Error;
         public Communication.Enums.JobOutcome Outcome;

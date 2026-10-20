@@ -11,7 +11,7 @@ using Soenneker.Flywheel.Core.Services.Abstract;
 
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
-public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
+public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobLeaseDiagnosticsStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
     IJobChainStore, IJobQueueStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
     IManualJobStore, IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
@@ -66,7 +66,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _running = new LibrarianTable<string, RunningEntry>("running");
         _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce, _archiveOpen, _archiveReady, _archiveParts];
+        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce, _archiveOpen, _archiveReady, _archiveParts];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 
@@ -259,7 +259,8 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                 }
                 JobRecord claimed = job with { State = JobState.Running, Attempt = job.Attempt + 1,
                     Version = job.Version + 1, Token = Guid.NewGuid().ToString("N"), Owner = owner, WorkerPool = pool,
-                    LeaseUntil = now + milliseconds, StartedAt = now, UpdatedAt = now, CompletedAt = 0,
+                    LeaseUntil = now + milliseconds, LastLeaseUntil = now + milliseconds, LastOwner = owner,
+                    LastLeaseRenewedAt = 0, LeaseLossReason = null, StartedAt = now, UpdatedAt = now, CompletedAt = 0,
                     Progress = null, ProgressMessage = null, ProgressUpdatedAt = 0 };
                 await Save(claimed, now, job);
                 if (candidate.PartitionId is { } claimedPartition)
@@ -309,7 +310,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         {
             JobRecord? job = await Owned(lease, now);
             if (job is null) return LeaseStatus.Lost;
-            await Save(job with { LeaseUntil = now + milliseconds }, now, job);
+            await Save(job with { LeaseUntil = now + milliseconds, LastLeaseUntil = now + milliseconds, LastLeaseRenewedAt = now }, now, job);
             return job.CancelRequested ? LeaseStatus.CancellationRequested : LeaseStatus.Renewed;
         });
     }

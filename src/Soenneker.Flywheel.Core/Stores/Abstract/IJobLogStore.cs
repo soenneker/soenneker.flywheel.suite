@@ -3,11 +3,11 @@ using Soenneker.Flywheel.Communication.Dtos;
 
 namespace Soenneker.Flywheel.Core.Stores.Abstract;
 
-/// <summary>Bounded, diagnostic job logs. Logs are not authoritative lifecycle state.</summary>
+/// <summary>Paged diagnostic job logs. Logs are not authoritative lifecycle state.</summary>
 public interface IJobLogStore
 {
     /// <summary>Appends a batch only while the lease is current and unexpired. False means ownership was lost.
-    /// Providers must bound retained logs and must not accept stale owners.</summary>
+    /// Providers retain accepted entries for their retention period and must not accept stale owners.</summary>
     Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages,
         CancellationToken cancellationToken = default);
 

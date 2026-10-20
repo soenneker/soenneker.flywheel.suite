@@ -172,6 +172,12 @@ await client.Schedule("weekday-message", FlywheelJobs.MessageJobs_Write,
 
 See [IJobClient](src/Soenneker.Flywheel.Core/Services/Abstract/IJobClient.cs) for the full API.
 
+### Chain jobs
+
+Use `client.Chain([job.With(payload, jsonTypeInfo), ...], idempotencyKey: "workflow-id")` to save 1–100 steps atomically and receive their execution IDs in order. See the [complete chaining example](../README.md#chain-jobs) for payload serialization setup, delays, retry policies, and submission deduplication.
+
+Each successor waits for predecessor success, including through retries. Final failure or cancellation cancels the remaining steps. Later-step delays begin after predecessor success. Supply every payload upfront; chaining does not automatically pass results between jobs. All built-in providers support chains; custom stores require `IJobChainStore`.
+
 ### Manual jobs
 
 Register a reusable definition without a clock or cron expression:
