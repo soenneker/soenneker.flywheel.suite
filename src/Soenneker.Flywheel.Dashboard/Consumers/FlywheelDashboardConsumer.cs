@@ -108,6 +108,24 @@ public sealed class FlywheelDashboardConsumer(IFlywheelApiClient apiClient, ILog
             : result;
     }
 
+
+    public ValueTask<OperationResult<WorkflowView>> GetWorkflow(string id, CancellationToken cancellationToken = default) =>
+        Read<WorkflowView>($"jobs/{Uri.EscapeDataString(id)}/workflow", cancellationToken);
+    public ValueTask<OperationResult<ScheduleDefinitionView>> GetScheduleDefinition(string id, CancellationToken cancellationToken = default) =>
+        Read<ScheduleDefinitionView>($"jobs/schedules/{Uri.EscapeDataString(id)}/definition", cancellationToken);
+    public ValueTask<OperationResult<object>> UpdateSchedule(string id, ScheduleUpdate update, CancellationToken cancellationToken = default) =>
+        Write<object>($"jobs/schedules/{Uri.EscapeDataString(id)}/update", update, cancellationToken);
+    public ValueTask<OperationResult<object>> SetScheduleEnabled(string id, bool enabled, long revision, CancellationToken cancellationToken = default) =>
+        Write<object>($"jobs/schedules/{Uri.EscapeDataString(id)}/enabled/{enabled.ToString().ToLowerInvariant()}?revision={revision}", null, cancellationToken);
+    public ValueTask<OperationResult<object>> DeleteSchedule(string id, long revision, CancellationToken cancellationToken = default) =>
+        Write<object>($"jobs/schedules/{Uri.EscapeDataString(id)}/delete?revision={revision}", null, cancellationToken);
+    public ValueTask<OperationResult<EnqueueRequest>> GetManualDefinition(string id, CancellationToken cancellationToken = default) =>
+        Read<EnqueueRequest>($"jobs/manual/{Uri.EscapeDataString(id)}/definition", cancellationToken);
+    public ValueTask<OperationResult<object>> UpdateManual(string id, EnqueueRequest update, CancellationToken cancellationToken = default) =>
+        Write<object>($"jobs/manual/{Uri.EscapeDataString(id)}/update", update, cancellationToken);
+    public ValueTask<OperationResult<object>> DeleteManual(string id, CancellationToken cancellationToken = default) =>
+        Write<object>($"jobs/manual/{Uri.EscapeDataString(id)}/delete", null, cancellationToken);
+
     private static string Range(DateTimeOffset? startAt, DateTimeOffset? endAt) =>
         startAt is { } start && endAt is { } end
             ? $"&startAt={Uri.EscapeDataString(start.ToString("O"))}&endAt={Uri.EscapeDataString(end.ToString("O"))}"

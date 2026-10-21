@@ -77,7 +77,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         string id = Id(key);
         string? order = value is JobRecord job ? SortKey(long.MaxValue - job.CreatedAt, job.Id) : null;
         bool active = value is Schedule { DueAt: not null };
-        if (value is Schedule schedule && active) order = SortKey(schedule.DueAt ?? long.MaxValue, key.ToString()!);
+        if (value is Schedule schedule) order = SortKey(schedule.DueAt ?? long.MaxValue, key.ToString()!);
         string? scheduled = value is JobRecord { State: var state } pending && state == JobState.Scheduled ? SortKey(pending.DueAt, pending.Id) : null;
         long? completedAt = value is JobRecord completed && (completed.State == JobState.Succeeded || completed.State == JobState.Cancelled || completed.State == JobState.DeadLettered)
             ? completed.CompletedAt : null;

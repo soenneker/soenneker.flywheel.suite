@@ -95,6 +95,14 @@ public sealed record JobRecord
     /// <summary>Retained failure details, or null when no error is recorded.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; init; }
+    /// <summary>Workflow containing this execution, if any.</summary>
+    public string? WorkflowId { get; init; }
+    /// <summary>All predecessors that must reach a terminal outcome before this execution becomes eligible.</summary>
+    public string[] PredecessorIds { get; init; } = [];
+    /// <summary>Required predecessor outcome.</summary>
+    public Enums.ContinuationCondition Condition { get; init; }
+    /// <summary>True when an unmet dependency condition suppressed execution. Its descendants are also skipped.</summary>
+    public bool DependencySkipped { get; init; }
     /// <summary>Predecessor whose success releases this chain step, or null for a root job.</summary>
     [JsonPropertyName("parentJobId")]
     public string? ParentJobId { get; init; }

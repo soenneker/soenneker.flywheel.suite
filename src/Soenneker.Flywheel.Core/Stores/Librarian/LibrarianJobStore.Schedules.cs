@@ -24,11 +24,17 @@ public abstract partial class LibrarianJobStore
             if (idempotencyKey is not null && (await _chains.GetEntry(idempotencyKey)) is { Value: var existing })
                 return existing.ToArray();
             string[] ids = jobs.Select(j => j.Id).ToArray();
+            string workflowId = Guid.NewGuid().ToString("N");
+            await _workflows.Set(workflowId, new(workflowId, ids, []));
             for (int i = 0; i < jobs.Length; i++)
+            {
+                if (i + 1 < ids.Length) await _dependents.Set(ids[i], [ids[i + 1]]);
                 await Insert(jobs[i] with { State = i == 0 ? JobState.Scheduled : JobState.Waiting,
+                    WorkflowId = workflowId, PredecessorIds = i == 0 ? [] : [ids[i - 1]],
                     ParentJobId = i == 0 ? null : ids[i - 1], NextJobId = i + 1 == ids.Length ? null : ids[i + 1],
                     DelayAfterParent = i == 0 ? 0 : (long)requests[i].Delay.TotalMilliseconds },
                     i == 0 ? (long)requests[i].Delay.TotalMilliseconds : 0, now);
+            }
             if (idempotencyKey is not null)
             {
                 await _chains.Set(idempotencyKey, ids).NoSync();
@@ -41,6 +47,7 @@ public abstract partial class LibrarianJobStore
     private async Task AdvanceChain(JobRecord parent, long now)
     {
         if (!Terminal(parent.State)) return;
+        await AdvanceWorkflow(parent, now);
         string? nextId = parent.NextJobId;
         while (nextId is not null && (await _jobs.GetEntry(nextId)) is { Value: var next } && next.State == JobState.Waiting)
         {
@@ -49,8 +56,10 @@ public abstract partial class LibrarianJobStore
                 await Save(next with { State = JobState.Scheduled, DueAt = now + next.DelayAfterParent }, now);
                 return;
             }
-            await Save(next with { State = JobState.Cancelled, CancelRequested = true, Version = next.Version + 1,
-                Error = "Predecessor did not succeed." }, now);
+            var cancelled = next with { State = JobState.Cancelled, CancelRequested = true, DependencySkipped = true, Version = next.Version + 1,
+                Error = "Predecessor did not succeed." };
+            await Save(cancelled, now);
+            await AdvanceWorkflow(cancelled, now);
             nextId = next.NextJobId;
         }
     }
@@ -103,7 +112,7 @@ public abstract partial class LibrarianJobStore
     }
 
     public Task<long> GetRecurringCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async _ => (long)await _schedules.CountEntries("active", true));
+        Mutate(cancellationToken, async _ => (long)await _schedules.CountAll());
 
     public Task<IReadOnlyList<RecurringJobView>> ListRecurring(int count = 50, CancellationToken cancellationToken = default)
     {
@@ -122,7 +131,7 @@ public abstract partial class LibrarianJobStore
                 RecurringJobSummary? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
                 string? status = execution is null ? s.LastExecutionStatus : execution.DisplayState(now);
                 result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt, s.Cron,
-                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId, s.Job.IsSystem);
+                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId, s.Job.IsSystem, s.Enabled, s.Revision);
             }
             return result;
         });
@@ -135,8 +144,9 @@ public abstract partial class LibrarianJobStore
         {
             var expiredLeases = await _running.Range("value.leaseUntil", minimum: long.MinValue, maximum: now, take: batchSize);
             var dueSchedules = await _schedules.Range("value.dueAt", minimum: long.MinValue, maximum: now, take: batchSize);
+            int retentionOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("retentionOffset"));
             var expiredJobs = (await _jobs.Range("completedAt", minimum: long.MinValue,
-                maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, take: batchSize)).Select(e => e.Value).ToList();
+                maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, skip: retentionOffset, take: batchSize)).Select(e => e.Value).ToList();
             var expiredHistory = await _history.Range("key", maximum: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize);
             var expiredLogs = await _logs.Range("value.expiresAt", minimum: long.MinValue, maximum: now, take: batchSize);
             // Retire persisted schedules and queued executions from the removed archive exporter.
@@ -177,6 +187,11 @@ public abstract partial class LibrarianJobStore
                         .Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds();
                 await Occurrence(pair.Key, s with { DueAt = next }, now);
             }
+            int candidateCount = expiredJobs.Count;
+            expiredJobs = await RetainWorkflowMembers(expiredJobs, now);
+            // Move past protected workflow members so they cannot starve unrelated history cleanup.
+            await _metadata.Set("retentionOffset", candidateCount < batchSize ? 0 :
+                (long)retentionOffset + Math.Max(0, candidateCount - expiredJobs.Count));
             foreach (JobRecord job in expiredJobs)
             {
                 if (job.ScheduleId is { } scheduleId && (await _schedules.GetEntry(scheduleId)) is { Value: var s } && s.LastExecutionId == job.Id)

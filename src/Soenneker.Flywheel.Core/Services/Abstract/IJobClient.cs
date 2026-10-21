@@ -63,4 +63,39 @@ public interface IJobClient
     /// Retries keep successors waiting; final failure or cancellation cancels them. Reuse a chain key to retry submission safely.</summary>
     Task<IReadOnlyList<string>> Chain(IReadOnlyList<JobStep> steps, string? idempotencyKey = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Attaches a typed continuation to an existing retained job. Delay begins when its condition is met.
+    /// Final failure/cancellation are distinct from retrying attempts; unmet conditions skip the dependent branch.</summary>
+    Task<string> ContinueWith<T>(string parentId, JobDefinition<T> job, T payload,
+        Communication.Enums.ContinuationCondition condition = Communication.Enums.ContinuationCondition.OnSuccess,
+        JobPolicy? policy = null, TimeSpan? delay = null, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support continuations.");
+    /// <summary>Atomically submits 1–999 parallel jobs and an optional final step that waits for all members.
+    /// Completion supports OnSuccess or OnCompleted. Returns all execution IDs, including the final step.
+    /// Reuse a stable idempotency key when retrying submission. Each workflow supports at most 1000 total jobs.</summary>
+    Task<Communication.Responses.WorkflowSubmission> Batch(IReadOnlyList<JobStep> jobs, JobStep? continuation = null,
+        Communication.Enums.ContinuationCondition condition = Communication.Enums.ContinuationCondition.OnSuccess,
+        string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support batches.");
+    /// <summary>Replaces an existing interval definition. Recalculates its next run; existing executions and history are unchanged.
+    /// Returns false if missing or the optional editor revision changed. Pass enabled=false to keep it paused.</summary>
+    Task<bool> UpdateRecurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval, JobPolicy? policy = null,
+        bool enabled = true, long? expectedRevision = null, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Replaces an existing cron definition and recalculates its next run. Returns false if missing or the optional revision changed.</summary>
+    Task<bool> UpdateSchedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
+        JobPolicy? policy = null, bool includeSeconds = false, bool enabled = true, long? expectedRevision = null,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Pauses or resumes future recurring occurrences without cancelling active work. Resume does not catch up missed runs.</summary>
+    Task<bool> SetRecurringEnabled(string id, bool enabled, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Deletes a recurring definition while preserving all existing executions.</summary>
+    Task<bool> DeleteRecurring(string id, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Replaces an existing manual definition's payload and policy. Returns false if missing.</summary>
+    Task<bool> UpdateManual<T>(string id, JobDefinition<T> job, T payload, JobPolicy? policy = null,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Deletes a manual definition while preserving all existing executions.</summary>
+    Task<bool> DeleteManual(string id, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support definition updates.");
 }

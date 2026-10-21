@@ -40,6 +40,8 @@ public static class RedisRegistration
         builder.Services.AddSingleton<IJobStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<ICronJobStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IJobChainStore>(sp => sp.GetRequiredService<RedisJobStore>());
+        builder.Services.AddSingleton<IJobWorkflowStore>(sp => sp.GetRequiredService<RedisJobStore>());
+        builder.Services.AddSingleton<IJobDefinitionStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IMethodPolicyStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<INodeStore>(sp => sp.GetRequiredService<RedisJobStore>());
         builder.Services.AddSingleton<IJobLogStore>(sp => sp.GetRequiredService<RedisJobStore>());

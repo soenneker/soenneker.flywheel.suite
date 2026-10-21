@@ -54,6 +54,9 @@ public sealed record JobView(
     [property: JsonPropertyName("workerPool")] string? WorkerPool = null,
     [property: JsonPropertyName("isSystem")] bool IsSystem = false)
 {
+    /// <summary>Workflow containing this execution, if any.</summary>
+    public string? WorkflowId { get; init; }
+
     /// <summary>Node that claimed the latest attempt, retained after ownership ends.</summary>
     [JsonPropertyName("lastOwner")]
     public string? LastOwner { get; init; }

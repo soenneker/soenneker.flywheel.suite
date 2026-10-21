@@ -22,6 +22,10 @@ public partial class Schedule
     /// <summary>Delegates run requests to the containing list when supplied.</summary>
     [Parameter] public EventCallback<string> RunRequested { get; set; }
 
+    /// <summary>Refreshes the containing list after a definition change.</summary>
+    [Parameter] public EventCallback DefinitionChanged { get; set; }
+    private Task DefinitionUpdated() => DefinitionChanged.HasDelegate ? DefinitionChanged.InvokeAsync() : RefreshSchedules();
+
     private bool _running;
     private string? _runError;
     private RecurringScheduleView? SelectedSchedule => Embedded ? Value :

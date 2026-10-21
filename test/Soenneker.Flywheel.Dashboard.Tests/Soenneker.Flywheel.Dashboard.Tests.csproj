@@ -5,4 +5,5 @@
 <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Dashboard/Soenneker.Flywheel.Dashboard.csproj" /></ItemGroup>    <ItemGroup>
         <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.81" />
     </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Memory/Soenneker.Flywheel.Memory.csproj" /></ItemGroup>
 </Project>

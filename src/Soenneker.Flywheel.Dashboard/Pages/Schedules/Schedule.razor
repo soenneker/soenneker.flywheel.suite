@@ -32,7 +32,7 @@
                 }
                 <H2 Margin="Margin.Is0" TextSize="TextSize.Xl" TextBreak="TextBreak.Words">@schedule.Name</H2>
                 <SystemJobBadge IsSystem="@schedule.IsSystem" />
-                <Badge Variant="BadgeVariant.Secondary">Recurring</Badge>
+                <Badge Variant="BadgeVariant.Secondary">@(schedule.Enabled ? "Recurring" : "Paused")</Badge>
             </Div>
             <Div Display="Display.Flex" ItemsAlign="Items.Center" Gap="Gap.Is2" FlexWrap="FlexWrap.Wrap">
                 <JobActions Id="@schedule.LastExecutionId" Name="@schedule.Name" State="@schedule.LastExecutionStatus" IsDefinition="true" Disabled="@(_running || Running)" RunRequested="Run" Changed="RefreshSchedules" />
@@ -42,6 +42,10 @@
                 }
             </Div>
         </Div>
+        @if (!schedule.IsSystem)
+        {
+            <DefinitionActions Id="@schedule.Id" Enabled="@schedule.Enabled" Revision="@schedule.Revision" Changed="DefinitionUpdated" />
+        }
         <Grid Style="display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, max-content)); gap: 1.5rem;" Padding="Padding.FromBottom.Is6" Border="Border.FromBottom.Is1" BorderColor="BorderColor.Border">
             <Div Space="Space.Y.Is2">
                 <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Frequency</Span>
@@ -53,7 +57,7 @@
             </Div>
             <Div Space="Space.Y.Is2">
                 <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next execution</Span>
-                <JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" ShowAbsolute="true" />
+                @if (!schedule.Enabled) { <Span>Paused</Span> } else { <JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" ShowAbsolute="true" /> }
             </Div>
         </Grid>
     }

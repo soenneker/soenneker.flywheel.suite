@@ -30,7 +30,10 @@ public partial class Schedules
     protected override void SchedulesChanged()
     {
         if (_selectedSchedule is { } selected && _schedules is not null)
-            _selectedSchedule = _schedules.Recurring.FirstOrDefault(schedule => schedule.Id == selected.Id) ?? selected;
+            {
+                _selectedSchedule = _schedules.Recurring.FirstOrDefault(schedule => schedule.Id == selected.Id);
+                if (_selectedSchedule is null) _drawerVisible = false;
+            }
     }
     private readonly DataTableOptions _recurringTableOptions = new() { DefaultPageSize = 50, SearchDebounceMs = 300 };
     private List<DataTableOrderRequest> _recurringOrder = [];

@@ -48,4 +48,21 @@ public interface IFlywheelDashboardConsumer
     ValueTask<OperationResult<StartedJob>> RunAgain(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     /// <summary>Starts an execution from a recurring schedule.</summary>
     ValueTask<OperationResult<StartedJob>> RunRecurring(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads an execution's complete workflow without payloads or lease credentials.</summary>
+    ValueTask<OperationResult<WorkflowView>> GetWorkflow(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Reads a recurring definition for editing, including its payload and concurrency revision.</summary>
+    ValueTask<OperationResult<ScheduleDefinitionView>> GetScheduleDefinition(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Updates future recurring executions, rejecting stale revisions.</summary>
+    ValueTask<OperationResult<object>> UpdateSchedule(string id, Soenneker.Flywheel.Communication.Requests.ScheduleUpdate update, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Pauses or resumes future recurring occurrences using the displayed revision.</summary>
+    ValueTask<OperationResult<object>> SetScheduleEnabled(string id, bool enabled, long revision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Deletes a recurring definition without deleting execution history.</summary>
+    ValueTask<OperationResult<object>> DeleteSchedule(string id, long revision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Reads a manual definition for editing, including its payload.</summary>
+    ValueTask<OperationResult<Soenneker.Flywheel.Communication.Requests.EnqueueRequest>> GetManualDefinition(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Updates future manual executions.</summary>
+    ValueTask<OperationResult<object>> UpdateManual(string id, Soenneker.Flywheel.Communication.Requests.EnqueueRequest update, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    /// <summary>Deletes a manual definition without deleting execution history.</summary>
+    ValueTask<OperationResult<object>> DeleteManual(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

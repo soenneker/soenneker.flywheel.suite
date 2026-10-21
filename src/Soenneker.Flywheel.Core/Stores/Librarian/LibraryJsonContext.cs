@@ -9,6 +9,7 @@ using System.Text.Json;
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, ReadCommentHandling = JsonCommentHandling.Skip, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(LibrarianEntry<string, WorkflowRecord>))]
 [JsonSerializable(typeof(DebounceEntry))]
 [JsonSerializable(typeof(DispatchCandidate))]
 [JsonSerializable(typeof(IdleSample))]

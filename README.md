@@ -197,6 +197,64 @@ internal partial class MessageJsonContext : JsonSerializerContext;
 
 All built-in storage providers support chains. Custom stores must implement `IJobChainStore`. Handlers must still be safe to retry.
 
+## Manage saved definitions
+
+Registration remains create-if-absent. Use explicit update calls to change future runs:
+
+```csharp
+await client.SetRecurringEnabled("hourly-message", false);
+await client.UpdateRecurring("hourly-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Updated message"), TimeSpan.FromMinutes(30), enabled: false);
+await client.SetRecurringEnabled("hourly-message", true);
+
+await client.UpdateSchedule("weekday-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Updated reminder"), "0 10 * * MON-FRI", timeZoneId: "America/Chicago");
+await client.DeleteRecurring("weekday-message");
+
+await client.UpdateManual("manual-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Updated manual payload"));
+await client.DeleteManual("manual-message");
+```
+
+Updates return false for missing or system-owned definitions. Recurring updates optionally accept `expectedRevision` to reject stale edits. Updates recalculate the next run; pass `enabled: false` to keep a definition paused. Resume schedules the next cron time or a full new interval without replaying missed runs. Pausing and deletion preserve existing executions and history; **Run now** remains available while a schedule is paused.
+
+The recurring-job detail view provides **Edit definition**, **Pause schedule / Resume schedule**, and **Delete definition**. Manual rows provide **Manage definition**. Editors can change the JSON payload and execution policy; recurring editors also change the interval or cron expression and time zone. Deletion requires confirmation, and stale recurring edits are rejected.
+
+## Conditional continuations
+
+Attach work to an existing retained execution, including one that has already finished:
+
+```csharp
+using Soenneker.Flywheel.Communication.Enums;
+
+string parentId = await client.Enqueue(FlywheelJobs.MessageJobs_Write, new Message("Prepare"));
+string cleanupId = await client.ContinueWith(parentId, FlywheelJobs.MessageJobs_Write,
+    new Message("Cleanup"), condition: ContinuationCondition.OnCompleted,
+    idempotencyKey: "message-cleanup-123");
+```
+
+Choose `OnSuccess` (default), `OnFailure` (attempts exhausted), `OnCancelled`, or `OnCompleted` (any terminal outcome). Retries keep continuations waiting. A missing or expired predecessor is rejected. A condition that does not match skips that branch and its descendants; skipped work does not trigger failure/cancellation cleanup. Optional delays begin when dependencies are satisfied. Reuse a stable submission key for uncertain retries, and a new key for new work.
+
+## Parallel batches
+
+Submit independent steps atomically and optionally run a final step after all members finish. This example reuses the `MessageJsonContext` from the chaining example:
+
+```csharp
+var batch = await client.Batch([
+    FlywheelJobs.MessageJobs_Write.With(new Message("Process A"), MessageJsonContext.Default.Message),
+    FlywheelJobs.MessageJobs_Write.With(new Message("Process B"), MessageJsonContext.Default.Message)
+], continuation: FlywheelJobs.MessageJobs_Write.With(
+    new Message("Finalize"), MessageJsonContext.Default.Message),
+    condition: ContinuationCondition.OnSuccess,
+    idempotencyKey: "message-batch-123");
+```
+
+`batch.Id` identifies the workflow; `batch.JobIds` contains execution IDs in submission order, including `batch.ContinuationId` when a final step exists. Batch members may run in parallel, subject to worker capacity and method limits. The final step waits through retries and runs only when every member succeeds (`OnSuccess`) or every member finishes regardless of outcome (`OnCompleted`). Member failure does not cancel sibling jobs.
+
+Batches accept 1–999 members. A workflow may contain up to 1,000 jobs after attaching continuations. Payloads are supplied upfront; results are not automatically passed between jobs. All built-in providers implement `IJobWorkflowStore`; custom stores must opt in. Upgrade every worker sharing storage before submitting workflows or using definition management.
+
+Open any member's execution details to see the whole workflow, finished/total progress, dependency links, conditions, errors, and individual job logs. Skipped branches are labeled **Skipped**. The view refreshes every five seconds. Workflow executions stay retained until all members finish and the last member's history retention expires; disabling completed-job retention still preserves dependencies until the workflow finishes.
+
 ### Run work on demand
 
 Register reusable work with `client.Manual(...)`, then open **Manual Jobs** and select **Run now**. Registration does not queue an execution. The page shows the latest execution status and links to its details.

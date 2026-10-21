@@ -51,7 +51,7 @@
                                     <Span TextColor="TextColor.MutedForeground">No execution recorded</Span>
                                 }
                             </Td>
-                            <Td Padding="Padding.OnX.Is3.OnY.Is1"><JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" /></Td>
+                            <Td Padding="Padding.OnX.Is3.OnY.Is1">@if (!schedule.Enabled) { <Badge Variant="BadgeVariant.Secondary">Paused</Badge> } else { <JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" /> }</Td>
                             <Td Padding="Padding.OnX.Is3.OnY.Is1" class="px-3 py-1 align-middle" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true" @onkeyup:stopPropagation="true">
                                 <JobActions Id="@schedule.LastExecutionId" Name="@schedule.Name" State="@schedule.LastExecutionStatus" IsDefinition="true" Disabled="@_startingSchedules.Contains(schedule.Id)" RunRequested="() => RunRecurring(schedule.Id)" Changed="RefreshSchedules" />
                             </Td>
@@ -83,7 +83,7 @@
             @if (_selectedSchedule is { } selectedSchedule)
             {
                 <DrawerTitle ScreenReader="ScreenReader.Only">@selectedSchedule.Name</DrawerTitle>
-                <Schedule Value="@selectedSchedule" Embedded="true" Running="@_startingSchedules.Contains(selectedSchedule.Id)" RunRequested="RunRecurring" />
+                <Schedule Value="@selectedSchedule" DefinitionChanged="RefreshSchedules" Embedded="true" Running="@_startingSchedules.Contains(selectedSchedule.Id)" RunRequested="RunRecurring" />
             }
         </DrawerContent>
     </Drawer>

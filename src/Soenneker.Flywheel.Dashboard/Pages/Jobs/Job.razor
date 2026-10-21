@@ -98,6 +98,10 @@ else
                     }
                 </Grid>
                 <JobTimeline Job="@_job" />
+                @if (_job.WorkflowId is not null || _job.ParentJobId is not null || _job.NextJobId is not null)
+                {
+                    <WorkflowPanel JobId="@_job.Id" @key="_job.Id" />
+                }
             }
         </Grid>
         @if (_error is not null)

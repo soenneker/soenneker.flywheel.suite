@@ -1,0 +1,8 @@
+.definition-editor { display: grid; gap: 1rem; max-width: 48rem; padding: 1rem 0; }
+.definition-editor label { display: grid; gap: .35rem; font-size: .875rem; }
+.definition-editor input, .definition-editor textarea, .definition-editor select { width: 100%; border: 1px solid var(--border); border-radius: .375rem; background: var(--background); color: var(--foreground); padding: .5rem; }
+.definition-editor textarea { font-family: monospace; resize: vertical; }
+.definition-editor .checkbox { display: flex; align-items: center; gap: .5rem; }
+.definition-editor input[type=checkbox] { width: auto; }
+.save-definition { background: var(--primary); color: var(--primary-foreground); padding: .5rem 1rem; border-radius: .375rem; }
+.save-definition:disabled { opacity: .5; }

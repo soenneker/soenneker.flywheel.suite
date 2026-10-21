@@ -178,6 +178,22 @@ Use `client.Chain([job.With(payload, jsonTypeInfo), ...], idempotencyKey: "workf
 
 Each successor waits for predecessor success, including through retries. Final failure or cancellation cancels the remaining steps. Later-step delays begin after predecessor success. Supply every payload upfront; chaining does not automatically pass results between jobs. All built-in providers support chains; custom stores require `IJobChainStore`.
 
+### Conditional continuations and parallel batches
+
+`IJobClient.ContinueWith(parentId, job, payload, condition: ...)` attaches a new execution to a retained job. Conditions are `OnSuccess`, `OnFailure`, `OnCancelled`, and `OnCompleted`. Final outcomes release matching children atomically; retries leave them waiting. Unmatched branches and their descendants are skipped. Submission keys make ambiguous retries safe while retained.
+
+`IJobClient.Batch(steps, continuation: finalStep, condition: ..., idempotencyKey: ...)` atomically saves 1–999 parallel members with an optional final job. Batch completion accepts `OnSuccess` or `OnCompleted`; both wait for all members to finish. Limits and worker capacity still apply to every execution. Siblings continue if another member fails. Workflows support up to 1,000 executions total.
+
+`IJobWorkflowStore.GetWorkflow(jobId)` reads an execution's graph, aggregate outcome, and progress without payloads or lease credentials. Workflow history remains intact until the entire graph is terminal and its retention expires. The dashboard shows the graph from each member's detail view. See the [continuation and batch examples](../README.md#conditional-continuations).
+
+### Definition management
+
+Use `UpdateRecurring` for intervals, `UpdateSchedule` for cron, and `SetRecurringEnabled` / `DeleteRecurring` to control future occurrences. Updates replace the definition, recalculate its next due time, and optionally check `expectedRevision`. Pass `enabled: false` to preserve a pause while updating. Resume skips missed occurrences. Manual definitions support `UpdateManual` and `DeleteManual`. Existing executions keep their payloads, policies, and history. A paused schedule can still be run explicitly.
+
+`IJobDefinitionStore` exposes these capabilities for storage providers. Dashboard definition reads include payloads and require authentication; all edits require antiforgery protection. The recurring editor rejects stale revisions. See the [definition examples](../README.md#manage-saved-definitions).
+
+Upgrade all workers sharing storage before using these APIs. Older workers do not understand workflow dependencies or paused definitions.
+
 ### Manual jobs
 
 Register a reusable definition without a clock or cron expression:

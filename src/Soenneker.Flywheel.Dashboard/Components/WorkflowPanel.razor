@@ -1,0 +1,44 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@inherits LeptonCancellable
+
+<section class="workflow-panel" aria-label="Workflow">
+    <Div Display="Display.Flex" Justify="Justify.Between" ItemsAlign="Items.Center" Gap="Gap.Is3">
+        <H3 TextSize="TextSize.Lg">Workflow</H3>
+        <Button Variant="ButtonVariant.Secondary" OnClick="Refresh" Disabled="@_loading">Refresh workflow</Button>
+    </Div>
+    @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
+    @if (_workflow is { } workflow)
+    {
+        <Paragraph role="status">@workflow.State · @workflow.Completed of @workflow.Total steps finished</Paragraph>
+        <progress max="@workflow.Total" value="@workflow.Completed" aria-label="Finished workflow steps"></progress>
+        <div class="workflow-table">
+            <table>
+                <thead><tr><th scope="col">Step</th><th scope="col">Depends on</th><th scope="col">Condition</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                    @for (int i = 0; i < workflow.Steps.Count; i++)
+                    {
+                        var step = workflow.Steps[i];
+                        <tr class="@(step.Id == JobId ? "current-step" : "")" @key="step.Id">
+                            <td><a href="@JobLink(step.Id)">@(i + 1). @step.Name</a>@if (step.Error is { Length: > 0 }) { <p class="step-error">@step.Error</p> }</td>
+                            <td>
+                                @if (step.PredecessorIds.Length == 0) { <span>Independent</span> }
+                                @foreach (string predecessor in step.PredecessorIds)
+                                {
+                                    <a class="dependency" href="@JobLink(predecessor)">Step @StepNumber(predecessor)</a>
+                                }
+                            </td>
+                            <td>@(step.PredecessorIds.Length == 0 ? "—" : ConditionLabel(step.Condition))</td>
+                            <td>
+                                @if (step.Skipped) { <span>Skipped</span> } else { <JobStatusBadge State="@step.State" /> }
+                                @if (step.State == "Waiting") { <p>Waiting for predecessors</p> }
+                                @if (step.Progress is { } percent) { <span> @percent.ToString("0")%</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (_loading) { <Paragraph>Loading workflow…</Paragraph> }
+</section>

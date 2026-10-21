@@ -48,6 +48,8 @@ public static class FilesystemRegistration
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<ICronJobStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<IJobChainStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
+        builder.Services.AddSingleton<IJobWorkflowStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
+        builder.Services.AddSingleton<IJobDefinitionStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<IMethodPolicyStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<INodeStore>(sp => sp.GetRequiredService<FilesystemJobStore>());
         builder.Services.AddSingleton<IJobLogStore>(sp => sp.GetRequiredService<FilesystemJobStore>());

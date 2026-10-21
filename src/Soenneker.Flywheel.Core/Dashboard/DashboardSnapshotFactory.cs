@@ -12,6 +12,7 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
         job.Policy.MaxAttempts, job.Policy.Timeout.TotalSeconds, job.Policy.Priority.Name, job.Progress, job.ProgressMessage,
         job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt, job.WorkerPool, job.IsSystem)
     {
+        WorkflowId = job.WorkflowId,
         LastOwner = job.LastOwner,
         LastLeaseRenewedAt = job.LastLeaseRenewedAt,
         LastLeaseUntil = job.LastLeaseUntil,
@@ -23,7 +24,7 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
         { Pools = server.Pools, WorkerHistory = server.WorkerHistory, ObservedAt = server.ObservedAt };
 
     public ScheduleView Schedules(IEnumerable<RecurringJobView> recurring, IEnumerable<JobRecord> scheduled) =>
-        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus, s.LastExecutionId, s.IsSystem)).ToList(),
+        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus, s.LastExecutionId, s.IsSystem, s.Enabled, s.Revision)).ToList(),
             scheduled.Select(Job).ToList());
 
     public List<Communication.Responses.JobHistoryPoint> History(IEnumerable<Communication.Responses.JobHistoryPoint> history) =>

@@ -8,7 +8,7 @@ using Soenneker.Flywheel.Core.Options;
 
 namespace Soenneker.Flywheel.Core.Services;
 
-public sealed class JobClient : IJobClient
+public sealed partial class JobClient : IJobClient
 {
     private readonly IJobStore store;
     private readonly FlywheelOptions _options;

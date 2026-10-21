@@ -14,6 +14,7 @@ public static class FlywheelJobsEndpoints
 {
     internal static void Map(RouteGroupBuilder group)
     {
+        FlywheelDefinitionEndpoints.Map(group);
         group.MapGet("/jobs/manual", ListManual)
             .WithName("FlywheelJobs_ListManual").WithTags("Flywheel jobs")
             .WithSummary("Lists up to 200 registered manual jobs and their latest execution status.")

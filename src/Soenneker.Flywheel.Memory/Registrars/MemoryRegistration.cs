@@ -30,6 +30,8 @@ public static class MemoryRegistration
         builder.Services.AddSingleton<IJobChangeFeed>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<ICronJobStore>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<IJobChainStore>(sp => sp.GetRequiredService<MemoryJobStore>());
+        builder.Services.AddSingleton<IJobWorkflowStore>(sp => sp.GetRequiredService<MemoryJobStore>());
+        builder.Services.AddSingleton<IJobDefinitionStore>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<IMethodPolicyStore>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<INodeStore>(sp => sp.GetRequiredService<MemoryJobStore>());
         builder.Services.AddSingleton<IJobLogStore>(sp => sp.GetRequiredService<MemoryJobStore>());

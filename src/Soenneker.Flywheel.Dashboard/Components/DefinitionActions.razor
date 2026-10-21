@@ -1,0 +1,52 @@
+@namespace Soenneker.Flywheel.Dashboard
+@using Soenneker.Quark
+@inherits LeptonCancellable
+
+<Div Space="Space.Y.Is3">
+    <Div Display="Display.Flex" Gap="Gap.Is2" FlexWrap="FlexWrap.Wrap">
+        @if (!Manual)
+        {
+            <Button Variant="ButtonVariant.Secondary" Disabled="@_busy" OnClick="Toggle">@(Enabled ? "Pause schedule" : "Resume schedule")</Button>
+        }
+        <Button Variant="ButtonVariant.Secondary" Disabled="@_busy" OnClick="Edit">Edit definition</Button>
+        <Button Variant="ButtonVariant.Secondary" Disabled="@_busy" OnClick="AskDelete">Delete definition</Button>
+    </Div>
+    @if (_error is not null) { <Alert role="alert"><AlertDescription>@_error</AlertDescription></Alert> }
+    @if (_message is not null) { <Paragraph role="status">@_message</Paragraph> }
+    @if (_confirmDelete)
+    {
+        <Div Space="Space.Y.Is2">
+            <Paragraph>Delete this definition? Existing executions and their logs will remain.</Paragraph>
+            <Button Disabled="@_busy" OnClick="Delete">Confirm deletion</Button>
+            <Button Variant="ButtonVariant.Secondary" Disabled="@_busy" OnClick="Close">Keep definition</Button>
+        </Div>
+    }
+    @if (_editing)
+    {
+        <form class="definition-editor" @onsubmit="Save" @onsubmit:preventDefault>
+            <label>Job name<input @bind="_name" readonly /></label>
+            <label>Payload (JSON)<textarea @bind="_payload" rows="5" required></textarea></label>
+            <label>Execution policy (JSON)<textarea @bind="_policy" rows="6" required></textarea></label>
+            @if (!Manual)
+            {
+                <label>Schedule type<select @bind="_kind"><option value="interval">Interval</option><option value="cron">Cron</option></select></label>
+                @if (_kind == "interval")
+                {
+                    <label>Interval in seconds<input type="number" min="1" step="0.001" @bind="_intervalSeconds" required /></label>
+                }
+                else
+                {
+                    <label>Cron expression<input @bind="_cron" required /></label>
+                    <label>Time zone<input @bind="_timeZone" required /></label>
+                    <label class="checkbox"><input type="checkbox" @bind="_includeSeconds" /> Include seconds field</label>
+                }
+                <label class="checkbox"><input type="checkbox" @bind="_enabled" /> Schedule enabled</label>
+            }
+            <Paragraph>Changes apply to future executions. Existing jobs keep their original payload and policy.</Paragraph>
+            <Div Display="Display.Flex" Gap="Gap.Is2">
+                <button class="save-definition" type="submit" disabled="@_busy">Save changes</button>
+                <Button Variant="ButtonVariant.Secondary" Disabled="@_busy" OnClick="Close">Cancel</Button>
+            </Div>
+        </form>
+    }
+</Div>

@@ -12,7 +12,7 @@ using Soenneker.Flywheel.Core.Services.Abstract;
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJobLeaseDiagnosticsStore, IJobDebounceCoordinator, IVersionedJobStore, IJobChangeFeed, ICronJobStore,
-    IJobChainStore, IJobQueueStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
+    IJobChainStore, IJobWorkflowStore, IJobDefinitionStore, IJobQueueStore, IMethodPolicyStore, INodeStore, IJobLogStore, IJobProgressStore, IServerStore,
     IManualJobStore, IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
 {
@@ -66,7 +66,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _running = new LibrarianTable<string, RunningEntry>("running");
         _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce];
+        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce, _workflows, _dependents, _workflowKeys];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 

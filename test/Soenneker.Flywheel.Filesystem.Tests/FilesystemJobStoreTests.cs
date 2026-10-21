@@ -43,6 +43,40 @@ public sealed class FilesystemJobStoreTests
         return services.BuildServiceProvider();
     }
 
+
+    [Test]
+    public async Task WorkflowDependenciesAndPausedDefinitionsSurviveReopening(CancellationToken ct)
+    {
+        using var files = new Files();
+        string[] ids;
+        string continuation;
+        await using (var provider = Open(files.Path))
+        {
+            var store = provider.GetRequiredService<FilesystemJobStore>();
+            await store.AddRecurring("paused", Request(), TimeSpan.FromMinutes(1), ct);
+            await store.SetRecurringEnabled("paused", false, cancellationToken: ct);
+            var batch = await store.EnqueueBatch([Request("first"), Request("second")], Request("final"), idempotencyKey: "persist", cancellationToken: ct);
+            ids = batch.JobIds.ToArray();
+            continuation = await store.ContinueWith(ids[^1], Request("cleanup"), ContinuationCondition.OnCompleted, cancellationToken: ct);
+            var first = (await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!;
+            await store.Finish(first, JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+        }
+        await using (var provider = Open(files.Path))
+        {
+            var store = provider.GetRequiredService<FilesystemJobStore>();
+            Check(!(await store.ListRecurring(cancellationToken: ct)).Single().Enabled, "Paused flag lost.");
+            Check((await store.EnqueueBatch([Request()], idempotencyKey: "persist", cancellationToken: ct)).JobIds.SequenceEqual(ids), "Batch dedupe lost.");
+            var second = (await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!;
+            Check(second.Job.Id == ids[0] || second.Job.Id == ids[1], "Wrong member recovered.");
+            await store.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+            var final = (await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!;
+            Check(final.Job.Id == ids[^1], "Join did not survive reopening.");
+            await store.Finish(final, JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+            Check((await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!.Job.Id == continuation, "Continuation lost.");
+            Check((await store.GetWorkflow(continuation, ct))!.Total == 4, "Workflow graph lost.");
+        }
+    }
+
     private static EnqueueRequest Request(string name = "job", string? key = null) => new(name, "{}", new JobPolicy(), TimeSpan.Zero, key);
     private static void Check(bool condition, string message)
     {
