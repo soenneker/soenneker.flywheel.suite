@@ -104,7 +104,7 @@ pre code { font-family: inherit; }
 .site-footer .brand { font-size: 17px; }
 .site-footer nav { font-size: 12px; gap: 24px; }
 .docs { max-width: 800px; margin: 54px auto 80px; }
-.docs-nav { display: flex; gap: 24px; font-size: 13px; margin-bottom: 42px; border-bottom: 1px solid var(--line); }
+.docs-nav { display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px; margin-bottom: 42px; border-bottom: 1px solid var(--line); }
 .docs .docs-nav a { padding: 0 0 14px; text-decoration: none; color: var(--muted); }
 .docs .docs-nav [aria-current="page"] { color: var(--ink); border-bottom: 2px solid var(--ink); }
 .docs a:not([data-slot="button"]) { text-decoration: underline; text-underline-offset: 4px; }

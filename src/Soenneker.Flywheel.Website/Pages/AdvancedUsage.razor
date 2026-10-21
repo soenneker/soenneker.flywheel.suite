@@ -1,0 +1,123 @@
+@page "/advanced-usage"
+@attribute [Soenneker.Razor.Sitemap.Sitemap(Url = "https://flywheel.soenneker.com/advanced-usage/")]
+<FlywheelSeoHead Title="Advanced .NET Background Job Usage | Flywheel" Description="Build workflows with chains, conditional continuations, and parallel batches. Manage schedules, worker pools, retries, and execution limits in Flywheel." />
+<article class="docs">
+<nav class="docs-nav" aria-label="Guides"><Anchor Href="/getting-started/">Runner setup</Anchor><Anchor Href="/advanced-usage/" aria-current="page">Advanced usage</Anchor><Anchor Href="/dashboard/">Dashboard setup</Anchor></nav>
+<H1>Advanced usage.</H1>
+<Paragraph>Build on <Anchor Href="/getting-started/">Getting started</Anchor> to coordinate jobs and control how they run. Examples reuse its Message payload, generated FlywheelJobs definition, and IJobClient instance. Submit work before app.RunAsync(), or from an application service.</Paragraph>
+<nav class="docs-nav" aria-label="On this page"><Anchor Href="#chain-jobs">Chains</Anchor><Anchor Href="#continuations-batches">Continuations and batches</Anchor><Anchor Href="#manage-definitions">Definitions</Anchor><Anchor Href="#worker-pools">Worker pools</Anchor><Anchor Href="#queue-controls">Queue controls</Anchor><Anchor Href="#concurrency-rate-limits">Limits</Anchor><Anchor Href="#reliability">Reliability</Anchor></nav>
+<H2 id="chain-jobs">Chain jobs</H2>
+<Paragraph>Using the job from Getting started, submit an ordered workflow before <code>app.RunAsync()</code>:</Paragraph>
+<CodeExample Text="@ChainExample" Label="Submit an ordered job chain" Language="csharp" />
+<Paragraph>Add <code>MessageJsonContext.cs</code> to supply the source-generated JSON metadata required by <code>With(...)</code>:</Paragraph>
+<CodeExample Text="@ChainJsonExample" Label="JSON metadata for chain payloads" Language="csharp" />
+<Paragraph>A chain atomically saves 1–100 steps and returns their job IDs in order. Submission completes when saved; workers execute the jobs afterward. Each step waits for predecessor success. Retries keep successors waiting, while final failure or cancellation cancels the remaining steps. The default is one attempt. Pass <code>policy: new JobPolicy { MaxAttempts = 3 }</code> to <code>With(...)</code> to allow three attempts for that step; <code>JobPolicy</code> is in <code>Soenneker.Flywheel.Communication.Dtos</code>.</Paragraph>
+<Paragraph>A first-step delay starts at submission. Later delays start after predecessor success, so the second step here becomes eligible ten seconds later. Worker, concurrency, and rate limits still apply.</Paragraph>
+<Paragraph>Reuse a stable <code>idempotencyKey</code> when retrying an uncertain submission to get the original IDs while the deduplication record is retained. Use a new key for a new workflow. Individual step idempotency keys are unsupported.</Paragraph>
+<Paragraph>Steps can use different registered jobs and payload types; supply JSON metadata for each type. All payloads are supplied upfront, and results are not automatically passed between steps. All built-in storage providers support chains; custom stores must implement <code>IJobChainStore</code>. Handlers must still be safe to retry.</Paragraph>
+<H2 id="continuations-batches">Conditional continuations and parallel batches</H2>
+<Paragraph>Attach a continuation to an existing retained execution, even after it finishes. Choose OnSuccess, OnFailure after attempts are exhausted, OnCancelled, or OnCompleted for any terminal outcome. Retries keep dependent jobs waiting. Unmatched branches and their descendants are skipped.</Paragraph>
+<CodeExample Text="@ContinuationsExample" Label="Attach a conditional continuation" Language="csharp" />
+<Paragraph>Submit independent batch members atomically, with an optional final step. This example reuses MessageJsonContext above:</Paragraph>
+<CodeExample Text="@BatchExample" Label="Submit a parallel batch with a final step" Language="csharp" />
+<Paragraph>The final step waits for every member to succeed (OnSuccess) or finish regardless of outcome (OnCompleted). Failures do not cancel siblings. Members run in parallel subject to worker capacity and method limits. Batches accept 1–999 members; a workflow supports up to 1,000 jobs including attached continuations. Payloads are supplied upfront.</Paragraph>
+<Paragraph>Open any member's execution details to inspect workflow progress, dependency links, conditions, errors, and job logs. The view refreshes every five seconds. Workflow history is retained until every member finishes and the last member's retention expires. All built-in providers support these features. Upgrade every worker sharing storage before using workflows or definition management.</Paragraph>
+<H2 id="manage-definitions">Manage saved definitions</H2>
+<Paragraph>Pause, edit, resume, or delete saved schedules without deleting existing executions and history. Registration remains create-if-absent; use explicit updates to change future runs.</Paragraph>
+<CodeExample Text="@DefinitionsExample" Label="Manage recurring definitions" Language="csharp" />
+<Paragraph>Resume calculates the next future run without replaying missed occurrences. Run now remains available while paused. Updates optionally accept an expectedRevision to reject stale edits. Use UpdateSchedule for cron definitions and UpdateManual or DeleteManual for manual definitions. The dashboard provides these controls on schedule details and under Manage definition on manual rows.</Paragraph>
+<H2 id="worker-pools">Worker pools</H2>
+<Paragraph>Reserve workers for specific workloads. Named pools share the server's worker budget; default receives the remainder.</Paragraph>
+<CodeExample Text="@PoolsExample" Label="Worker pool configuration" Language="csharp" />
+<Paragraph>This leaves three workers in default. Route a job method to a pool with:</Paragraph>
+<CodeExample Text="@PoolJobExample" Label="Job pool routing" Language="csharp" />
+<Paragraph>Methods without a pool list use default. Each pool needs at least one worker at startup. Servers shows each pool's capacity and active jobs. See the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/blob/main/docs/core.md#worker-pools">pool reference</Anchor> for resizing and limits.</Paragraph>
+<H2 id="queue-controls">Queue controls</H2>
+<Paragraph>Use the dashboard's … menu to move queued work to the top or bottom, or release a delayed execution with Run now. The same controls are available through IJobClient:</Paragraph>
+<CodeExample Text="@QueueExample" Label="Move an execution to the top of the queue" Language="csharp" />
+<Paragraph>Other actions are <code>MoveToBottom</code> and <code>RunNow</code>. Moves affect the next attempt and respect pool, concurrency, and rate limits. See the <Anchor Href="https://github.com/soenneker/soenneker.flywheel.suite/blob/main/docs/core.md#queue-controls">queue API reference</Anchor>.</Paragraph>
+<H2 id="concurrency-rate-limits">Concurrency and rate limits</H2>
+<Paragraph>Declare limits on a job method to protect shared resources. This allows one execution at a time and up to ten starts per minute:</Paragraph>
+<CodeExample Text="@LimitsExample" Label="Limit concurrency and execution starts" Language="csharp" />
+<Paragraph>Workers sharing Redis or PostgreSQL storage coordinate these limits across instances. Pool capacity and method limits both apply.</Paragraph>
+<H2 id="reliability">Retries, idempotency, and retention</H2>
+<Paragraph>Jobs can execute more than once. Make handlers safe to retry, use stable business identifiers to avoid duplicate side effects, and pass cancellation tokens through to async operations. The default is one attempt; a JobPolicy with MaxAttempts = 3 allows three total attempts.</Paragraph>
+<Paragraph>A submission idempotency key prevents duplicate submissions while its deduplication record is retained. It does not make a handler's external side effects exactly-once. Reuse the key when retrying the same uncertain submission, and choose a new key for new work.</Paragraph>
+<Paragraph>Workflow members remain retained while dependencies are unfinished. Once every member finishes, cleanup waits for the last member's history retention to expire. Attach continuations before their predecessor is removed; a missing or expired predecessor is rejected.</Paragraph>
+<Paragraph>Upgrade every worker sharing storage before using workflows or definition management. These features rely on every worker understanding dependency state and paused definitions.</Paragraph>
+</article>
+
+@code {
+    private const string DefinitionsExample = """
+await client.SetRecurringEnabled("hourly-message", false);
+await client.UpdateRecurring("hourly-message", FlywheelJobs.MessageJobs_Write,
+    new Message("Updated message"), TimeSpan.FromMinutes(30), enabled: false);
+await client.SetRecurringEnabled("hourly-message", true);
+await client.DeleteRecurring("hourly-message");
+""";
+
+    private const string ContinuationsExample = """
+using Soenneker.Flywheel.Communication.Enums;
+
+string parentId = await client.Enqueue(FlywheelJobs.MessageJobs_Write, new Message("Prepare"));
+string cleanupId = await client.ContinueWith(parentId, FlywheelJobs.MessageJobs_Write,
+    new Message("Cleanup"), condition: ContinuationCondition.OnCompleted,
+    idempotencyKey: "message-cleanup-123");
+""";
+
+    private const string BatchExample = """
+var batch = await client.Batch([
+    FlywheelJobs.MessageJobs_Write.With(new Message("Process A"), MessageJsonContext.Default.Message),
+    FlywheelJobs.MessageJobs_Write.With(new Message("Process B"), MessageJsonContext.Default.Message)
+], continuation: FlywheelJobs.MessageJobs_Write.With(
+    new Message("Finalize"), MessageJsonContext.Default.Message),
+    condition: ContinuationCondition.OnSuccess,
+    idempotencyKey: "message-batch-123");
+""";
+
+    private const string ChainExample = """
+IReadOnlyList<string> jobIds = await client.Chain([
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("First step"), MessageJsonContext.Default.Message),
+    FlywheelJobs.MessageJobs_Write.With(
+        new Message("Second step"), MessageJsonContext.Default.Message,
+        delay: TimeSpan.FromSeconds(10))
+], idempotencyKey: "message-workflow-123");
+""";
+
+    private const string ChainJsonExample = """
+using System.Text.Json.Serialization;
+
+[JsonSourceGenerationOptions(System.Text.Json.JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(Message))]
+internal partial class MessageJsonContext : JsonSerializerContext;
+""";
+
+    private const string PoolsExample = """
+builder.Services.AddFlywheel(options =>
+{
+    options.Workers = 8;
+    options.Pools["reports"] = 3;
+    options.Pools["imports"] = 2;
+})
+    .AddRedis(options => options.ConnectionString = "localhost:6379")
+    .AddGeneratedJobs();
+""";
+
+    private const string PoolJobExample = """
+[FlywheelJob("message.write.v1", Pools = new[] { "reports" })]
+""";
+
+    private const string QueueExample = """
+using Soenneker.Flywheel.Communication.Enums;
+
+bool moved = await client.UpdateQueue(executionId, JobQueueAction.MoveToTop);
+""";
+
+    private const string LimitsExample = """
+[FlywheelJob("message.write.v1",
+    MaxConcurrency = 1,
+    RateLimit = 10,
+    RateWindowSeconds = 60)]
+""";
+}

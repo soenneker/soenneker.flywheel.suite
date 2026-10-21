@@ -2,7 +2,7 @@
 @attribute [Soenneker.Razor.Sitemap.Sitemap(Url = "https://flywheel.soenneker.com/dashboard/")]
 <FlywheelSeoHead Title="Blazor Background Job Dashboard Setup | Flywheel" Description="Set up the Flywheel Blazor dashboard to search background jobs, inspect attempts and logs, and manage scheduled and recurring work in your .NET application." />
 <article class="docs">
-<nav class="docs-nav" aria-label="Guides"><Anchor Href="/getting-started/">Runner setup</Anchor><Anchor Href="/dashboard/" aria-current="page">Dashboard setup</Anchor></nav>
+<nav class="docs-nav" aria-label="Guides"><Anchor Href="/getting-started/">Runner setup</Anchor><Anchor Href="/advanced-usage/">Advanced usage</Anchor><Anchor Href="/dashboard/" aria-current="page">Dashboard setup</Anchor></nav>
 <H1>Your jobs, in view.</H1>
 <Paragraph>The dashboard is an optional Blazor WebAssembly client. Your browser renders the interface; Flywheel handles API requests and SignalR updates. You can run jobs without the dashboard.</Paragraph>
 <H2>Try the demo</H2>
@@ -14,7 +14,7 @@
 <ThemedScreenshot LightSrc="/images/manual-jobs.png" DarkSrc="/images/manual-jobs-dark.png" Label="Manual Jobs" Alt="Flywheel Manual Jobs page with reusable demo definitions, latest execution status, and Run now actions" Loading="lazy" />
 <H2>Manage work</H2>
 <Paragraph>The … menu offers Top of queue, Bottom of queue, Run now, cancellation, or Run again according to the job's state. On manual and recurring definitions, Run now creates a fresh execution; queue moves target the latest queued execution.</Paragraph>
-<Paragraph>Servers shows capacity and active work per pool. Execution tables show the latest attempt's duration, and server details identify its worker pool. <Anchor Href="/getting-started/#worker-pools">Configure pools</Anchor> to reserve workers for specific workloads.</Paragraph>
+<Paragraph>Servers shows capacity and active work per pool. Execution tables show the latest attempt's duration, and server details identify its worker pool. <Anchor Href="/advanced-usage/#worker-pools">Configure pools</Anchor> to reserve workers for specific workloads.</Paragraph>
 <H2>Add it to your application</H2>
 <Paragraph>Install the package in a Blazor WebAssembly app:</Paragraph>
 <CodeExample Text="@InstallExample" Label="Install the dashboard package command" Language="shell" />
