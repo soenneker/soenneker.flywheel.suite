@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Soenneker.Flywheel.Core.Options;
 using Soenneker.Hashing.Pbkdf2;
 using Soenneker.Flywheel.Communication;
+using System.Threading.RateLimiting;
 
 namespace Soenneker.Flywheel.Core.Registrars;
 
@@ -72,14 +73,16 @@ public static class FlywheelDashboardRegistrar
         builder.Services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = 429;
-            // A global per-node limiter also bounds expensive password hashing with attacker-controlled IPs.
-            o.AddFixedWindowLimiter("FlywheelLogin", x =>
-            {
-                x.PermitLimit = 10;
-                x.Window = TimeSpan.FromMinutes(1);
-                x.QueueLimit = 0;
-            });
+            // Use only the connection address, after the host's trusted forwarded-header middleware.
+            o.AddPolicy("FlywheelLogin", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.MapToIPv6().ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
         });
+        builder.Services.AddSingleton<DashboardLoginLimiter>();
 
         builder.Services.ConfigureHttpJsonOptions(json => FlywheelJsonContext.Configure(json.SerializerOptions));
         builder.Services.AddSignalR().AddJsonProtocol(json =>

@@ -69,10 +69,14 @@ public static class FlywheelAuthenticationEndpoints
     }
 
     /// <summary>Verifies credentials and issues the secure dashboard cookie.</summary>
-    public static async ValueTask<IResult> Login(HttpContext httpContext, [FromServices] DashboardOptions options, [FromBody] LoginRequest request)
+    public static async ValueTask<IResult> Login(HttpContext httpContext, [FromServices] DashboardOptions options,
+        [FromServices] DashboardLoginLimiter limiter, [FromBody] LoginRequest request)
     {
         if (request.Username is null || request.Password is null || request.Username.Length > 128 || request.Password.Length > 1024)
             return TypedResults.Unauthorized();
+        using var lease = limiter.Acquire();
+        if (!lease.IsAcquired)
+            return TypedResults.StatusCode(StatusCodes.Status429TooManyRequests);
         if (!Pbkdf2HashingUtil.Verify(request.Password, options.PasswordPhc) ||
             !string.Equals(request.Username, options.Username, StringComparison.Ordinal))
             return TypedResults.Unauthorized();
