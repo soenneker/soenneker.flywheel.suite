@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
@@ -10,26 +10,21 @@
         <RazorSitemapOutputPath>wwwroot/sitemap.xml</RazorSitemapOutputPath>
         <RazorSitemapIncludeUnannotatedPages>true</RazorSitemapIncludeUnannotatedPages>
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
-        <RazorSitemapDisableAttributeCompile>true</RazorSitemapDisableAttributeCompile>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="4.0.129">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.162" GeneratePathProperty="true">
+        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="4.0.163">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1607" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.123" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="4.0.316" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="5.0.104" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="4.0.301" PrivateAssets="all" />
-    </ItemGroup>
-    <ItemGroup>
-        <!-- Include the package's attribute explicitly because its props registration skips compilation. -->
-        <Compile Include="$(PkgSoenneker_Gen_Razor_Sitemaps)/build/Soenneker.Gen.Razor.Sitemaps.SitemapAttribute.g.cs"
-                 Link="SitemapAttribute.g.cs" Visible="false" />
     </ItemGroup>
 </Project>
