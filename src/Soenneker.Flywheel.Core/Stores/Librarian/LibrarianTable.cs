@@ -31,11 +31,18 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         foreach ((string id, string? value) in _writes) writes.Add(new LibrarianWrite(Name, id, value));
     }
     public bool Touched { get; private set; }
+    private bool _scanned;
+
+    public void AddConditions(List<LibrarianCondition> conditions, string controlContainer, string? tableRevision)
+    {
+        if (_scanned) conditions.Add(new LibrarianCondition(controlContainer, Name, tableRevision));
+        else foreach ((string id, string? raw) in _reads) conditions.Add(new LibrarianCondition(Name, id, raw));
+    }
 
     public IQueryable<LibrarianEntry<TKey, TValue>> Query()
     {
         if (_writes.Count != 0) throw new InvalidOperationException("Queries must precede writes to the queried table.");
-        Touched = true;
+        Touched = true; _scanned = true;
         return _container.BuildQueryable<LibrarianEntry<TKey, TValue>>();
     }
 
@@ -59,7 +66,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         Reset();
     }
 
-    public void Reset() { _writes.Clear(); _reads.Clear(); _ids.Clear(); Touched = false; }
+    public void Reset() { _writes.Clear(); _reads.Clear(); _ids.Clear(); Touched = false; _scanned = false; }
 
     private async ValueTask<string?> Read(string id)
     {
@@ -159,9 +166,28 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         return result;
     }
 
+    public async ValueTask<TValue?> FindFirst(string field, string value)
+    {
+        Touched = true; _scanned = true;
+        string path = "value." + field;
+        await _container.EnsureIndex(path, _token).NoSync();
+        var page = await _container.FindByIndex<LibrarianEntry<TKey, TValue>>(path, value, take: _writes.Count + 1,
+            cancellationToken: _token).NoSync();
+        foreach (var entry in page.Items)
+            if (!_writes.ContainsKey(Id(entry.Key))) return entry.Value;
+        foreach (string? raw in _writes.Values)
+        {
+            if (raw is null) continue;
+            using var json = JsonDocument.Parse(raw);
+            if (json.RootElement.GetProperty("value").TryGetProperty(field, out var element) &&
+                element.ValueKind == JsonValueKind.String && element.GetString() == value) return Decode(raw).Value;
+        }
+        return default;
+    }
+
     public async ValueTask<bool> Any(string field, string value)
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         string path = "value." + field;
         await _container.EnsureIndex(path, _token).NoSync();
         // Staged writes can hide at most this many persisted matches. One extra match proves existence.
@@ -180,7 +206,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
 
     public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> FindEntries(string path, object? value)
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         // Keep indexed reads on the same serialization contract as raw reads and writes.
         var page = await _container.FindByIndex<LibrarianEntry<TKey, TValue>>(path, value, take: int.MaxValue,
@@ -208,7 +234,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     public async ValueTask<List<TKey>> GetKeys() => (await GetAll().NoSync()).Select(p => p.Key).ToList();
     public async ValueTask<List<TValue>> GetValues()
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         var items = await _container.GetAllItems(_token).NoSync();
         var result = new List<TValue>(items.Count + _writes.Count);
         foreach (string raw in items)
@@ -222,7 +248,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     }
     public async ValueTask<List<KeyValuePair<TKey, TValue>>> GetAll()
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         var result = new List<KeyValuePair<TKey, TValue>>();
         var items = await _container.GetAllItems(_token).NoSync();
         result.EnsureCapacity(items.Count + _writes.Count);
@@ -258,7 +284,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TProjection>>> Range<TProjection>(string path, object? minimum = null,
         object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue)
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         // Paged reads cannot include an uncommitted overlay: callers use them before staging writes.
         if (_writes.Count != 0) throw new InvalidOperationException("Range queries must precede writes to the queried table.");
@@ -271,7 +297,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     public async ValueTask<int> CountRange(string path, object? minimum = null, object? maximum = null)
     {
         if (_writes.Count != 0) throw new InvalidOperationException("Range counts must precede writes to the queried table.");
-        Touched = true;
+        Touched = true; _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         return await _container.CountRangeByIndex(path, minimum, maximum, _token).NoSync();
     }
@@ -281,14 +307,14 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     public async ValueTask<int> CountEntries(string path, object? value)
     {
         if (_writes.Count != 0) return (await FindEntries(path, value).NoSync()).Count;
-        Touched = true;
+        Touched = true; _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         return await _container.CountByIndex(path, value, _token).NoSync();
     }
 
     public async ValueTask<int> CountAll()
     {
-        Touched = true;
+        Touched = true; _scanned = true;
         int count = await _container.CountItems(_token).NoSync();
         foreach ((string id, string? value) in _writes)
         {

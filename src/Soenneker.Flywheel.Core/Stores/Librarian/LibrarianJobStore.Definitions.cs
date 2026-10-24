@@ -13,7 +13,7 @@ public abstract partial class LibrarianJobStore
         {
             var s = await _schedules.Get(id);
             return s is null ? null : new(id, new(s.Job.Name, s.Job.Payload, s.Job.Policy, s.Interval,
-                s.Cron, s.TimeZoneId, s.IncludeSeconds, s.Enabled, s.Revision, s.Job.Description));
+                s.Cron, s.TimeZoneId, s.IncludeSeconds, s.Enabled, s.Revision, s.Job.Description, s.CoalesceOccurrences));
         });
     }
 
@@ -36,7 +36,7 @@ public abstract partial class LibrarianJobStore
                 ?? throw new ArgumentException("Cron expression has no future occurrence.");
             await _schedules.Set(id, existing with { Job = job, Interval = update.IntervalMilliseconds, Cron = update.Cron,
                 TimeZoneId = update.TimeZoneId, IncludeSeconds = update.IncludeSeconds, DueAt = next,
-                Enabled = update.Enabled, Revision = existing.Revision + 1 });
+                Enabled = update.Enabled, CoalesceOccurrences = update.CoalesceOccurrences, Revision = existing.Revision + 1 });
             return true;
         });
     }
@@ -53,6 +53,19 @@ public abstract partial class LibrarianJobStore
                 CronParser.Parse(s.Cron, s.TimeZoneId, s.IncludeSeconds).Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
                 ?? throw new ArgumentException("Cron expression has no future occurrence.");
             await _schedules.Set(id, s with { Enabled = enabled, DueAt = next, Revision = s.Revision + 1 });
+            return true;
+        });
+    }
+
+    public Task<bool> SetRecurringCoalescing(string id, bool coalesceOccurrences, long? expectedRevision = null, CancellationToken cancellationToken = default)
+    {
+        ValidateId(id);
+        return Mutate(cancellationToken, async _ =>
+        {
+            var s = await _schedules.Get(id);
+            if (s is null || s.Job.IsSystem || expectedRevision is { } revision && revision != s.Revision) return false;
+            if (s.CoalesceOccurrences == coalesceOccurrences) return true;
+            await _schedules.Set(id, s with { CoalesceOccurrences = coalesceOccurrences, Revision = s.Revision + 1 });
             return true;
         });
     }

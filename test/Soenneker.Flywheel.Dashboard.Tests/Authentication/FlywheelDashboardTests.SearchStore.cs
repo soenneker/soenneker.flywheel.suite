@@ -57,6 +57,6 @@ public sealed partial class FlywheelDashboardTests
         public Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default, string? beforeId = null) => Task.FromResult<IReadOnlyList<JobLogEntry>>([new JobLogEntry("1-0", 1, 1, "Information", "test", "message")]);
         public Task<IReadOnlyList<JobRecord>> List(int offset = 0, int count = 50, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval, CancellationToken cancellationToken = default, bool coalesceOccurrences = false) => throw new NotSupportedException();
     }
 }

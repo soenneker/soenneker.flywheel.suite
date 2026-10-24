@@ -9,6 +9,8 @@ internal interface ILibrarianTable
     int WriteCount { get; }
     void AddWrites(List<LibrarianWrite> writes);
     bool Touched { get; }
+    /// <summary>Validates point reads by document; indexed scans additionally fence against table mutations.</summary>
+    void AddConditions(List<LibrarianCondition> conditions, string controlContainer, string? tableRevision);
     void Bind(ILibrarianContainer container, CancellationToken token);
     void Reset();
 }

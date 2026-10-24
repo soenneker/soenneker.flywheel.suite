@@ -147,7 +147,7 @@ public sealed class WorkflowTests
         try { await store.EnqueueBatch([Request(), Request() with { Payload = "invalid" }], cancellationToken: ct); throw new Exception("Invalid payload accepted."); }
         catch (System.Text.Json.JsonException) { }
         Check((await store.List(cancellationToken: ct)).Count == 0, "Partial batch persisted.");
-        string parent = await store.Enqueue(Request(), ct);
+        string parent = await store.Enqueue(Request() with { Policy = new JobPolicy { MaxStaleRestarts = 0 } }, ct);
         string child = await store.ContinueWith(parent, Request("failure"), ContinuationCondition.OnFailure, cancellationToken: ct);
         await store.Claim("worker", TimeSpan.FromSeconds(1), ct);
         clock.Advance(TimeSpan.FromSeconds(2));

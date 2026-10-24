@@ -284,7 +284,7 @@ public sealed class FilesystemJobStoreTests
         await using (ServiceProvider services = Open(files.Path, clock))
         {
             var store = services.GetRequiredService<FilesystemJobStore>();
-            await store.Enqueue(Request() with { Policy = new JobPolicy { MaxAttempts = 2 } }, cancellationToken: cancellationToken);
+            await store.Enqueue(Request() with { Policy = new JobPolicy { MaxAttempts = 2, Jitter = 0 } }, cancellationToken: cancellationToken);
             lease = (await store.Claim("old", TimeSpan.FromSeconds(1), cancellationToken: cancellationToken))!;
         }
         clock.Advance(TimeSpan.FromSeconds(2));

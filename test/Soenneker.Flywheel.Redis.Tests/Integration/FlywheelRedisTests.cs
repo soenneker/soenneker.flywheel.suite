@@ -576,12 +576,12 @@ public sealed partial class FlywheelRedisTests
         Check(results.Count(x => x) == 1, "Duplicate schedules");
         await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => store.Maintain(100, cancellationToken: cancellationToken)));
         Check((await store.List(cancellationToken: cancellationToken)).Count == 1, "Duplicate occurrence");
-        string id = await store.Enqueue(Request(attempts: 1), cancellationToken: cancellationToken);
+        string id = await store.Enqueue(Request(attempts: 1) with { Policy = new JobPolicy { MaxStaleRestarts = 0 } }, cancellationToken: cancellationToken);
         // Claim both eligible jobs and let both expire.
         await store.Claim("node", TimeSpan.FromMilliseconds(50), cancellationToken: cancellationToken);
         await store.Claim("node", TimeSpan.FromMilliseconds(50), cancellationToken: cancellationToken);
         await Task.Delay(100, cancellationToken: cancellationToken);
         await store.Maintain(100, cancellationToken: cancellationToken);
-        Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Recovery ignored attempt budget");
+        Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Recovery ignored the disabled stale-restart policy");
     }));
 }

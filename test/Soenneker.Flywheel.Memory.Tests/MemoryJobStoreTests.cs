@@ -62,7 +62,7 @@ public sealed class MemoryJobStoreTests
         DateTimeOffset start = clock.GetUtcNow();
         for (int i = 0; i < 12; i++)
         {
-            await store.Enqueue(Request("invoice", policy: new JobPolicy { MaxAttempts = 1 }), cancellationToken: cancellationToken);
+            await store.Enqueue(Request("invoice", policy: new JobPolicy { MaxAttempts = 1, MaxStaleRestarts = 0 }), cancellationToken: cancellationToken);
             JobLease lease = (await store.Claim("node", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
             await store.Finish(lease, i % 2 == 0 ? JobOutcome.Failed : JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken);
             clock.Advance(TimeSpan.FromSeconds(1));
@@ -103,7 +103,7 @@ public sealed class MemoryJobStoreTests
     public async ValueTask StartupVersionRestrictionSurvivesRetries(CancellationToken cancellationToken)
     {
         var store = new MemoryJobStore(new FlywheelMemoryOptions());
-        string id = await store.EnqueueForCurrentInstance(Request("startup", policy: new JobPolicy { MaxAttempts = 2 }), "v2", "current", cancellationToken: cancellationToken);
+        string id = await store.EnqueueForCurrentInstance(Request("startup", policy: new JobPolicy { MaxAttempts = 2, Jitter = 0 }), "v2", "current", cancellationToken: cancellationToken);
         JobLease first = (await store.ClaimForVersion("current", TimeSpan.FromMinutes(1), "v2", cancellationToken: cancellationToken))!;
         await store.Finish(first, JobOutcome.Failed, "transient", TimeSpan.Zero, cancellationToken: cancellationToken);
         Check(await store.ClaimForVersion("old", TimeSpan.FromMinutes(1), "v1", cancellationToken: cancellationToken) is null, "Old worker claimed the retry.");
@@ -164,7 +164,7 @@ public sealed class MemoryJobStoreTests
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
-        string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 2 }), cancellationToken: cancellationToken);
+        string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 2, Jitter = 0 }), cancellationToken: cancellationToken);
         JobLease first = (await store.Claim("first", TimeSpan.FromSeconds(1), cancellationToken: cancellationToken))!;
         clock.Advance(TimeSpan.FromSeconds(1));
         Check(await store.Renew(first, TimeSpan.FromMinutes(1), cancellationToken: cancellationToken) == LeaseStatus.Lost, "Expired renewal accepted.");
@@ -210,7 +210,7 @@ public sealed class MemoryJobStoreTests
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
-        EnqueueRequest[] steps = new[] { Request("first"), Request("second", TimeSpan.FromSeconds(2), policy: new JobPolicy { MaxAttempts = 1 }), Request("third") };
+        EnqueueRequest[] steps = new[] { Request("first"), Request("second", TimeSpan.FromSeconds(2), policy: new JobPolicy { MaxAttempts = 1, MaxStaleRestarts = 0 }), Request("third") };
         IReadOnlyList<string> ids = await store.EnqueueChain(steps, "chain", cancellationToken: cancellationToken);
         Check((await store.EnqueueChain(steps, "chain", cancellationToken: cancellationToken)).SequenceEqual(ids), "Chain deduplication failed.");
         JobLease first = (await store.Claim("node", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
@@ -240,7 +240,7 @@ public sealed class MemoryJobStoreTests
     {
         var clock = new Clock();
         var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
-        string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 2 }), cancellationToken: cancellationToken);
+        string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 2, Jitter = 0 }), cancellationToken: cancellationToken);
         JobLease first = (await store.Claim("node", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
         await store.Finish(first, JobOutcome.Failed, "retry", TimeSpan.FromSeconds(2), cancellationToken: cancellationToken);
         Check(await store.Claim("node", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken) is null, "Retry delay ignored.");
@@ -251,11 +251,11 @@ public sealed class MemoryJobStoreTests
         await store.Finish(second, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken);
         Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.Cancelled, "Success overrode cancellation.");
         Check(!await store.Cancel(id, cancellationToken: cancellationToken), "Terminal job cancelled twice.");
-        id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 1 }), cancellationToken: cancellationToken);
+        id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 1, MaxStaleRestarts = 0 }), cancellationToken: cancellationToken);
         await store.Claim("node", TimeSpan.FromSeconds(1), cancellationToken: cancellationToken);
         clock.Advance(TimeSpan.FromSeconds(1));
         await store.Maintain(100, cancellationToken: cancellationToken);
-        Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Lease recovery ignored attempt limit.");
+        Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Lease recovery ignored the disabled stale-restart policy.");
     }
 
     [Test]

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
@@ -87,7 +86,7 @@ public sealed class ResilienceTests
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]
-    public async ValueTask IgnoredCancellationQuarantinesWithoutRetryAndKeepsScopeAlive(bool throwingCallback, bool policyTimeout, CancellationToken cancellationToken)
+    public async ValueTask IgnoredCancellationRetainsOwnershipAndScopeUntilHandlerExits(bool throwingCallback, bool policyTimeout, CancellationToken cancellationToken)
     {
         await using var store = new MemoryJobStore(new FlywheelMemoryOptions());
         var resource = new ScopedResource();
@@ -95,7 +94,6 @@ public sealed class ResilienceTests
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stop = new CancellationTokenSource();
-        var lifetime = new Lifetime();
         var invoker = new Invoker(async (sp, ct) =>
         {
             _ = sp.GetRequiredService<ScopedResource>();
@@ -104,27 +102,36 @@ public sealed class ResilienceTests
             await release.Task;
         });
         var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [invoker],
-            new FlywheelOptions { CancellationGracePeriod = TimeSpan.FromMilliseconds(50) }, NullLogger<JobExecutor>.Instance, lifetime: lifetime);
+            new FlywheelOptions { LeaseDuration = TimeSpan.FromSeconds(3), CancellationGracePeriod = TimeSpan.FromMilliseconds(50) }, NullLogger<JobExecutor>.Instance);
+        await store.ConfigureMethod("test", new MethodPolicy { MaxConcurrency = 1 }, cancellationToken);
         string id = await store.Enqueue(Request(policy: new JobPolicy { MaxAttempts = 3,
-            Timeout = policyTimeout ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromMinutes(1) }), cancellationToken: cancellationToken);
+            Timeout = policyTimeout ? TimeSpan.FromMilliseconds(200) : TimeSpan.FromMinutes(1) }), cancellationToken);
         Task running = executor.RunOnce(stop.Token);
         try
         {
-            await started.Task.WaitAsync(Limit, cancellationToken: cancellationToken);
+            await started.Task.WaitAsync(Limit, cancellationToken);
             if (!policyTimeout) await stop.CancelAsync();
-            try { await running.WaitAsync(Limit, cancellationToken: cancellationToken); throw new Exception("Unresponsive execution was accepted."); }
-            catch (JobExecutionUnresponsiveException) { }
-            Check(lifetime.Stopped && !resource.Disposed.Task.IsCompleted, "Host was not stopped or active handler scope was disposed.");
-            Check((await store.Get(id, cancellationToken: cancellationToken))!.State == JobState.DeadLettered, "Unresponsive execution was not quarantined.");
-            await store.Maintain(100, cancellationToken: cancellationToken);
-            Check(await store.Claim("other", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken) is null, "Quarantine allowed an automatic duplicate.");
-            try { await executor.RunOnce(cancellationToken); throw new Exception("Unhealthy executor resumed claiming."); }
-            catch (JobExecutionUnresponsiveException) { }
+            // Cross the original lease deadline: a healthy renewer must retain ownership even after the cancellation grace.
+            await Task.Delay(TimeSpan.FromMilliseconds(3200), cancellationToken);
+            JobRecord active = (await store.Get(id, cancellationToken))!;
+            Check(active.State == JobState.Running && active.LastLeaseRenewedAt > 0 && !running.IsCompleted,
+                "Live user code was exposed as a terminal/re-runnable execution or stopped renewing.");
+            Check(!resource.Disposed.Task.IsCompleted, "Live handler scope was disposed.");
+            string next = await store.Enqueue(Request(), cancellationToken);
+            await store.Maintain(100, cancellationToken);
+            Check(await store.Claim("other", TimeSpan.FromMinutes(1), cancellationToken) is null,
+                "Unresponsive handler released its distributed concurrency slot.");
+            release.TrySetResult();
+            await running.WaitAsync(Limit, cancellationToken);
+            Check((await store.Get(id, cancellationToken))!.State == JobState.DeadLettered, "Unresponsive handler retried after exiting.");
+            await resource.Disposed.Task.WaitAsync(Limit, cancellationToken);
+            Check((await store.Claim("other", TimeSpan.FromMinutes(1), cancellationToken))?.Job.Id == next,
+                "Concurrency was not released after the handler exited.");
         }
         finally
         {
             release.TrySetResult();
-            await resource.Disposed.Task.WaitAsync(Limit);
+            await running.WaitAsync(Limit, cancellationToken);
         }
     }
 
@@ -137,13 +144,5 @@ public sealed class ResilienceTests
     {
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public void Dispose() => Disposed.TrySetResult();
-    }
-    private sealed class Lifetime : IHostApplicationLifetime
-    {
-        public bool Stopped;
-        public CancellationToken ApplicationStarted => default;
-        public CancellationToken ApplicationStopping => default;
-        public CancellationToken ApplicationStopped => default;
-        public void StopApplication() => Stopped = true;
     }
 }

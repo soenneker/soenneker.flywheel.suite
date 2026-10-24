@@ -65,7 +65,7 @@ public abstract partial class LibrarianJobStore
     }
 
     public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool coalesceOccurrences = false)
     {
         ValidateId(id);
         if (request.IdempotencyKey is not null || interval < TimeSpan.FromSeconds(1))
@@ -74,13 +74,13 @@ public abstract partial class LibrarianJobStore
         JobRecord job = Create(request);
         return Mutate(cancellationToken, async now =>
         {
-            if (!await _schedules.TryAdd(id, new Schedule(job, milliseconds, now)).NoSync()) return false;
+            if (!await _schedules.TryAdd(id, new Schedule(job, milliseconds, now, CoalesceOccurrences: coalesceOccurrences)).NoSync()) return false;
             return true;
         });
     }
 
     public Task<bool> AddCron(string id, EnqueueRequest request, string expression, string timeZoneId = "UTC",
-        bool includeSeconds = false, CancellationToken cancellationToken = default)
+        bool includeSeconds = false, CancellationToken cancellationToken = default, bool coalesceOccurrences = false)
     {
         ValidateId(id);
         if (request.IdempotencyKey is not null || request.Delay != TimeSpan.Zero)
@@ -92,14 +92,20 @@ public abstract partial class LibrarianJobStore
             if ((await _schedules.ContainsKey(id))) return false;
             long? next = cron.Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds()
                 ?? throw new ArgumentException("Cron expression has no future occurrence.", nameof(expression));
-            await _schedules.Set(id, new Schedule(job, 0, next, expression, timeZoneId, includeSeconds)).NoSync();
+            await _schedules.Set(id, new Schedule(job, 0, next, expression, timeZoneId, includeSeconds, CoalesceOccurrences: coalesceOccurrences)).NoSync();
             return true;
         });
     }
 
-    private async Task<string> Occurrence(string id, Schedule schedule, long now)
+    private async Task<string> Occurrence(string id, Schedule schedule, long now, long? scheduledFor = null)
     {
-        string executionId = await Insert(schedule.Job with { Id = Guid.NewGuid().ToString("N"), ScheduleId = id }, 0, now);
+        if (schedule.CoalesceOccurrences && await _scheduleExecutions.FindFirst("scheduleId", id) is { } outstanding)
+        {
+            await _schedules.Set(id, schedule with { CoalescedOccurrences = checked(schedule.CoalescedOccurrences + 1) }).NoSync();
+            return outstanding.JobId;
+        }
+        string executionId = await Insert(schedule.Job with { Id = Guid.NewGuid().ToString(), ScheduleId = id,
+            ScheduledFor = scheduledFor ?? now }, 0, now);
         await _schedules.Set(id, schedule with { LastExecutionId = executionId, LastExecutionStatus = null }).NoSync();
         return executionId;
     }
@@ -131,7 +137,7 @@ public abstract partial class LibrarianJobStore
                 RecurringJobSummary? execution = s.LastExecutionId is null ? null : executions[executionIndex++];
                 string? status = execution is null ? s.LastExecutionStatus : execution.DisplayState(now);
                 result[i] = new RecurringJobView(pair.Key, s.Job.Name, s.Interval, s.DueAt, s.Cron,
-                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId, s.Job.IsSystem, s.Enabled, s.Revision);
+                    s.TimeZoneId, s.IncludeSeconds, status, s.LastExecutionId, s.Job.IsSystem, s.Enabled, s.Revision, s.CoalesceOccurrences, s.CoalescedOccurrences);
             }
             return result;
         });
@@ -165,10 +171,9 @@ public abstract partial class LibrarianJobStore
                 if (job.State != JobState.Running || job.LeaseUntil != lease.Value.LeaseUntil)
                     throw new InvalidDataException("Running metadata does not match its job.");
                 JobState state = job.CancelRequested ? JobState.Cancelled :
-                    job.Attempt >= job.Policy.MaxAttempts ? JobState.DeadLettered : JobState.Scheduled;
-                long delay = (long)Math.Min(job.Policy.MaxBackoff.TotalMilliseconds,
-                    job.Policy.InitialBackoff.TotalMilliseconds * Math.Pow(2, Math.Min(job.Attempt - 1, 30)));
-                JobRecord recovered = job with { State = state, Token = null, Owner = null, LeaseUntil = 0,
+                    job.StaleRestartCount >= job.Policy.MaxStaleRestarts ? JobState.DeadLettered : JobState.Scheduled;
+                long delay = (long)job.Policy.RetryDelay(job.StaleRestartCount + 1, Random.Shared.NextDouble()).TotalMilliseconds;
+                JobRecord recovered = job with { StaleRestartCount = job.StaleRestartCount + (state == JobState.Scheduled ? 1 : 0), State = state, Token = null, Owner = null, LeaseUntil = 0,
                     LastOwner = job.Owner, LastLeaseUntil = job.LeaseUntil,
                     LeaseLossReason = job.LeaseLossReason ?? "The lease deadline passed without a successful renewal. The worker did not record a cause; check its host logs for shutdown, restart, or storage failures.",
                     Version = job.Version + 1, Error = "Lease expired", DueAt = state == JobState.Scheduled ? now + delay : job.DueAt };
@@ -185,7 +190,7 @@ public abstract partial class LibrarianJobStore
                 long? next = s.Cron is null ? due + ((now - due) / s.Interval + 1) * s.Interval :
                     CronParser.Parse(s.Cron, s.TimeZoneId, s.IncludeSeconds)
                         .Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds();
-                await Occurrence(pair.Key, s with { DueAt = next }, now);
+                await Occurrence(pair.Key, s with { DueAt = next }, now, due);
             }
             int candidateCount = expiredJobs.Count;
             expiredJobs = await RetainWorkflowMembers(expiredJobs, now);

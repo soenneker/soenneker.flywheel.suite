@@ -23,7 +23,7 @@ public abstract partial class LibrarianJobStore
 
     protected virtual ValueTask BeforeOperation(CancellationToken token) => ValueTask.CompletedTask;
 
-    private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action)
+    private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action, bool publishChanges = true)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         bool started = false;
@@ -38,8 +38,9 @@ public abstract partial class LibrarianJobStore
                         deadline.CancelAfter(_operationTimeout);
                         started = true;
                     }
-                    (bool committed, T result) = await TryMutate(deadline.Token, action).NoSync();
+                    (bool committed, T result) = await TryMutate(deadline.Token, action, publishChanges).NoSync();
                     if (committed) return result;
+                    FlywheelStorageMetrics.Conflicts.Add(1);
                 }
                 if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
                 // Release the shared table state and gate so renewals can progress; retries share the operation deadline.
@@ -48,11 +49,12 @@ public abstract partial class LibrarianJobStore
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
+            FlywheelStorageMetrics.Timeouts.Add(1);
             throw new TimeoutException("Flywheel storage exceeded its operation deadline.", ex);
         }
     }
 
-    private async Task<(bool Committed, T Result)> TryMutate<T>(CancellationToken ct, Func<long, Task<T>> action)
+    private async Task<(bool Committed, T Result)> TryMutate<T>(CancellationToken ct, Func<long, Task<T>> action, bool publishChanges = true)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await BeforeOperation(ct).NoSync();
@@ -84,7 +86,7 @@ public abstract partial class LibrarianJobStore
             {
                 ILibrarianTable table = _tables[i];
                 table.AddWrites(writes);
-                if (table.Touched) conditions.Add(new LibrarianCondition(Control, table.Name, controlValues[i + 2]));
+                table.AddConditions(conditions, Control, controlValues[i + 2]);
             }
             conditions.Add(new LibrarianCondition(Control, "format", format));
             if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
@@ -100,7 +102,9 @@ public abstract partial class LibrarianJobStore
                 string next = Guid.NewGuid().ToString("N");
                 foreach (ILibrarianTable table in _tables)
                     if (table.WriteCount != 0) writes.Add(new LibrarianWrite(Control, table.Name, next));
-                JobChange[] changes = Changes(writes);
+                // Renewals update authoritative ownership without serializing on the shared notification feed.
+                // They cannot make queued work eligible; dashboards read current lease details on demand.
+                JobChange[] changes = publishChanges ? Changes(writes) : [];
                 if (changes.Length != 0)
                 {
                     string? previous = await control.GetItem("feed", ct).NoSync();
@@ -108,7 +112,7 @@ public abstract partial class LibrarianJobStore
                     writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
                     conditions.Add(new LibrarianCondition(Control, "feed", previous));
                 }
-                if (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0)
+                if (publishChanges && (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0))
                     writes.Add(new LibrarianWrite(Control, "revision", next));
             }
             // Even read-only results validate the revision: multiple reads are one optimistic snapshot.

@@ -13,6 +13,10 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
         job.ProgressUpdatedAt, job.Description, job.StartedAt, job.CompletedAt, job.WorkerPool, job.IsSystem)
     {
         WorkflowId = job.WorkflowId,
+        FailureCount = job.FailureCount,
+        StaleRestartCount = job.StaleRestartCount,
+        MaxStaleRestarts = job.Policy.MaxStaleRestarts,
+        ScheduledFor = job.ScheduledFor,
         LastOwner = job.LastOwner,
         LastLeaseRenewedAt = job.LastLeaseRenewedAt,
         LastLeaseUntil = job.LastLeaseUntil,
@@ -24,7 +28,7 @@ public sealed class DashboardSnapshotFactory : IDashboardSnapshotFactory
         { Pools = server.Pools, WorkerHistory = server.WorkerHistory, ObservedAt = server.ObservedAt };
 
     public ScheduleView Schedules(IEnumerable<RecurringJobView> recurring, IEnumerable<JobRecord> scheduled) =>
-        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus, s.LastExecutionId, s.IsSystem, s.Enabled, s.Revision)).ToList(),
+        new(recurring.Select(s => new RecurringScheduleView(s.Id, s.Name, s.Interval, s.DueAt, s.Cron, s.TimeZoneId, s.IncludeSeconds, s.LastExecutionStatus, s.LastExecutionId, s.IsSystem, s.Enabled, s.Revision, s.CoalesceOccurrences, s.CoalescedOccurrences)).ToList(),
             scheduled.Select(Job).ToList());
 
     public List<Communication.Responses.JobHistoryPoint> History(IEnumerable<Communication.Responses.JobHistoryPoint> history) =>

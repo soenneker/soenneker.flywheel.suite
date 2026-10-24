@@ -51,13 +51,14 @@ public interface IJobClient
 
     /// <summary>Registers a fixed-interval recurring job, leaving an existing schedule unchanged.</summary>
     Task<bool> Recurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval, JobPolicy? policy = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, bool coalesceOccurrences = false);
 
     /// <summary>Registers a cron schedule in the specified time zone (UTC by default). Existing schedule IDs are unchanged.
-    /// Use five fields, or six with includeSeconds. Missed occurrences coalesce; separate occurrences may overlap.
+    /// Use five fields, or six with includeSeconds. Missed occurrences coalesce; separate occurrences may overlap unless coalesceOccurrences is enabled.
+    /// When enabled, scheduled and manual runs reuse the outstanding occurrence until it reaches a terminal state.
     /// </summary>
     Task<bool> Schedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
-        JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default);
+        JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default, bool coalesceOccurrences = false);
 
     /// <summary>Atomically saves 1–100 typed steps and returns IDs in order. Each step waits for predecessor success.
     /// Retries keep successors waiting; final failure or cancellation cancels them. Reuse a chain key to retry submission safely.</summary>
@@ -80,15 +81,19 @@ public interface IJobClient
     /// <summary>Replaces an existing interval definition. Recalculates its next run; existing executions and history are unchanged.
     /// Returns false if missing or the optional editor revision changed. Pass enabled=false to keep it paused.</summary>
     Task<bool> UpdateRecurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval, JobPolicy? policy = null,
-        bool enabled = true, long? expectedRevision = null, CancellationToken cancellationToken = default) =>
+        bool enabled = true, long? expectedRevision = null, CancellationToken cancellationToken = default, bool coalesceOccurrences = false) =>
         throw new NotSupportedException("This client does not support definition updates.");
     /// <summary>Replaces an existing cron definition and recalculates its next run. Returns false if missing or the optional revision changed.</summary>
     Task<bool> UpdateSchedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
         JobPolicy? policy = null, bool includeSeconds = false, bool enabled = true, long? expectedRevision = null,
-        CancellationToken cancellationToken = default) => throw new NotSupportedException("This client does not support definition updates.");
+        CancellationToken cancellationToken = default, bool coalesceOccurrences = false) => throw new NotSupportedException("This client does not support definition updates.");
     /// <summary>Pauses or resumes future recurring occurrences without cancelling active work. Resume does not catch up missed runs.</summary>
     Task<bool> SetRecurringEnabled(string id, bool enabled, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This client does not support definition updates.");
+    /// <summary>Changes recurring overlap handling without changing the next run, payload, or paused state.
+    /// Returns false when the definition is missing or system-owned. True coalesces pending, running and retrying occurrences across hosts.</summary>
+    Task<bool> SetRecurringCoalescing(string id, bool coalesceOccurrences, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support recurring coalescing.");
     /// <summary>Deletes a recurring definition while preserving all existing executions.</summary>
     Task<bool> DeleteRecurring(string id, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This client does not support definition updates.");

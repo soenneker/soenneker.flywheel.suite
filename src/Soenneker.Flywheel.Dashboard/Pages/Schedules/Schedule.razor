@@ -59,6 +59,14 @@
                 <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Next execution</Span>
                 @if (!schedule.Enabled) { <Span>Paused</Span> } else { <JobTimestamp StartsAt="true" Value="@(schedule.DueAt ?? 0)" ShowAbsolute="true" /> }
             </Div>
+            <Div Space="Space.Y.Is2">
+                <Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Overlapping runs</Span>
+                <Span>@(schedule.CoalesceOccurrences ? "Reuse unfinished execution" : "Create each execution")</Span>
+                @if (schedule.CoalescedOccurrences > 0)
+                {
+                    <Span Display="Display.Block" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">@schedule.CoalescedOccurrences runs combined</Span>
+                }
+            </Div>
         </Grid>
     }
     else if (!Embedded && _schedules is null)

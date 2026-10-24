@@ -34,25 +34,27 @@ public sealed partial class JobClient
     }
 
     public Task<bool> UpdateRecurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval, JobPolicy? policy = null,
-        bool enabled = true, long? expectedRevision = null, CancellationToken cancellationToken = default)
+        bool enabled = true, long? expectedRevision = null, CancellationToken cancellationToken = default, bool coalesceOccurrences = false)
     {
         var request = Request(job, payload, policy, TimeSpan.Zero, null);
         return Definitions.UpdateRecurring(id, new(request.Name, request.Payload, request.Policy, (long)interval.TotalMilliseconds,
-            Enabled: enabled, ExpectedRevision: expectedRevision, Description: request.Description), cancellationToken);
+            Enabled: enabled, ExpectedRevision: expectedRevision, Description: request.Description, CoalesceOccurrences: coalesceOccurrences), cancellationToken);
     }
 
     public Task<bool> UpdateSchedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
         JobPolicy? policy = null, bool includeSeconds = false, bool enabled = true, long? expectedRevision = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool coalesceOccurrences = false)
     {
         var request = Request(job, payload, policy, TimeSpan.Zero, null);
         return Definitions.UpdateRecurring(id, new(request.Name, request.Payload, request.Policy, Cron: expression,
             TimeZoneId: timeZoneId, IncludeSeconds: includeSeconds, Enabled: enabled,
-            ExpectedRevision: expectedRevision, Description: request.Description), cancellationToken);
+            ExpectedRevision: expectedRevision, Description: request.Description, CoalesceOccurrences: coalesceOccurrences), cancellationToken);
     }
 
     public Task<bool> SetRecurringEnabled(string id, bool enabled, CancellationToken cancellationToken = default) =>
         Definitions.SetRecurringEnabled(id, enabled, cancellationToken: cancellationToken);
+    public Task<bool> SetRecurringCoalescing(string id, bool coalesceOccurrences, CancellationToken cancellationToken = default) =>
+        Definitions.SetRecurringCoalescing(id, coalesceOccurrences, cancellationToken: cancellationToken);
     public Task<bool> DeleteRecurring(string id, CancellationToken cancellationToken = default) =>
         Definitions.DeleteRecurring(id, cancellationToken: cancellationToken);
     public Task<bool> UpdateManual<T>(string id, JobDefinition<T> job, T payload, JobPolicy? policy = null, CancellationToken cancellationToken = default) =>

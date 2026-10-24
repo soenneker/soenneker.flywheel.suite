@@ -21,7 +21,8 @@ public interface IWorkerJobStore
     /// Durable cancellation takes precedence. Returns false if ownership has expired or changed.</summary>
     Task<bool> Interrupt(JobLease lease, string error, CancellationToken cancellationToken = default);
 
-    /// <summary>Dead-letters a handler that failed to stop after cancellation, regardless of retry policy,
-    /// invalidating its lease and preventing automatic retries. Returns false if ownership has changed.</summary>
+    /// <summary>Dead-letters a handler that exceeded its cancellation grace period, regardless of retry policy.
+    /// Call only after the handler has exited: invalidating its lease permits manual reruns and releases concurrency.
+    /// Returns false if ownership has changed.</summary>
     Task<bool> Quarantine(JobLease lease, string error, CancellationToken cancellationToken = default);
 }

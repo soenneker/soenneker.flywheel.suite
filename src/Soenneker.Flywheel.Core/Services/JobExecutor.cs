@@ -3,7 +3,6 @@ using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Soenneker.Flywheel.Core.Services.Abstract;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Soenneker.Flywheel.Core.Logging;
 using Soenneker.Flywheel.Communication.Dtos;
@@ -13,12 +12,11 @@ namespace Soenneker.Flywheel.Core.Services;
 
 public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IEnumerable<IJobInvoker> invokers,
     FlywheelOptions options, ILogger<JobExecutor> logger, JobLogCapture? logCapture = null, IJobLogStore? logStore = null,
-    JobProgress? progress = null, IHostApplicationLifetime? lifetime = null) : IJobExecutor
+    JobProgress? progress = null) : IJobExecutor
 {
     private readonly Dictionary<string, IJobInvoker> _invokers = invokers.ToDictionary(x => x.Name, StringComparer.Ordinal);
     private readonly JobProgress _progress = progress ?? new JobProgress(store);
     private IReadOnlySet<string>? _jobNames;
-    private int _unhealthy;
 
     public Task<bool> RunOnce(CancellationToken cancellationToken) => RunOnceCore("default", null, cancellationToken, cancellationToken);
     public Task<bool> RunOnce(Action onClaimed, CancellationToken cancellationToken) => RunOnceCore("default", onClaimed, cancellationToken, cancellationToken);
@@ -30,7 +28,6 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
 
     private async Task<bool> RunOnceCore(string pool, Action? onClaimed, CancellationToken claimingToken, CancellationToken executionToken)
     {
-        if (Volatile.Read(ref _unhealthy) != 0) throw new JobExecutionUnresponsiveException("previous execution");
         if (store is not IWorkerJobStore workerStore)
             throw new NotSupportedException("Flywheel workers require IWorkerJobStore for handler eligibility and interrupted execution recovery.");
         if (_invokers.Count == 0) return false;
@@ -84,10 +81,14 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
                 catch (TimeoutException) when (!invocation.IsCompleted)
                 {
                     unresponsive = true;
-                    Interlocked.Exchange(ref _unhealthy, 1);
-                    error = $"Handler did not stop within {options.CancellationGracePeriod} of cancellation; execution quarantined, host restart required.";
+                    error = $"Handler did not stop within {options.CancellationGracePeriod} of cancellation; execution remains owned until the handler exits.";
                     outcome = Communication.Enums.JobOutcome.Failed;
-                    logger.LogCritical("Job {JobId} ignored cancellation; stopping this worker host", lease.Job.Id);
+                    logger.LogCritical("Job {JobId} ignored cancellation; retaining its lease, worker slot and scope until the handler exits", lease.Job.Id);
+                    logSession?.Write("Critical", "Flywheel", error);
+                    // A terminal state would enable Run again and release distributed concurrency while user code is still live.
+                    // Renewal continues during this wait; host shutdown remains bounded by HostOptions.ShutdownTimeout.
+                    try { await invocation; }
+                    catch (Exception ex) { logger.LogWarning(ex, "Unresponsive job {JobId} eventually exited", lease.Job.Id); }
                 }
             }
             else await invocation;
@@ -114,40 +115,22 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
             await renewal.CancelAsync();
             await renewTask;
             await cancellationRegistration.DisposeAsync();
-            if (unresponsive) _ = ObserveAbandonedInvocation();
-            else execution.Dispose();
+            execution.Dispose();
         }
-        try
+        if (Volatile.Read(ref lost) == 0)
         {
-            if (Volatile.Read(ref lost) == 0)
-            {
-                if (Volatile.Read(ref cancelled) != 0) outcome = Communication.Enums.JobOutcome.Cancelled;
-                using var commit = new CancellationTokenSource(options.LeaseDuration / 3);
-                bool committed = unresponsive ? await workerStore.Quarantine(lease, error!, commit.Token)
-                    : interrupted ? await workerStore.Interrupt(lease, error!, commit.Token)
-                    : await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.Attempt, Random.Shared.NextDouble()), commit.Token);
-                if (!committed) logger.LogWarning("Job {JobId} outcome was rejected because its lease is no longer owned", lease.Job.Id);
-            }
-        }
-        finally
-        {
-            if (unresponsive)
-            {
-                lifetime?.StopApplication();
-                throw new JobExecutionUnresponsiveException(lease.Job.Id);
-            }
+            if (Volatile.Read(ref cancelled) != 0) outcome = Communication.Enums.JobOutcome.Cancelled;
+            using var commit = new CancellationTokenSource(options.LeaseDuration / 3);
+            bool committed = unresponsive ? await workerStore.Quarantine(lease, error!, commit.Token)
+                : interrupted ? await workerStore.Interrupt(lease, error!, commit.Token)
+                : await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.FailureCount + 1, Random.Shared.NextDouble()), commit.Token);
+            if (!committed) logger.LogWarning("Job {JobId} outcome was rejected because its lease is no longer owned", lease.Job.Id);
         }
 
         async Task CancelExecution()
         {
             try { await execution.CancelAsync(); }
             catch (Exception ex) { logger.LogWarning(ex, "Job {JobId} cancellation callback failed", lease.Job.Id); }
-        }
-        async Task ObserveAbandonedInvocation()
-        {
-            try { await invocation; }
-            catch (Exception ex) { logger.LogWarning(ex, "Quarantined job {JobId} eventually exited", lease.Job.Id); }
-            finally { execution.Dispose(); }
         }
         async Task Renew()
         {

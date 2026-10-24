@@ -147,13 +147,6 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
                 if (worker.Retiring.Read() != 0) break;
                 try { if (await executor.RunOnce(worker.Pool.Name, worker.Pool.Pulse, token, _executionStop.Token)) worker.Pool.Pulse(); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
-                catch (JobExecutionUnresponsiveException ex)
-                {
-                    logger.LogCritical(ex, "Worker pool stopped because a handler ignored cancellation");
-                    await Drain();
-                    await CancelExecutions();
-                    break;
-                }
                 catch (Exception ex) { logger.LogError(ex, "Worker storage failure"); }
             }
         }

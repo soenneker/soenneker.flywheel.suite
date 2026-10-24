@@ -116,7 +116,7 @@ public sealed partial class FlywheelRedisTests
     [Test]
     public ValueTask ChainRecoveryRejectsExpiredSuccessAndCancelsAfterFinalAttempt(CancellationToken cancellationToken) => new ValueTask(WithStore(async store =>
     {
-        IReadOnlyList<string> ids = await store.EnqueueChain([Request(attempts: 1), Request()], cancellationToken: cancellationToken);
+        IReadOnlyList<string> ids = await store.EnqueueChain([Request(attempts: 1) with { Policy = new JobPolicy { MaxStaleRestarts = 0 } }, Request()], cancellationToken: cancellationToken);
         JobLease lease = (await store.Claim("crashed", TimeSpan.FromMilliseconds(80), cancellationToken: cancellationToken))!;
         await Task.Delay(150, cancellationToken: cancellationToken);
         Check(!await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken: cancellationToken), "Expired owner released successor");

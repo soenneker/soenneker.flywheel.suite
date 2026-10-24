@@ -25,6 +25,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     private readonly LibrarianTable<string, Rate> _rates;
     private readonly LibrarianTable<string, DispatchCandidate> _dispatch;
     private readonly LibrarianTable<string, RunningEntry> _running;
+    private readonly LibrarianTable<string, OutstandingScheduleExecution> _scheduleExecutions;
     private readonly LibrarianTable<string, long> _partitionTurns;
     private readonly LibrarianTable<string, string> _chainMembership;
     private readonly TimeProvider _time;
@@ -64,9 +65,10 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _idle = new LibrarianTable<string, IdleSample>("idle");
         _dispatch = new LibrarianTable<string, DispatchCandidate>("dispatch");
         _running = new LibrarianTable<string, RunningEntry>("running");
+        _scheduleExecutions = new("scheduleExecutions");
         _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _partitionTurns, _chainMembership, _debounce, _workflows, _dependents, _workflowKeys];
+        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _scheduleExecutions, _partitionTurns, _chainMembership, _debounce, _workflows, _dependents, _workflowKeys];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 
@@ -124,6 +126,11 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             else if (Terminal(job.State) && !await _dispatch.Any("partitionId", partitionId) &&
                      !await _running.Any("partitionId", partitionId))
                 await _partitionTurns.Remove(partitionId).NoSync();
+        }
+        if (job.ScheduleId is { } scheduleId)
+        {
+            if (Terminal(job.State)) await _scheduleExecutions.Remove(job.Id).NoSync();
+            else await _scheduleExecutions.Set(job.Id, new(job.Id, scheduleId)).NoSync();
         }
         if (transition) await RecordTransition(job.State, now);
     }
@@ -312,7 +319,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             if (job is null) return LeaseStatus.Lost;
             await Save(job with { LeaseUntil = now + milliseconds, LastLeaseUntil = now + milliseconds, LastLeaseRenewedAt = now }, now, job);
             return job.CancelRequested ? LeaseStatus.CancellationRequested : LeaseStatus.Renewed;
-        });
+        }, publishChanges: false);
     }
 
     public Task<bool> Finish(JobLease lease, JobOutcome outcome, string? error, TimeSpan retryDelay,
@@ -326,8 +333,8 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             if (job is null) return false;
             JobState state = job.CancelRequested || outcome == JobOutcome.Cancelled ? JobState.Cancelled :
                 outcome == JobOutcome.Succeeded ? JobState.Succeeded :
-                job.Attempt >= job.Policy.MaxAttempts ? JobState.DeadLettered : JobState.Scheduled;
-            JobRecord finished = job with { State = state, Token = null, Owner = null, LeaseUntil = 0,
+                job.FailureCount + 1 >= job.Policy.MaxAttempts ? JobState.DeadLettered : JobState.Scheduled;
+            JobRecord finished = job with { FailureCount = job.FailureCount + (outcome == JobOutcome.Failed ? 1 : 0), State = state, Token = null, Owner = null, LeaseUntil = 0,
                 Version = job.Version + 1, Error = error is null ? "" : error[..Math.Min(error.Length, 1024)],
                 Progress = outcome == JobOutcome.Succeeded && job.Progress is not null ? 100 : job.Progress,
                 DueAt = state == JobState.Scheduled ? now + (long)retryDelay.TotalMilliseconds : job.DueAt };

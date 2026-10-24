@@ -63,7 +63,7 @@ else
                 </Div>
                 @if (_job is not null)
                 {
-                    <Span TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">@(_job.MaxAttempts is { } max ? $"Attempt {_job.Attempt} of {max}" : $"Attempt {_job.Attempt}")</Span>
+                    <Span TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">Attempt @_job.Attempt</Span>
                 }
             </Div>
             @if (_job is not null)
@@ -74,6 +74,18 @@ else
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Duration</Span><JobDuration Job="@_job" /></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Updated</Span><JobTimestamp Value="@_job.UpdatedAt" ShowAbsolute="true" /></Div>
                     <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Timeout per attempt</Span><Span Display="Display.Block">@(_job.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds).ToString("g") : "Unavailable")</Span></Div>
+                    @if (_job.FailureCount > 0)
+                    {
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Failed attempts</Span><Span>@_job.FailureCount / @_job.MaxAttempts</Span></Div>
+                    }
+                    @if (_job.StaleRestartCount > 0)
+                    {
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Crash recoveries</Span><Span>@_job.StaleRestartCount / @_job.MaxStaleRestarts</Span></Div>
+                    }
+                    @if (_job.ScheduledFor is { } scheduledFor)
+                    {
+                        <Div><Span Display="Display.Block" TextSize="TextSize.Xs" TextColor="TextColor.MutedForeground">Scheduled for</Span><JobTimestamp Value="@scheduledFor" ShowAbsolute="true" /></Div>
+                    }
                     @if (_job.State == "Running")
                     {
                         <Div MinWidth="MinWidth.Is0">

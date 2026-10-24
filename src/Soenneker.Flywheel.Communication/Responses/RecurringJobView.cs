@@ -14,4 +14,4 @@ public sealed record RecurringJobView(
     [property: JsonPropertyName("lastExecutionStatus")] string? LastExecutionStatus = null,
     [property: JsonPropertyName("lastExecutionId")] string? LastExecutionId = null,
     [property: JsonPropertyName("isSystem")] bool IsSystem = false,
-    bool Enabled = true, long Revision = 0);
+    bool Enabled = true, long Revision = 0, bool CoalesceOccurrences = false, long CoalescedOccurrences = 0);

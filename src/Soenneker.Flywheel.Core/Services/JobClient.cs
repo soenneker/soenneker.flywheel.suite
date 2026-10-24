@@ -125,17 +125,17 @@ public sealed partial class JobClient : IJobClient
             throw new NotSupportedException("The job store does not support manual jobs.");
 
     public Task<bool> Recurring<T>(string id, JobDefinition<T> job, T payload, TimeSpan interval,
-        JobPolicy? policy = null, CancellationToken cancellationToken = default) => store.AddRecurring(id,
-        Request(job, payload, policy, TimeSpan.Zero, null), interval, cancellationToken);
+        JobPolicy? policy = null, CancellationToken cancellationToken = default, bool coalesceOccurrences = false) => store.AddRecurring(id,
+        Request(job, payload, policy, TimeSpan.Zero, null), interval, cancellationToken, coalesceOccurrences);
 
     public Task<bool> Schedule<T>(string id, JobDefinition<T> job, T payload, string expression, string timeZoneId = "UTC",
-        JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default)
+        JobPolicy? policy = null, bool includeSeconds = false, CancellationToken cancellationToken = default, bool coalesceOccurrences = false)
     {
         EnqueueRequest request = Request(job, payload, policy, TimeSpan.Zero, null);
         _ = CronParser.Parse(expression, timeZoneId, includeSeconds);
         if (store is not ICronJobStore schedules)
             throw new NotSupportedException("The job store does not support cron schedules.");
-        return schedules.AddCron(id, request, expression, timeZoneId, includeSeconds, cancellationToken);
+        return schedules.AddCron(id, request, expression, timeZoneId, includeSeconds, cancellationToken, coalesceOccurrences);
     }
 
     public Task<IReadOnlyList<string>> Chain(IReadOnlyList<JobStep> steps, string? idempotencyKey = null,

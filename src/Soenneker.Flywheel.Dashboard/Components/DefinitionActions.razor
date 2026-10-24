@@ -41,6 +41,8 @@
                     <label class="checkbox"><input type="checkbox" @bind="_includeSeconds" /> Include seconds field</label>
                 }
                 <label class="checkbox"><input type="checkbox" @bind="_enabled" /> Schedule enabled</label>
+                <label class="checkbox"><input type="checkbox" @bind="_coalesceOccurrences" /> Keep only one unfinished execution</label>
+                <Paragraph TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">When enabled, scheduled and manual runs reuse the unfinished execution, including while it waits to retry.</Paragraph>
             }
             <Paragraph>Changes apply to future executions. Existing jobs keep their original payload and policy.</Paragraph>
             <Div Display="Display.Flex" Gap="Gap.Is2">

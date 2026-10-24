@@ -19,8 +19,8 @@ public sealed class FlywheelOptions
     public bool IsolateApplicationVersion { get; set; }
     /// <summary>Time allowed for running handlers to finish before shutdown requests their cancellation.</summary>
     public TimeSpan ShutdownGracePeriod { get; set; } = TimeSpan.FromSeconds(10);
-    /// <summary>Time allowed to observe cancellation before an execution is quarantined and the host is stopped.
-    /// Managed code cannot be forcibly interrupted; a quarantined execution is never automatically retried.</summary>
+    /// <summary>Time allowed to observe cancellation before a critical diagnostic is emitted.
+    /// Unresponsive handlers retain their lease, worker slot and scope until they exit; they are then dead-lettered without retry.</summary>
     public TimeSpan CancellationGracePeriod { get; set; } = TimeSpan.FromSeconds(5);
     /// <summary>Maximum time spent in one storage attempt, excluding its final atomic commit. Null uses
     /// one sixth of LeaseDuration. Must be less than the renewal interval so reads yield to lease renewal.</summary>

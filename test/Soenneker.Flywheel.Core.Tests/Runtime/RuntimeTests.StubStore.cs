@@ -53,7 +53,7 @@ public sealed partial class RuntimeTests
         public Task<JobRecord?> Get(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<JobRecord>> List(int offset = 0, int count = 50, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval, CancellationToken cancellationToken = default, bool coalesceOccurrences = false) => throw new NotSupportedException();
         public IAsyncEnumerable<JobChange> Watch(CancellationToken cancellationToken = default) => _changes.Reader.ReadAllAsync(cancellationToken);
         public void Notify() => _changes.Writer.TryWrite(new JobChange("Job", "one"));
     }

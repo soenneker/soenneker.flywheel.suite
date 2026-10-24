@@ -15,6 +15,11 @@ public sealed class FlywheelTests
             catch (ArgumentOutOfRangeException) { }
         }
         new MethodPolicy().Validate();
+        foreach (int limit in new[] { -1, 1001 })
+        {
+            try { new JobPolicy { MaxStaleRestarts = limit }.Validate(); throw new Exception("Invalid stale-recovery budget accepted"); }
+            catch (ArgumentOutOfRangeException) { }
+        }
         foreach (JobPriority priority in new[] { Soenneker.Flywheel.Communication.Enums.JobPriority.Low, Soenneker.Flywheel.Communication.Enums.JobPriority.Normal,
                      Soenneker.Flywheel.Communication.Enums.JobPriority.High, Soenneker.Flywheel.Communication.Enums.JobPriority.Critical })
         {

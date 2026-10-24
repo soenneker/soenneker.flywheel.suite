@@ -54,6 +54,14 @@ public sealed record JobView(
     [property: JsonPropertyName("workerPool")] string? WorkerPool = null,
     [property: JsonPropertyName("isSystem")] bool IsSystem = false)
 {
+    /// <summary>Completed handler failures charged to MaxAttempts.</summary>
+    public int FailureCount { get; init; }
+    /// <summary>Automatic stale restarts granted to this job.</summary>
+    public int StaleRestartCount { get; init; }
+    /// <summary>Maximum automatic stale restarts, independent of the handler failure budget.</summary>
+    public int MaxStaleRestarts { get; init; }
+    /// <summary>Original recurring occurrence time in UTC Unix milliseconds, if applicable.</summary>
+    public long? ScheduledFor { get; init; }
     /// <summary>Workflow containing this execution, if any.</summary>
     public string? WorkflowId { get; init; }
 

@@ -15,6 +15,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 [JsonSerializable(typeof(IdleSample))]
 [JsonSerializable(typeof(JobHistoryPoint))]
 [JsonSerializable(typeof(JobRecord))]
+[JsonSerializable(typeof(LibrarianEntry<string, OutstandingScheduleExecution>))]
 [JsonSerializable(typeof(LibrarianEntry<VersionKey, string>))]
 [JsonSerializable(typeof(LibrarianEntry<long, JobHistoryPoint>))]
 [JsonSerializable(typeof(LibrarianEntry<long, Sample>))]

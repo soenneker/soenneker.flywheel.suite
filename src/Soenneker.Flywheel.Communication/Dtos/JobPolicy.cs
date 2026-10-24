@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Soenneker.Flywheel.Communication.Dtos;
 
-/// <summary>Persisted execution policy; attempt limits include recovered executions.</summary>
+/// <summary>Persisted execution policy. Handler failures and stale recoveries have independent budgets.</summary>
 public sealed record JobPolicy
 {
     /// <summary>Optional case-sensitive partition within the job method (for example a tenant ID), up to 200 characters.
@@ -14,9 +14,14 @@ public sealed record JobPolicy
     [JsonPropertyName("priority")]
     public Enums.JobPriority Priority { get; init; } = Enums.JobPriority.Normal;
 
-    /// <summary>Maximum execution attempts, including attempts recovered after a lost lease. Defaults to one (no retries).</summary>
+    /// <summary>Maximum failed handler attempts before dead-lettering. Stale recovery and graceful interruption do not consume this budget. Defaults to one (no failure retries).</summary>
     [JsonPropertyName("maxAttempts")]
     public int MaxAttempts { get; init; } = 1;
+    /// <summary>Maximum automatic restarts after lease expiry, independently of MaxAttempts. Zero disables stale restarts.
+    /// Recovery can repeat external side effects; handlers must be idempotent.</summary>
+    [JsonPropertyName("maxStaleRestarts")]
+    public int MaxStaleRestarts { get; init; } = 3;
+
     /// <summary>Maximum duration of one execution attempt.</summary>
     [JsonPropertyName("timeout")]
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
@@ -35,7 +40,7 @@ public sealed record JobPolicy
     public void Validate()
     {
         if (PartitionKey is not null && (string.IsNullOrWhiteSpace(PartitionKey) || PartitionKey.Length > 200) ||
-            !Enums.JobPriority.IsDefined(Priority.Value) || MaxAttempts is < 1 or > 1000 || Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromDays(1) ||
+            !Enums.JobPriority.IsDefined(Priority.Value) || MaxAttempts is < 1 or > 1000 || MaxStaleRestarts is < 0 or > 1000 || Timeout <= TimeSpan.Zero || Timeout > TimeSpan.FromDays(1) ||
             InitialBackoff <= TimeSpan.Zero || MaxBackoff < InitialBackoff || MaxBackoff > TimeSpan.FromDays(30) ||
             !double.IsFinite(Jitter) || Jitter is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(JobPolicy));

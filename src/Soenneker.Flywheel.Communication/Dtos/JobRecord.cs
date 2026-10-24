@@ -44,6 +44,15 @@ public sealed record JobRecord
     /// <summary>Execution attempt number.</summary>
     [JsonPropertyName("attempt")]
     public int Attempt { get; init; }
+    /// <summary>Number of completed failed handler attempts; independent of stale recovery.</summary>
+    [JsonPropertyName("failureCount")]
+    public int FailureCount { get; init; }
+    /// <summary>Number of automatic restarts granted after lease expiry.</summary>
+    [JsonPropertyName("staleRestartCount")]
+    public int StaleRestartCount { get; init; }
+    /// <summary>Original recurring occurrence time in UTC Unix milliseconds, retained across retries.</summary>
+    [JsonPropertyName("scheduledFor")]
+    public long? ScheduledFor { get; init; }
     /// <summary>Fencing version identifying the current lease generation.</summary>
     [JsonPropertyName("version")]
     public long Version { get; init; }

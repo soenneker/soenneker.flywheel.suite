@@ -10,6 +10,11 @@ using Soenneker.Flywheel.Core.Services;
 using Soenneker.Flywheel.Redis;
 using StackExchange.Redis;
 
+if (Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_MODE") == "contention")
+{
+    await Soenneker.Flywheel.Redis.Performance.RedisContentionBenchmark.Run();
+    return;
+}
 if (Environment.GetEnvironmentVariable("FLYWHEEL_BENCHMARK_MODE") == "memory")
 {
     await MemoryInteropBenchmark.Run();

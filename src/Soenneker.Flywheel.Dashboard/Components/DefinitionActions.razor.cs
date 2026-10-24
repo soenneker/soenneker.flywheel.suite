@@ -25,7 +25,7 @@ public partial class DefinitionActions
     [Inject] private DashboardSessionState Session { get; set; } = null!;
     private string? _error, _message, _loadedId, _description;
     private string _name = "", _payload = "{}", _policy = "{}", _kind = "interval", _cron = "", _timeZone = "UTC";
-    private bool _busy, _editing, _confirmDelete, _includeSeconds, _enabled;
+    private bool _busy, _editing, _confirmDelete, _includeSeconds, _enabled, _coalesceOccurrences;
     private double _intervalSeconds;
     private long? _revision;
 
@@ -66,6 +66,7 @@ public partial class DefinitionActions
                 _includeSeconds = definition.IncludeSeconds;
                 _intervalSeconds = definition.IntervalMilliseconds / 1000d;
                 _enabled = definition.Enabled;
+                _coalesceOccurrences = definition.CoalesceOccurrences;
                 _revision = definition.ExpectedRevision;
             }
             _name = request.Name; _payload = request.Payload; _description = request.Description;
@@ -90,7 +91,7 @@ public partial class DefinitionActions
             if (Manual) await Execute(() => Consumer.UpdateManual(Id, new(_name, _payload, policy, TimeSpan.Zero, Description: _description), CancellationToken), "Definition updated.");
             else await Execute(() => Consumer.UpdateSchedule(Id, new(_name, _payload, policy,
                 _kind == "interval" ? checked((long)(_intervalSeconds * 1000)) : 0,
-                _kind == "cron" ? _cron : null, _timeZone, _includeSeconds, _enabled, _revision, _description), CancellationToken), "Schedule updated.");
+                _kind == "cron" ? _cron : null, _timeZone, _includeSeconds, _enabled, _revision, _description, _coalesceOccurrences), CancellationToken), "Schedule updated.");
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or OverflowException)
         { _error = "Check the JSON, execution policy, and interval. Nothing was saved."; }

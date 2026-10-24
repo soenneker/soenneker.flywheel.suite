@@ -65,7 +65,11 @@ public sealed partial class FlywheelDashboardTests
         Check((await consumer.UpdateSchedule("schedule", definition, ct)).StatusCode == 409, "Stale edit accepted.");
         definition = (await consumer.GetScheduleDefinition("schedule", ct)).Value!.Definition;
         Check((await consumer.UpdateSchedule("schedule", definition with { IntervalMilliseconds = 0, Cron = "invalid" }, ct)).StatusCode == 400, "Invalid cron accepted.");
-        Check((await consumer.UpdateSchedule("schedule", definition with { IntervalMilliseconds = 2000 }, ct)).Succeeded, "Valid edit rejected.");
+        Check((await consumer.UpdateSchedule("schedule", definition with { IntervalMilliseconds = 2000, CoalesceOccurrences = true,
+            Policy = definition.Policy with { MaxStaleRestarts = 2 } }, ct)).Succeeded, "Valid edit rejected.");
+        var saved = (await consumer.GetScheduleDefinition("schedule", ct)).Value!.Definition;
+        Check(saved.CoalesceOccurrences && saved.Policy.MaxStaleRestarts == 2, "Reliability settings did not round-trip through the API.");
+        Check((await consumer.GetSchedules(ct)).Value!.Recurring.Single().CoalesceOccurrences, "Schedule view lost its overlap policy.");
         var workflow = (await consumer.GetWorkflow(batch.JobIds[0], ct)).Value!;
         Check(workflow.Total == 2 && workflow.Completed == 0 && workflow.Steps[1].PredecessorIds.Single() == batch.JobIds[0], "Workflow graph incorrect.");
 

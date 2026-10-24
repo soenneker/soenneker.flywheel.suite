@@ -40,8 +40,9 @@ public interface IJobStore
     Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Creates a fixed-interval UTC schedule if absent; missed ticks coalesce into one occurrence.</summary>
+    /// <summary>Creates a fixed-interval UTC schedule if absent; missed ticks coalesce into one occurrence.
+    /// With coalesceOccurrences, scheduled and manual runs reuse an unfinished occurrence across all hosts.</summary>
     Task<bool> AddRecurring(string id, EnqueueRequest request, TimeSpan interval,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, bool coalesceOccurrences = false);
 }
 

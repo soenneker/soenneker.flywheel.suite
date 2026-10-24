@@ -12,6 +12,10 @@ public interface IJobDefinitionStore
     /// <summary>Pauses or resumes future occurrences. Resume starts a new interval or selects the next cron time, without catch-up.
     /// Returns false if missing, system-owned, or the optional revision changed. Running jobs are unaffected.</summary>
     Task<bool> SetRecurringEnabled(string id, bool enabled, long? expectedRevision = null, CancellationToken cancellationToken = default);
+    /// <summary>Changes whether unfinished occurrences are coalesced across hosts without moving the next run or changing its enabled state.
+    /// Returns false if missing, system-owned, or the optional revision changed. Existing outstanding executions are preserved.</summary>
+    Task<bool> SetRecurringCoalescing(string id, bool coalesceOccurrences, long? expectedRevision = null, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This store does not support recurring coalescing.");
     /// <summary>Deletes a recurring definition while preserving executions. Returns false if missing, system-owned, or the optional revision changed.</summary>
     Task<bool> DeleteRecurring(string id, long? expectedRevision = null, CancellationToken cancellationToken = default);
     /// <summary>Reads a manual definition, including its payload, or null when missing.</summary>
