@@ -126,7 +126,10 @@ public sealed class WorkerService(IJobExecutor executor, IJobStore store, Flywhe
             available[i].Retiring.Write(1);
             available[i].Wake.Cancel();
         }
-        for (int i = available.Length; i < desired; i++)
+        // Retiring workers still own execution slots until their handlers return.
+        // Count them both against this pool and against the host's total budget.
+        int occupied = _workers.Count(x => x.Pool == pool);
+        for (int i = occupied; i < desired && _workers.Count < WorkerCount; i++)
         {
             var worker = new WorkerState(pool, _stoppingToken);
             _workers.Add(worker);

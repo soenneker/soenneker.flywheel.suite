@@ -28,6 +28,8 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     private readonly LibrarianTable<string, OutstandingScheduleExecution> _scheduleExecutions;
     private readonly LibrarianTable<string, long> _partitionTurns;
     private readonly LibrarianTable<string, string> _chainMembership;
+    private readonly LibrarianTable<string, long> _instanceChecks;
+    private static readonly TimeSpan InstanceGracePeriod = TimeSpan.FromMinutes(5);
     private readonly TimeProvider _time;
     private readonly bool _retainCompletedJobs;
 
@@ -68,7 +70,9 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _scheduleExecutions = new("scheduleExecutions");
         _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
         _chainMembership = new LibrarianTable<string, string>("chainMembership");
+        _instanceChecks = new LibrarianTable<string, long>("instanceChecks");
         _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _scheduleExecutions, _partitionTurns, _chainMembership, _debounce, _workflows, _dependents, _workflowKeys];
+        _tables = [.. _tables, _instanceChecks];
         _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
     }
 
@@ -113,6 +117,12 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             job = job with { QueueRank = await _metadata.Get("queueBack") };
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
         await _jobs.Set(job.Id, job).NoSync();
+        if (job.TargetNodeId is not null)
+        {
+            if (Terminal(job.State)) await _instanceChecks.Remove(job.Id).NoSync();
+            else if (previous is null || Terminal(previous.State))
+                await _instanceChecks.Set(job.Id, now + (long)InstanceGracePeriod.TotalMilliseconds).NoSync();
+        }
         if (job.State == JobState.Scheduled)
             await _dispatch.Set(job.Id, new DispatchCandidate(job.Id, job.Name, job.ApplicationVersion, job.Policy.Priority.Value, job.DueAt, job.TargetNodeId, PartitionId(job), job.QueueRank)).NoSync();
         else await _dispatch.Remove(job.Id).NoSync();

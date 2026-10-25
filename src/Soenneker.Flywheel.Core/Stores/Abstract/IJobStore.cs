@@ -36,7 +36,8 @@ public interface IJobStore
 
     /// <summary>Searches all retained jobs by literal, ordinal case-insensitive substring of name, id, state or owner.
     /// Trims the query (maximum 200 characters); empty queries match all jobs. Pages place running jobs first, then order newest first within each group, and are live views.
-    /// Payloads and errors are not searched. Offset applies to matches, not the underlying job list.</summary>
+    /// Payloads and errors are not searched. Offset applies to matches, not the underlying job list.
+    /// Librarian-backed stores bound search offsets to 10000 and pages to 200 records.</summary>
     Task<JobSearchResult> Search(string? query, int offset = 0, int count = 50,
         CancellationToken cancellationToken = default);
 

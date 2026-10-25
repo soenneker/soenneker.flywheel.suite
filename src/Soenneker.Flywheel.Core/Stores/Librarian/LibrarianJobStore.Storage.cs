@@ -175,8 +175,8 @@ public abstract partial class LibrarianJobStore
         using (await _gate.Lock().NoSync())
         {
             if (_disposed) return;
-            _disposed = true;
             if (_ownsDatabase) await _database.DisposeAsync().NoSync();
+            _disposed = true;
         }
     }
 }

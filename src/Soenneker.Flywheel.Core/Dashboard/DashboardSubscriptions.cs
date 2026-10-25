@@ -27,7 +27,7 @@ public sealed partial class DashboardSubscriptions(
     public async Task Subscribe(string connectionId, string kind, int version, string? query, int offset, int count,
         bool summary, string? jobId, CancellationToken disconnected, DateTimeOffset? startAt = null, DateTimeOffset? endAt = null, string? excludedStates = null)
     {
-        if (!DashboardJobSearch.IsValid(excludedStates) || version < 0 || offset < 0 || count is < 1 or > 200 || query?.Length > 200 || jobId?.Length > 200 ||
+        if (!DashboardJobSearch.IsValid(excludedStates) || version < 0 || offset is < 0 or > 10000 || count is < 1 or > 200 || query?.Length > 200 || jobId?.Length > 200 ||
             startAt.HasValue != endAt.HasValue || startAt >= endAt)
             throw new HubException("Invalid subscription.");
         if (kind != "Board" && string.IsNullOrWhiteSpace(jobId))

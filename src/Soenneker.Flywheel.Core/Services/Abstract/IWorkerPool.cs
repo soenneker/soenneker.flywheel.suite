@@ -12,10 +12,11 @@ public interface IWorkerPool
     IReadOnlyList<WorkerPoolCapacity> Pools => [new("default", WorkerCount)];
 
     /// <summary>Changes one configured pool's capacity without affecting other pools. Zero pauses admission.
-    /// Removed workers finish their current job before retiring. With named pools, the sum cannot exceed the configured worker budget.</summary>
+    /// Removed workers finish their current job before retiring and continue occupying execution capacity until they exit.
+    /// With named pools, the sum cannot exceed the configured worker budget.</summary>
     ValueTask SetPoolWorkerCount(string pool, int count, CancellationToken cancellationToken = default) =>
         pool == "default" ? SetWorkerCount(count, cancellationToken) : throw new NotSupportedException("Named pools are not supported.");
 
-    /// <summary>Changes the worker count when exactly one pool is configured. Added workers start immediately; removed workers finish their current job before retiring.</summary>
+    /// <summary>Changes the worker count when exactly one pool is configured. Added workers wait for retiring executions to release capacity; removed workers finish their current job before retiring.</summary>
     ValueTask SetWorkerCount(int count, CancellationToken cancellationToken = default);
 }

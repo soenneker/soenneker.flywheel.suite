@@ -11,6 +11,9 @@ using Soenneker.Flywheel.Core.Options;
 using Soenneker.Hashing.Pbkdf2;
 using Soenneker.Flywheel.Communication;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 
 namespace Soenneker.Flywheel.Core.Registrars;
 
@@ -25,13 +28,16 @@ public static class FlywheelDashboardRegistrar
     {
         var options = new DashboardOptions();
         configure(options);
+        options.UsesIndividualAccounts = options.Accounts.Count != 0;
         options.EnginePath = DashboardPaths.Normalize(options.EnginePath);
-        if (string.IsNullOrWhiteSpace(options.Username) || options.Username.Length > 128 ||
-            string.IsNullOrWhiteSpace(options.PasswordPhc))
+        if (options.Accounts.Count == 0 && options.AuthenticationSchemes.Length == 0 && (string.IsNullOrWhiteSpace(options.Username) || options.Username.Length > 128 ||
+            string.IsNullOrWhiteSpace(options.PasswordPhc)))
             throw new InvalidOperationException(
                 "Configure Flywheel dashboard Username and PasswordPhc using a secret provider.");
 
-        if (!Pbkdf2HashingUtil.IsValidPhc(options.PasswordPhc))
+        if (options.Accounts.Count == 0 && (options.AuthenticationSchemes.Length == 0 || !string.IsNullOrWhiteSpace(options.PasswordPhc)) && !Pbkdf2HashingUtil.IsValidPhc(options.PasswordPhc) ||
+            options.Accounts.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Key.Length > 128 ||
+                !Pbkdf2HashingUtil.IsValidPhc(pair.Value.PasswordPhc)))
             throw new InvalidOperationException("Invalid dashboard password PHC string.");
 
         builder.Services.AddSingleton(options);
@@ -57,6 +63,12 @@ public static class FlywheelDashboardRegistrar
             o.Cookie.SameSite = SameSiteMode.Strict;
             o.ExpireTimeSpan = TimeSpan.FromHours(8);
             o.SlidingExpiration = false;
+            o.Events.OnValidatePrincipal = async context =>
+            {
+                if (DashboardIdentity.Valid(options, context.Principal)) return;
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync(Scheme);
+            };
             o.Events.OnRedirectToLogin = c =>
             {
                 c.Response.StatusCode = 401;
@@ -69,7 +81,9 @@ public static class FlywheelDashboardRegistrar
             };
         });
         builder.Services.AddAuthorization(o =>
-            o.AddPolicy(Policy, p => p.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()));
+            o.AddPolicy(Policy, p => p.AddAuthenticationSchemes([Scheme, .. options.AuthenticationSchemes])
+                .RequireAuthenticatedUser().RequireRole("Flywheel.Reader", "Flywheel.Operator")
+                .RequireAssertion(context => !string.IsNullOrWhiteSpace(context.User.Identity?.Name))));
         builder.Services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = 429;
@@ -85,7 +99,8 @@ public static class FlywheelDashboardRegistrar
         builder.Services.AddSingleton<DashboardLoginLimiter>();
 
         builder.Services.ConfigureHttpJsonOptions(json => FlywheelJsonContext.Configure(json.SerializerOptions));
-        builder.Services.AddSignalR().AddJsonProtocol(json =>
+        builder.Services.AddSingleton<DashboardSessionFilter>();
+        builder.Services.AddSignalR().AddHubOptions<FlywheelHub>(o => o.AddFilter<DashboardSessionFilter>()).AddJsonProtocol(json =>
             FlywheelJsonContext.Configure(json.PayloadSerializerOptions));
         builder.Services.AddSingleton<DashboardSubscriptions>();
         builder.Services.AddSingleton<IDashboardSnapshotFactory, DashboardSnapshotFactory>();
@@ -108,6 +123,15 @@ public static class FlywheelDashboardRegistrar
             http.Response.Headers.Pragma = "no-cache";
             if (HttpMethods.IsPost(http.Request.Method))
             {
+                bool credentials = http.Request.Path == $"{dashboard.EnginePath.TrimEnd('/')}/login" ||
+                    http.Request.Path == $"{dashboard.EnginePath.TrimEnd('/')}/logout";
+                if (!credentials && !http.User.IsInRole("Flywheel.Operator"))
+                {
+                    http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Flywheel.Dashboard.Audit")
+                        .LogWarning("Dashboard action denied for {Actor} on {Path}, trace {TraceId}",
+                            http.User.Identity?.Name, http.Request.Path.Value, http.TraceIdentifier);
+                    return TypedResults.StatusCode(StatusCodes.Status403Forbidden);
+                }
                 try
                 {
                     await http.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(http);
@@ -117,7 +141,24 @@ public static class FlywheelDashboardRegistrar
                     return TypedResults.BadRequest();
                 }
             }
-            return await next(context);
+            bool mutation = !HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method);
+            if (!mutation) return await next(context);
+            ILogger audit = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Flywheel.Dashboard.Audit");
+            string actor = http.User.Identity?.Name ?? "anonymous";
+            string action = http.GetEndpoint()?.DisplayName ?? http.Request.Method;
+            try
+            {
+                object? result = await next(context);
+                audit.LogInformation("Dashboard action {Action} by {Actor} on {Path}, status {StatusCode}, trace {TraceId}",
+                    action, actor, http.Request.Path.Value, (result as IStatusCodeHttpResult)?.StatusCode ?? 200, http.TraceIdentifier);
+                return result;
+            }
+            catch (Exception)
+            {
+                audit.LogError("Dashboard action {Action} by {Actor} on {Path} failed, trace {TraceId}",
+                    action, actor, http.Request.Path.Value, http.TraceIdentifier);
+                throw;
+            }
         });
         FlywheelAuthenticationEndpoints.Map(group);
         FlywheelJobsEndpoints.Map(group);

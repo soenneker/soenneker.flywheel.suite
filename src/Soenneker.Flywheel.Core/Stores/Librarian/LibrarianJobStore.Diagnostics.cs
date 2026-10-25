@@ -115,7 +115,7 @@ public abstract partial class LibrarianJobStore
 
     private async Task PruneServers(long now)
     {
-        string[] expired = (await _nodes.Range("value.expiresAt", minimum: long.MinValue, maximum: now)).Select(p => p.Key).ToArray();
+        string[] expired = (await _nodes.Range("value.expiresAt", minimum: long.MinValue, maximum: now - (long)InstanceGracePeriod.TotalMilliseconds)).Select(p => p.Key).ToArray();
         if (expired.Length != 0) _notifyServers = true;
         foreach (string id in expired) await _nodes.Remove(id).NoSync();
     }

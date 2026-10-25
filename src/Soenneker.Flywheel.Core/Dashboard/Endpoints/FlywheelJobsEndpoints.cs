@@ -86,7 +86,7 @@ public static class FlywheelJobsEndpoints
             .WithName("FlywheelJobs_Search")
             .WithTags("Flywheel jobs")
             .WithSummary("Searches jobs and returns the page and total match count.")
-            .WithDescription("Query is limited to 200 characters. Offset must be nonnegative; count must be from 1 to 200. Supply both UTC range bounds or neither. Time filtering requires store support. excludedStates is a comma-separated list of job states.")
+            .WithDescription("Query is limited to 200 characters. Offset must be from 0 to 10000; count must be from 1 to 200. Supply both UTC range bounds or neither. Time filtering requires store support. excludedStates is a comma-separated list of job states.")
             .Produces<SearchResult>()
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status501NotImplemented)
@@ -223,7 +223,7 @@ public static class FlywheelJobsEndpoints
         [FromQuery] int offset = 0, [FromQuery] int count = 50, [FromQuery] DateTimeOffset? startAt = null,
         [FromQuery] DateTimeOffset? endAt = null, [FromQuery] string? excludedStates = null)
     {
-        if (!DashboardJobSearch.IsValid(excludedStates) || offset < 0 || count is < 1 or > 200 || q?.Length > 200 ||
+        if (!DashboardJobSearch.IsValid(excludedStates) || offset is < 0 or > 10000 || count is < 1 or > 200 || q?.Length > 200 ||
             startAt.HasValue != endAt.HasValue || startAt >= endAt)
             return TypedResults.BadRequest();
         if (startAt.HasValue && store is not IJobTimeRangeSearchStore)

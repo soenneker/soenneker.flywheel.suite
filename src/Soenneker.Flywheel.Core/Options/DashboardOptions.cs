@@ -1,8 +1,19 @@
 namespace Soenneker.Flywheel.Core.Options;
 
-/// <summary>Dashboard credentials are required in every environment.</summary>
+/// <summary>Dashboard authentication and authorization configuration. Built-in credentials or a host authentication scheme are required.</summary>
 public sealed class DashboardOptions
 {
+    internal bool UsesIndividualAccounts { get; set; }
+    /// <summary>Individual accounts keyed by username. When populated, replaces the single Username/PasswordPhc account.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, DashboardAccount> Accounts { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>Change to revoke all built-in sessions, including live connections (checked at least once per second).</summary>
+    public string SessionVersion { get; set; } = "1";
+
+    /// <summary>Additional host-configured authentication schemes, such as an OIDC-backed cookie. Their users must have
+    /// Flywheel.Reader or Flywheel.Operator roles and a nonempty name. The host owns their session revocation and MFA.</summary>
+    public string[] AuthenticationSchemes { get; set; } = [];
+
     /// <summary>Prefix for HTTP and SignalR endpoints. Use / for no prefix. Must match the dashboard client's EnginePath; independent of its HomePath.</summary>
     public string EnginePath { get; set; } = "/flywheel";
 

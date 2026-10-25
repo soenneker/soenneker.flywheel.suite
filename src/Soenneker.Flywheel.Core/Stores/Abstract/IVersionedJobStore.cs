@@ -8,7 +8,8 @@ public interface IVersionedJobStore
 {
     /// <summary>Atomically submits one job per name, application version, and instance within the storage namespace.
     /// Repeated calls return its original ID, even after job retention removes the record.
-    /// Retries and lease recovery may execute the handler again; handlers must be idempotent.</summary>
+    /// Retries and lease recovery may execute the handler again; handlers must be idempotent.
+    /// Librarian-backed stores dead-letter abandoned instance work after a five-minute grace period without a live heartbeat or lease.</summary>
     Task<string> EnqueueForCurrentInstance(EnqueueRequest request, string applicationVersion, string instanceId,
         CancellationToken cancellationToken = default);
 

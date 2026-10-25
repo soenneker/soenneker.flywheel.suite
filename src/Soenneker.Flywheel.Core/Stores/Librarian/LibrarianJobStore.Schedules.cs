@@ -149,6 +149,7 @@ public abstract partial class LibrarianJobStore
         return Mutate(cancellationToken, async now =>
         {
             var expiredLeases = await _running.Range("value.leaseUntil", minimum: long.MinValue, maximum: now, take: batchSize);
+            var instanceChecks = await _instanceChecks.Range("value", minimum: long.MinValue, maximum: now, take: batchSize);
             var dueSchedules = await _schedules.Range("value.dueAt", minimum: long.MinValue, maximum: now, take: batchSize);
             int retentionOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("retentionOffset"));
             var expiredJobs = (await _jobs.Range("completedAt", minimum: long.MinValue,
@@ -181,6 +182,26 @@ public abstract partial class LibrarianJobStore
                 await AdvanceChain(recovered, now);
                 if (!_retainCompletedJobs && Terminal(recovered.State) && expiredJobs.Count < batchSize)
                     expiredJobs.Add((await _jobs.Get(job.Id))!);
+            }
+            foreach (var check in instanceChecks)
+            {
+                JobRecord? job = await _jobs.Get(check.Key);
+                if (job is null || Terminal(job.State) || job.TargetNodeId is null)
+                {
+                    await _instanceChecks.Remove(check.Key);
+                    continue;
+                }
+                Node node = await _nodes.Get(job.TargetNodeId);
+                if (node.ExpiresAt + (long)InstanceGracePeriod.TotalMilliseconds > now ||
+                    job.State == JobState.Running && job.LeaseUntil > now)
+                {
+                    await _instanceChecks.Set(job.Id, now + (long)InstanceGracePeriod.TotalMilliseconds);
+                    continue;
+                }
+                JobRecord abandoned = job with { State = JobState.DeadLettered, Token = null, Owner = null,
+                    LeaseUntil = 0, Version = job.Version + 1, Error = "The target instance is no longer available." };
+                await Save(abandoned, now);
+                await AdvanceChain(abandoned, now);
             }
             foreach (var pair in dueSchedules)
             {

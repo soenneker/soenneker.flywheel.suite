@@ -88,40 +88,34 @@ public abstract partial class LibrarianJobStore
     {
         ValidatePage(offset, count);
         string text = ValidateQuery(query);
-        return Mutate(ct, async now =>
+        if (offset > 10000) throw new ArgumentOutOfRangeException(nameof(offset), "Search offsets cannot exceed 10000.");
+        return SearchSnapshot(ct, async (table, now, token) =>
         {
-            IEnumerable<JobRecord> candidates;
-            if (excludedStates is { Count: > 0 })
+            var selected = new PriorityQueue<JobRecord, JobRecord>(Comparer<JobRecord>.Create((a, b) => RunningFirst.Compare(b, a)));
+            int total = 0;
+            await foreach (JobRecord job in SearchCandidates(table, token))
             {
-                var included = new List<JobRecord>();
-                JobState[] states = [JobState.Scheduled, JobState.Running, JobState.Succeeded, JobState.DeadLettered, JobState.Cancelled, JobState.Waiting];
-                foreach (JobState state in states)
-                {
-                    if (excludedStates.Contains(state.Name) && (state != JobState.Scheduled || excludedStates.Contains("Queued"))) continue;
-                    included.AddRange(await _jobs.Find("state", state.Value));
-                }
-                candidates = included.Where(j => !excludedStates.Contains(j.DisplayState(now)));
+                if (!Matches(job, text, now, start, end) || excludedStates?.Contains(job.DisplayState(now)) == true) continue;
+                total++;
+                if (selected.Count < offset + count) selected.Enqueue(job, job);
+                else if (RunningFirst.Compare(job, selected.Peek()) < 0) selected.DequeueEnqueue(job, job);
             }
-            else
-                candidates = start.HasValue ?
-                    (await _jobs.Range("value.updatedAt", start, end!.Value - 1)).Select(e => e.Value) : await _jobs.GetValues();
-            JobRecord[] page = Page(candidates.Where(j => Matches(j, text, now, start, end)), RunningFirst, offset, count, out int total);
-            return new JobSearchResult(page, total);
+            string[] ids = selected.UnorderedItems.Select(p => p.Element).Order(RunningFirst).Skip(offset).Select(j => j.Id).ToArray();
+            JobRecord?[] records = await table.GetMany<JobRecord>(ids);
+            return new JobSearchResult(records.OfType<JobRecord>().ToArray(), total);
         });
     }
-
     public Task<IReadOnlyList<JobHistoryPoint>> GetSearchHistory(string? query, DateTimeOffset? startAt, DateTimeOffset? endAt,
         CancellationToken cancellationToken = default)
     {
         string text = ValidateQuery(query);
         if (startAt.HasValue != endAt.HasValue || startAt >= endAt) throw new ArgumentOutOfRangeException(nameof(startAt));
-        return Mutate<IReadOnlyList<JobHistoryPoint>>(cancellationToken, async now =>
+        return SearchSnapshot<IReadOnlyList<JobHistoryPoint>>(cancellationToken, async (table, now, token) =>
         {
             var buckets = new SortedDictionary<long, JobHistoryPoint>();
-            IEnumerable<JobRecord> candidates = startAt.HasValue ?
-                (await _jobs.Range("value.updatedAt", startAt.Value.ToUnixTimeMilliseconds(), endAt!.Value.ToUnixTimeMilliseconds() - 1)).Select(e => e.Value) : await _jobs.GetValues();
-            foreach (JobRecord job in candidates.Where(j => Matches(j, text, now, startAt?.ToUnixTimeMilliseconds(), endAt?.ToUnixTimeMilliseconds())))
+            await foreach (JobRecord job in SearchCandidates(table, token))
             {
+                if (!Matches(job, text, now, startAt?.ToUnixTimeMilliseconds(), endAt?.ToUnixTimeMilliseconds())) continue;
                 long stamp = job.UpdatedAt / 300000 * 300000;
                 JobHistoryPoint point = buckets.GetValueOrDefault(stamp) ?? new JobHistoryPoint(stamp, 0, 0, 0, 0);
                 buckets[stamp] = job.State == JobState.Scheduled && job.DueAt <= now ? point with { Queued = point.Queued + 1 } :

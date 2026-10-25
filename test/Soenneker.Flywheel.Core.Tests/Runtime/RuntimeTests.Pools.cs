@@ -34,12 +34,14 @@ public sealed partial class RuntimeTests
             if (!overBudgetRejected) throw new Exception("Pool resizing exceeded the configured worker budget.");
             await service.SetPoolWorkerCount("default", 1, deadline.Token);
             await service.SetPoolWorkerCount("X", 3, deadline.Token);
-            await WaitFor(() => executor.Calls["X"] == 3, deadline.Token);
+            await Task.Delay(100, deadline.Token);
+            if (executor.Calls["X"] != 2) throw new Exception("Retiring workers did not retain their execution slots.");
             if (executor.Calls["Y"] != 1 || service.WorkerCount != 5) throw new Exception("Resizing X changed Y's capacity.");
             await service.SetPoolWorkerCount("X", 0, deadline.Token);
             await service.SetPoolWorkerCount("Y", 2, deadline.Token);
-            await WaitFor(() => executor.Calls["Y"] == 2, deadline.Token);
-            if (service.Pools.Single(pool => pool.Name == "X").Workers != 0 || service.WorkerCount != 3 || executor.Calls["X"] != 3)
+            await Task.Delay(100, deadline.Token);
+            if (executor.Calls["Y"] != 1) throw new Exception("Retiring workers exceeded the host budget.");
+            if (service.Pools.Single(pool => pool.Name == "X").Workers != 0 || service.WorkerCount != 3 || executor.Calls["X"] != 2)
                 throw new Exception("Pausing X affected another pool or admitted more jobs.");
             if (!executor.Calls.ContainsKey("default")) throw new Exception("The default pool was not started.");
         }

@@ -77,10 +77,13 @@ public static class FlywheelAuthenticationEndpoints
         using var lease = limiter.Acquire();
         if (!lease.IsAcquired)
             return TypedResults.StatusCode(StatusCodes.Status429TooManyRequests);
-        if (!Pbkdf2HashingUtil.Verify(request.Password, options.PasswordPhc) ||
-            !string.Equals(request.Username, options.Username, StringComparison.Ordinal))
+        DashboardAccount? account = DashboardIdentity.Account(options, request.Username);
+        bool verified = Pbkdf2HashingUtil.Verify(request.Password, account?.PasswordPhc ?? limiter.DummyPasswordPhc);
+        if (account is null || !verified)
             return TypedResults.Unauthorized();
-        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, options.Username)], "Flywheel");
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, request.Username),
+            new Claim(ClaimTypes.Role, account.CanManage ? "Flywheel.Operator" : "Flywheel.Reader"),
+            new Claim(DashboardIdentity.StampClaim, DashboardIdentity.Stamp(options, request.Username, account))], "Flywheel");
         await httpContext.SignInAsync("Flywheel", new ClaimsPrincipal(identity));
         return TypedResults.NoContent();
     }
