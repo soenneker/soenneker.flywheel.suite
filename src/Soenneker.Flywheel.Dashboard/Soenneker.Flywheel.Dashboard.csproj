@@ -47,7 +47,7 @@
         <PackageReference Include="Soenneker.Lepton.Suite" Version="4.0.128" />
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1610" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="4.0.780" />
         <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="4.0.108" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
