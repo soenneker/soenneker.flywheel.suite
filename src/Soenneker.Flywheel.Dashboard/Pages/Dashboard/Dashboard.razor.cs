@@ -90,7 +90,6 @@ public partial class Dashboard
     {
         if (_query.Length > 200) return;
         _loading = true;
-        StateHasChanged();
         if (_activeRead is { } activeRead) await activeRead.CancelAsync();
         using var read = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         _activeRead = read;

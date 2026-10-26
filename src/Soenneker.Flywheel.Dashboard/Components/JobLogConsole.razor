@@ -106,7 +106,6 @@
                 if (page.Count == 200 && !reachedKnown && page[0].Id != beforeId)
                     _historyCursors.Enqueue(page[0].Id);
                 RefreshEntries();
-                StateHasChanged();
             }
         }
         catch (OperationCanceledException) when (IsDisposed || IsCancellationRequested) { }

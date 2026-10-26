@@ -2,7 +2,7 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <IsAotCompatible>true</IsAotCompatible>
         <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
         <Platforms>AnyCPU</Platforms>
@@ -45,7 +45,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.108" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.Postgres" Version="4.0.110" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.Postgres\Soenneker.Librarian.Postgres.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
     </ItemGroup>
 </Project>
