@@ -62,6 +62,6 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Components" Version="11.0.0-rc.3.26522.148" />
         <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.480" />
-        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.82" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="11.0.83" />
     </ItemGroup>
 </Project>
