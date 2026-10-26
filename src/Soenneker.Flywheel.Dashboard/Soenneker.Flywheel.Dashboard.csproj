@@ -65,6 +65,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
         <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.13" />
         <PackageReference Include="Soenneker.Dtos.ProblemDetails" Version="4.0.479" />
-        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.81" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.82" />
     </ItemGroup>
 </Project>
