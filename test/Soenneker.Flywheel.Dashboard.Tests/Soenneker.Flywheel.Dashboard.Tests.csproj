@@ -3,7 +3,7 @@
   <ItemGroup><PackageReference Include="TUnit" Version="1.76.28" /><PackageReference Include="Microsoft.AspNetCore.TestHost" Version="11.0.0-rc.3.26522.148" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Dashboard/Soenneker.Flywheel.Dashboard.csproj" /></ItemGroup>    <ItemGroup>
-        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="4.0.82" />
+        <PackageReference Include="Soenneker.Dtos.Results.Operation" Version="11.0.84" />
     </ItemGroup>
   <ItemGroup><ProjectReference Include="../../src/Soenneker.Flywheel.Memory/Soenneker.Flywheel.Memory.csproj" /></ItemGroup>
 </Project>
