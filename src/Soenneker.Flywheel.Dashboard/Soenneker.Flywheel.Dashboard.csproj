@@ -51,7 +51,7 @@
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="11.0.789" />
         <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.122" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2630" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2631" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="11.0.302" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="11.0.1544" />
