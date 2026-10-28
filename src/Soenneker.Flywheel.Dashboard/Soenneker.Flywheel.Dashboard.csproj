@@ -49,7 +49,7 @@
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0-rc.3.26522.148" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="11.0.790" />
-        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.135" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.141" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
         <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2631" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
