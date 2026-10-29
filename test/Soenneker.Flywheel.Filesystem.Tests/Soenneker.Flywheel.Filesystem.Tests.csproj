@@ -8,7 +8,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="TUnit" Version="1.76.28" />
+    <PackageReference Include="TUnit" Version="1.76.45" />
     <ProjectReference Include="../../src/Soenneker.Flywheel.Filesystem/Soenneker.Flywheel.Filesystem.csproj" />
   </ItemGroup>
 </Project>
