@@ -13,7 +13,7 @@
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="11.0.143">
+        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="11.0.144">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
