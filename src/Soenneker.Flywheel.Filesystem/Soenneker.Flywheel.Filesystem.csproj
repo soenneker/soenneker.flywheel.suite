@@ -46,7 +46,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" />
-        <PackageReference Include="Soenneker.Librarian.FileSystem" Version="11.0.148" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.FileSystem" Version="11.0.152" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.FileSystem\Soenneker.Librarian.FileSystem.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
     </ItemGroup>
 </Project>
