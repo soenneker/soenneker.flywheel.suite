@@ -64,6 +64,7 @@ else
                 @if (_job is not null)
                 {
                     <Span TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground">Attempt @_job.Attempt</Span>
+                    <JobLeaseDiagnostics Job="@_job" />
                 }
             </Div>
             @if (_job is not null)
@@ -141,7 +142,6 @@ else
             {
                 <Alert role="alert"><AlertTitle>Last execution error</AlertTitle><AlertDescription><Div Whitespace="Whitespace.PreWrap" TextBreak="TextBreak.All" FontFamily="FontFamily.Mono" TextSize="TextSize.Sm">@_job.Error</Div></AlertDescription></Alert>
             }
-            <JobLeaseDiagnostics Job="@_job" />
             <Div MinWidth="MinWidth.Is0" Space="Space.Y.Is4"><Div><JobLogConsole @key="_job.Id" JobId="@_job.Id" /></Div></Div>
         }
     </Main>

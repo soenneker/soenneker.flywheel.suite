@@ -5,22 +5,27 @@
 
 @if (Job.LastOwner is not null || Job.LeaseLossReason is not null)
 {
-    <Section aria-label="Lease diagnostics" Style="margin: 1rem 0; overflow-wrap: anywhere;">
-        <H3 TextSize="TextSize.Lg">Lease diagnostics</H3>
-        <dl>
-            <dt>Latest attempt worker</dt>
-            <dd>@(Job.LastOwner ?? "Unavailable")</dd>
-            <dt>Last successful renewal</dt>
-            <dd>@FormatTime(Job.LastLeaseRenewedAt)</dd>
-            <dt>Last granted lease deadline</dt>
-            <dd>@FormatTime(Job.LastLeaseUntil)</dd>
-            @if (Job.LeaseLossReason is { } reason)
-            {
-                <dt>Lease loss reason</dt>
-                <dd>@reason</dd>
-            }
-        </dl>
-    </Section>
+    <HoverCard OpenDelay="200">
+        <HoverCardTrigger AsChild="true">
+            <Button Variant="ButtonVariant.Link" TextSize="TextSize.Sm" TextColor="TextColor.MutedForeground" Style="height: auto; padding: 0;">Lease diagnostics</Button>
+        </HoverCardTrigger>
+        <HoverCardContent Side="Side.Bottom" Align="Alignment.Start" CollisionPadding="16" Style="width: 24rem; max-width: calc(100vw - 2rem); overflow-wrap: anywhere;">
+            <H3 TextSize="TextSize.Sm" FontWeight="FontWeight.Semibold" Margin="Margin.FromBottom.Is3">Lease diagnostics</H3>
+            <dl style="margin: 0; display: grid; gap: .25rem;">
+                <dt>Latest attempt worker</dt>
+                <dd style="margin: 0 0 .5rem;">@(Job.LastOwner ?? "Unavailable")</dd>
+                <dt>Last successful renewal</dt>
+                <dd style="margin: 0 0 .5rem;">@FormatTime(Job.LastLeaseRenewedAt)</dd>
+                <dt>Last granted lease deadline</dt>
+                <dd style="margin: 0;">@FormatTime(Job.LastLeaseUntil)</dd>
+                @if (Job.LeaseLossReason is { } reason)
+                {
+                    <dt style="margin-top: .5rem;">Lease loss reason</dt>
+                    <dd style="margin: 0;">@reason</dd>
+                }
+            </dl>
+        </HoverCardContent>
+    </HoverCard>
 }
 
 @code {
