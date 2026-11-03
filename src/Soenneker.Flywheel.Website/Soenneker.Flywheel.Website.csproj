@@ -26,6 +26,6 @@
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="11.0.330" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="11.0.114" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="11.0.311" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="11.0.313" PrivateAssets="all" />
     </ItemGroup>
 </Project>
