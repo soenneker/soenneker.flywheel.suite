@@ -8,7 +8,7 @@ on:
     inputs:
       version:
         type: string
-        default: '5.0.0'
+        default: '11.0.0'
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ permissions:
 env:
   PipelineEnvironment: true
   NUGET_XMLDOC_MODE: skip
-  BUILD_VERSION: ${{ inputs.version || '5.0.0' }}
+  BUILD_VERSION: ${{ inputs.version || '11.0.0' }}
 
 jobs:
   build-and-test:
