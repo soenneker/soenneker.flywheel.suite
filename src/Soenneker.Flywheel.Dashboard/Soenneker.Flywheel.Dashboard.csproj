@@ -45,15 +45,15 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="11.0.36" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="11.0.135" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1666" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1667" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0-rc.3.26522.148" />
-        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="11.0.794" />
-        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.164" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="11.0.795" />
+        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.165" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
-        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2636" />
+        <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2638" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
-        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="11.0.311" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Tailwind.Manifest" Version="11.0.312" PrivateAssets="all" />
         <PackageReference Include="Soenneker.SignalR.Web.Clients" Version="11.0.1546" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="11.0.114" />
         <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="11.0.314" PrivateAssets="all" />
