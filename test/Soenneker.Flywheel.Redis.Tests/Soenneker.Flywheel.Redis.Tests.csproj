@@ -9,17 +9,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="TUnit" Version="1.78.0" />
+        <PackageReference Include="TUnit" Version="1.79.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="../Soenneker.Flywheel.Performance/RedisOperationsBenchmark.cs"
-                 Link="Benchmarks/RedisOperationsBenchmark.cs" />
+        <Compile Include="../Soenneker.Flywheel.Performance/RedisOperationsBenchmark.cs" Link="Benchmarks/RedisOperationsBenchmark.cs" />
         <ProjectReference Include="..\..\src\Soenneker.Flywheel.Redis\Soenneker.Flywheel.Redis.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../src/Soenneker.Flywheel.Generators/Soenneker.Flywheel.Generators.csproj"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../src/Soenneker.Flywheel.Generators/Soenneker.Flywheel.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     </ItemGroup>
 </Project>
