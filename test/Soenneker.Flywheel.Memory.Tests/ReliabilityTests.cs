@@ -19,9 +19,11 @@ public sealed class ReliabilityTests
         string abandoned = await store.EnqueueForCurrentInstance(request, "build", "gone", cancellationToken);
         string alive = await store.EnqueueForCurrentInstance(request, "build", "alive", cancellationToken);
         string running = await store.EnqueueForCurrentInstance(request, "build", "running", cancellationToken);
-        string ordinary = await store.Enqueue(request, cancellationToken);
         await store.Heartbeat("alive", 1, TimeSpan.FromMinutes(20), cancellationToken);
-        await store.ClaimForWorker("running", TimeSpan.FromMinutes(20), "build", new HashSet<string> { "startup" }, cancellationToken);
+        var lease = await store.ClaimForWorker("running", TimeSpan.FromMinutes(20), "build", new HashSet<string> { "startup" }, cancellationToken);
+        if (lease?.Job.Id != running)
+            throw new Exception("Test setup did not claim the intended instance job.");
+        string ordinary = await store.Enqueue(request, cancellationToken);
         foreach (string id in new[] { abandoned, alive, running })
         {
             string key = new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(System.Text.Json.JsonSerializer.Serialize(id));
