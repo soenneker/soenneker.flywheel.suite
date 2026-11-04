@@ -150,12 +150,22 @@ public abstract partial class LibrarianJobStore
         {
             var expiredLeases = await _running.Range("value.leaseUntil", minimum: long.MinValue, maximum: now, take: batchSize);
             var instanceChecks = await _instanceChecks.Range("value", minimum: long.MinValue, maximum: now, take: batchSize);
+            int instanceRepairOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("instanceRepairOffset"));
+            var instanceJobs = await _jobs.Range("value.targetNodeId", minimum: "", skip: instanceRepairOffset, take: batchSize);
             var dueSchedules = await _schedules.Range("value.dueAt", minimum: long.MinValue, maximum: now, take: batchSize);
             int retentionOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("retentionOffset"));
             var expiredJobs = (await _jobs.Range("completedAt", minimum: long.MinValue,
                 maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, skip: retentionOffset, take: batchSize)).Select(e => e.Value).ToList();
             var expiredHistory = await _history.Range("key", maximum: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize);
             var expiredLogs = await _logs.Range("value.expiresAt", minimum: long.MinValue, maximum: now, take: batchSize);
+            // Older records can lack cleanup tracking. Repair bounded pages without postponing existing checks.
+            foreach (var entry in instanceJobs)
+            {
+                JobRecord job = entry.Value;
+                if (job.TargetNodeId is not null && !Terminal(job.State) && await _instanceChecks.GetEntry(job.Id) is null)
+                    await _instanceChecks.Set(job.Id, Math.Max(now, job.CreatedAt + (long)InstanceGracePeriod.TotalMilliseconds));
+            }
+            await _metadata.Set("instanceRepairOffset", instanceJobs.Count < batchSize ? 0 : (long)instanceRepairOffset + instanceJobs.Count);
             // Retire persisted schedules and queued executions from the removed archive exporter.
             const string retiredExporter = "Flywheel.LogArchive.Export";
             if (await _schedules.Get(retiredExporter) is { Job.IsSystem: true })

@@ -20,5 +20,6 @@ internal sealed class ReliabilityFixture : IAsyncDisposable
     }
 
     public T Resolve<T>() where T : notnull => _provider.GetRequiredService<T>();
+    public T ResolveKeyed<T>(object key) where T : notnull => _provider.GetRequiredKeyedService<T>(key);
     public ValueTask DisposeAsync() => _provider.DisposeAsync();
 }

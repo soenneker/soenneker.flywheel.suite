@@ -2,11 +2,45 @@ using Soenneker.Flywheel.Core.Services;
 using Soenneker.Flywheel.Communication.Dtos;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Communication.Requests;
+using Soenneker.Librarian.Memory;
+using Soenneker.Librarian.Abstractions.Transactions;
 
 namespace Soenneker.Flywheel.Memory.Tests;
 
 public sealed class ReliabilityTests
 {
+    [Test]
+    public async Task Maintenance_repairs_missing_instance_checks_across_pages(CancellationToken cancellationToken)
+    {
+        await using var fixture = new ReliabilityFixture();
+        var store = fixture.Resolve<MemoryJobStore>();
+        var database = fixture.ResolveKeyed<MemoryLibrarianDatabase>(MemoryRegistration.LibrarianServiceKey);
+        EnqueueRequest request = new("startup", "{}", new(), TimeSpan.Zero);
+        string abandoned = await store.EnqueueForCurrentInstance(request, "build", "gone", cancellationToken);
+        string alive = await store.EnqueueForCurrentInstance(request, "build", "alive", cancellationToken);
+        string running = await store.EnqueueForCurrentInstance(request, "build", "running", cancellationToken);
+        string ordinary = await store.Enqueue(request, cancellationToken);
+        await store.Heartbeat("alive", 1, TimeSpan.FromMinutes(20), cancellationToken);
+        await store.ClaimForWorker("running", TimeSpan.FromMinutes(20), "build", new HashSet<string> { "startup" }, cancellationToken);
+        foreach (string id in new[] { abandoned, alive, running })
+        {
+            string key = new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash(System.Text.Json.JsonSerializer.Serialize(id));
+            if (!await database.Execute(new LibrarianBatch([new LibrarianWrite("flywheel.instanceChecks", key, null)]), cancellationToken))
+                throw new Exception("Could not remove cleanup tracking.");
+        }
+        fixture.Clock.Advance(TimeSpan.FromMinutes(6));
+        for (int i = 0; i < 10; i++) await store.Maintain(1, cancellationToken);
+        if ((await store.Get(abandoned, cancellationToken))?.State != JobState.DeadLettered ||
+            (await store.Get(alive, cancellationToken))?.State != JobState.Scheduled ||
+            (await store.Get(running, cancellationToken))?.State != JobState.Running ||
+            (await store.Get(ordinary, cancellationToken))?.State != JobState.Scheduled)
+            throw new Exception("Repair missed abandoned work or retired eligible work.");
+        fixture.Clock.Advance(TimeSpan.FromDays(2));
+        await store.Maintain(100, cancellationToken);
+        if (await store.Get(abandoned, cancellationToken) is not null)
+            throw new Exception("Repaired job did not enter normal retention.");
+    }
+
     [Test]
     public async Task Repeated_pause_resume_waits_for_retiring_handlers(CancellationToken cancellationToken)
     {
