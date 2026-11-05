@@ -37,7 +37,7 @@ public sealed partial class FlywheelRedisTests
     private static async Task SeedRecord<TKey, TValue>(IDatabase db, string ns, string table, TKey key, TValue value)
     {
         await using var database = OpenLibrarian(db, ns);
-        string? order = value is JobRecord job ? (long.MaxValue - job.CreatedAt).ToString("D19", CultureInfo.InvariantCulture) + ":" + job.Id : null;
+        string? order = value is JobRecord job ? (long.MaxValue - job.UpdatedAt).ToString("D19", CultureInfo.InvariantCulture) + ":" + job.Id : null;
         string? scheduledOrder = value is JobRecord pending && pending.State == JobState.Scheduled ?
             pending.DueAt.ToString("D19", CultureInfo.InvariantCulture) + ":" + pending.Id : null;
         var writes = new List<LibrarianWrite>

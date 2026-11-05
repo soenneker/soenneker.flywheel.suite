@@ -17,14 +17,6 @@ public abstract partial class LibrarianJobStore
         return Mutate(cancellationToken, async _ => (await _jobs.Get(id)));
     }
 
-    private static readonly IComparer<JobRecord> RunningFirst = Comparer<JobRecord>.Create((a, b) =>
-    {
-        int compared = (b.State == JobState.Running).CompareTo(a.State == JobState.Running);
-        if (compared != 0) return compared;
-        compared = b.CreatedAt.CompareTo(a.CreatedAt);
-        return compared != 0 ? compared : StringComparer.Ordinal.Compare(b.Id, a.Id);
-    });
-
     private static T[] Page<T>(IEnumerable<T> source, IComparer<T> comparer, int offset, int count, out int total)
     {
         // Keep only the requested prefix while enumerating Librarian records, rather than sorting the entire database.
@@ -91,16 +83,16 @@ public abstract partial class LibrarianJobStore
         if (offset > 10000) throw new ArgumentOutOfRangeException(nameof(offset), "Search offsets cannot exceed 10000.");
         return SearchSnapshot(ct, async (table, now, token) =>
         {
-            var selected = new PriorityQueue<JobRecord, JobRecord>(Comparer<JobRecord>.Create((a, b) => RunningFirst.Compare(b, a)));
+            // The persisted order index is newest-updated first, with the job ID breaking ties.
+            // Retain only this page; continue scanning projections for the exact filtered count.
+            var ids = new List<string>(count);
             int total = 0;
             await foreach (JobRecord job in SearchCandidates(table, token))
             {
                 if (!Matches(job, text, now, start, end) || excludedStates?.Contains(job.DisplayState(now)) == true) continue;
+                if (total >= offset && ids.Count < count) ids.Add(job.Id);
                 total++;
-                if (selected.Count < offset + count) selected.Enqueue(job, job);
-                else if (RunningFirst.Compare(job, selected.Peek()) < 0) selected.DequeueEnqueue(job, job);
             }
-            string[] ids = selected.UnorderedItems.Select(p => p.Element).Order(RunningFirst).Skip(offset).Select(j => j.Id).ToArray();
             JobRecord?[] records = await table.GetMany<JobRecord>(ids);
             return new JobSearchResult(records.OfType<JobRecord>().ToArray(), total);
         });
