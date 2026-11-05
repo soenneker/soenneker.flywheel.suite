@@ -139,7 +139,7 @@ public sealed class MemoryJobStoreTests
     public async ValueTask SearchPlacesRunningJobsBeforeNewerJobsAcrossPages(CancellationToken cancellationToken)
     {
         var clock = new Clock();
-        var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
+        await using var store = new MemoryJobStore(new FlywheelMemoryOptions(), clock);
         string running = await store.Enqueue(Request("older"), cancellationToken: cancellationToken);
         await store.Claim("server", TimeSpan.FromMinutes(5), cancellationToken: cancellationToken);
         clock.Advance(TimeSpan.FromSeconds(1));
@@ -148,6 +148,17 @@ public sealed class MemoryJobStoreTests
         Check((await store.Search(null, 1, 1, cancellationToken: cancellationToken)).Items.Single().Id == newer, "Newer non-running job must follow.");
         Check((await store.Search(null, clock.GetUtcNow().AddMinutes(-1), clock.GetUtcNow().AddMinutes(1), 0, 1, cancellationToken: cancellationToken)).Items.Single().Id == running,
             "Time-filtered searches must also put running jobs first.");
+        await store.Claim("server", TimeSpan.FromMinutes(5), cancellationToken: cancellationToken);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        string newest = await store.Enqueue(Request("newest"), cancellationToken: cancellationToken);
+        JobSearchResult result = await store.Search(null, 0, 3, cancellationToken: cancellationToken);
+        Check(result.TotalCount == 3 && result.Items.Select(job => job.Id).SequenceEqual(new[] { newer, running, newest }),
+            "Search must preserve newest-first ordering within each group.");
+        result = await store.Search(null, null, null, new HashSet<string>(), 1, 2, cancellationToken: cancellationToken);
+        Check(result.TotalCount == 3 && result.Items.Select(job => job.Id).SequenceEqual(new[] { running, newest }),
+            "Status searches must page across the running and non-running boundary.");
+        result = await store.Search(null, null, null, new HashSet<string> { "Running" }, 0, 1, cancellationToken: cancellationToken);
+        Check(result.TotalCount == 1 && result.Items.Single().Id == newest, "Excluded running jobs must not consume page positions.");
     }
     [Test]
     public async ValueTask ConcurrentClaimsAndSubmissionsAreAtomic(CancellationToken cancellationToken)

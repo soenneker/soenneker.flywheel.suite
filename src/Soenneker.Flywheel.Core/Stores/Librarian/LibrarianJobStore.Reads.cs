@@ -84,15 +84,19 @@ public abstract partial class LibrarianJobStore
         return SearchSnapshot(ct, async (table, now, token) =>
         {
             // The persisted order index is newest-updated first, with the job ID breaking ties.
-            // Retain only this page; continue scanning projections for the exact filtered count.
-            var ids = new List<string>(count);
+            // Keep each group's requested prefix so running jobs precede other jobs before paging.
+            int limit = offset + count;
+            var runningIds = new List<string>();
+            var otherIds = new List<string>();
             int total = 0;
             await foreach (JobRecord job in SearchCandidates(table, token))
             {
                 if (!Matches(job, text, now, start, end) || excludedStates?.Contains(job.DisplayState(now)) == true) continue;
-                if (total >= offset && ids.Count < count) ids.Add(job.Id);
+                List<string> group = job.State == JobState.Running ? runningIds : otherIds;
+                if (group.Count < limit) group.Add(job.Id);
                 total++;
             }
+            string[] ids = runningIds.Concat(otherIds).Skip(offset).Take(count).ToArray();
             JobRecord?[] records = await table.GetMany<JobRecord>(ids);
             return new JobSearchResult(records.OfType<JobRecord>().ToArray(), total);
         });
