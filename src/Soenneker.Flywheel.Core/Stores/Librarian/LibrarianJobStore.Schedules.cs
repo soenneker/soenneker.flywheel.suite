@@ -99,10 +99,17 @@ public abstract partial class LibrarianJobStore
 
     private async Task<string> Occurrence(string id, Schedule schedule, long now, long? scheduledFor = null)
     {
-        if (schedule.CoalesceOccurrences && await _scheduleExecutions.FindFirst("scheduleId", id) is { } outstanding)
+        while (schedule.CoalesceOccurrences && await _scheduleExecutions.FindFirst("scheduleId", id) is { } outstanding)
         {
-            await _schedules.Set(id, schedule with { CoalescedOccurrences = checked(schedule.CoalescedOccurrences + 1) }).NoSync();
-            return outstanding.JobId;
+            // The index can outlive a completed or pruned execution. Only live work may
+            // suppress another occurrence; repair stale entries in this same transaction.
+            if (await _jobs.GetEntry(outstanding.JobId) is { Value: var execution } &&
+                execution.ScheduleId == id && !Terminal(execution.State))
+            {
+                await _schedules.Set(id, schedule with { CoalescedOccurrences = checked(schedule.CoalescedOccurrences + 1) }).NoSync();
+                return outstanding.JobId;
+            }
+            await _scheduleExecutions.Remove(outstanding.JobId).NoSync();
         }
         string executionId = await Insert(schedule.Job with { Id = Guid.NewGuid().ToString(), ScheduleId = id,
             ScheduledFor = scheduledFor ?? now }, 0, now);
@@ -234,6 +241,7 @@ public abstract partial class LibrarianJobStore
                     await _schedules.Set(scheduleId, s with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
                 if (job.ManualJobId is { } manualId && await _manualJobs.Get(manualId) is { } manual && manual.LastExecutionId == job.Id)
                     await _manualJobs.Set(manualId, manual with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
+                await _scheduleExecutions.Remove(job.Id).NoSync();
                 await _jobs.Remove(job.Id).NoSync();
                 if (await _logs.Get(job.Id) is { } jobLogs) await PruneLogPages(job.Id, jobLogs, now);
                 foreach (var marker in await _dedupe.FindEntries("value", job.Id)) await _dedupe.Remove(marker.Key).NoSync();
