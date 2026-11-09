@@ -18,8 +18,12 @@ public sealed partial class FlywheelRedisTests
         JobLease lease = (await store.Claim("worker", TimeSpan.FromSeconds(30), cancellationToken))!;
         await Task.Delay(20, cancellationToken);
         string newerId = await store.Enqueue(Request(), cancellationToken: cancellationToken);
-        Check((await store.Search(null, 0, 1, cancellationToken)).Items.Single().Id == newerId,
-            "Older running job took precedence over a newer update");
+        Check((await store.Search(null, 0, 1, cancellationToken)).Items.Single().Id == olderId,
+            "Running job did not lead the first search page");
+        Check((await store.Search(null, 1, 1, cancellationToken)).Items.Single().Id == newerId,
+            "Newer non-running job did not follow the running job");
+        Check((await store.List(0, 1, cancellationToken)).Single().Id == newerId,
+            "List did not put the newest update first");
         await Task.Delay(20, cancellationToken);
         Check(await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken), "Completion failed");
         Check((await store.Search(null, 0, 1, cancellationToken)).Items.Single().Id == olderId,
@@ -39,7 +43,7 @@ public sealed partial class FlywheelRedisTests
                 Payload = "{}", Policy = new JobPolicy(), CreatedAt = timestamp, UpdatedAt = timestamp + i * 60000L, State = states[i % states.Length] };
             await SeedJob(db, ns, job);
         }
-        // Cross the 200-record cursor boundary and verify state never overrides update ordering.
+        // Cross the 200-record cursor boundary and page across the running/non-running boundary.
         var orderedIds = new List<string>();
         for (int offset = 0; offset < 230; offset += 50)
         {
@@ -47,10 +51,14 @@ public sealed partial class FlywheelRedisTests
             Check(page.TotalCount == 230, "Search total changed across pages");
             orderedIds.AddRange(page.Items.Select(job => job.Id));
         }
-        Check(orderedIds.SequenceEqual(Enumerable.Range(0, 230).Reverse().Select(i => $"job-{i:D3}")),
-            "Search is not ordered by newest update across pages and states");
-        Check((await store.List(0, 10, cancellationToken)).Select(job => job.Id).SequenceEqual(orderedIds.Take(10)),
-            "List and search ordering differ");
+        string[] expectedIds = Enumerable.Range(0, 230)
+            .OrderByDescending(i => states[i % states.Length] == JobState.Running)
+            .ThenByDescending(i => i).Select(i => $"job-{i:D3}").ToArray();
+        Check(orderedIds.SequenceEqual(expectedIds),
+            "Search is not running-first, then newest-updated first within each group across pages");
+        Check((await store.List(0, 10, cancellationToken)).Select(job => job.Id)
+                .SequenceEqual(Enumerable.Range(220, 10).Reverse().Select(i => $"job-{i:D3}")),
+            "List is not ordered by newest update across states");
         foreach (string query in new[] { "matching", "Queued", "Scheduled", "WAITING", "worker-a", "job-229", "absent" })
         {
             JobSearchResult search = await store.Search(query, 0, 10, cancellationToken: cancellationToken);
