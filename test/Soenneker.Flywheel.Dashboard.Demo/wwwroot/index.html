@@ -10,14 +10,23 @@
     <script>
         (() => {
             let preference;
-            try { preference = localStorage.getItem("quark-theme"); } catch { }
+            try {
+                preference = localStorage.getItem("quark-theme");
+                if (!localStorage.getItem("flywheel-theme-initialized")) {
+                    if (preference !== "light" && preference !== "dark") {
+                        preference = "dark";
+                        localStorage.setItem("quark-theme", preference);
+                    }
+                    localStorage.setItem("flywheel-theme-initialized", "true");
+                }
+            } catch { preference = "dark"; }
             const dark = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
             document.documentElement.classList.toggle("dark", dark);
             document.documentElement.style.colorScheme = dark ? "dark" : "light";
         })();
     </script>
     <script type="module">
-        import { initialize } from "./_content/Soenneker.Quark.Suite/js/themeinterop.js";
+        import { initialize } from "./_content/Soenneker.Flywheel.Dashboard/theme.js";
         initialize();
     </script>
     <link href="css/quark-tailwind.min.css" rel="stylesheet" />
