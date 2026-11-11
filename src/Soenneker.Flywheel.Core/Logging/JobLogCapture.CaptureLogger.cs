@@ -12,7 +12,12 @@ public sealed partial class JobLogCapture
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             if (!IsEnabled(logLevel)) return;
-            try { Current.Value?.Write(logLevel.ToString(), category, formatter(state, null)); }
+            try
+            {
+                string message = formatter(state, exception);
+                if (exception is not null) message += Environment.NewLine + exception.ToString();
+                Current.Value?.Write(logLevel.ToString(), category, message);
+            }
             catch { /* Diagnostic capture must not fail the handler. */ }
         }
     }
