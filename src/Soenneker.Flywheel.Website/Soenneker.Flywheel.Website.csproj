@@ -17,15 +17,15 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="11.0.186">
+        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="11.0.187">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1711" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1712" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="11.0.143" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
-        <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="11.0.345" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="11.0.346" PrivateAssets="all" />
         <PackageReference Include="Soenneker.Lucide.Icons" Version="11.0.120" />
-        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="11.0.324" PrivateAssets="all" />
+        <PackageReference Include="Soenneker.Quark.Gen.Lucide" Version="11.0.326" PrivateAssets="all" />
     </ItemGroup>
 </Project>
