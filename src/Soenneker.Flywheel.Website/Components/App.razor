@@ -13,32 +13,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <HeadOutlet />
 
-    <script>
-        (() => {
-            let preference;
-            try {
-                preference = localStorage.getItem("quark-theme");
-                if (!localStorage.getItem("flywheel-theme-initialized")) {
-                    if (preference !== "light" && preference !== "dark") {
-                        preference = "dark";
-                        localStorage.setItem("quark-theme", preference);
-                    }
-                    localStorage.setItem("flywheel-theme-initialized", "true");
-                }
-            } catch { preference = "dark"; }
-            const dark = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-            document.documentElement.classList.toggle("dark", dark);
-            document.documentElement.style.colorScheme = dark ? "dark" : "light";
-        })();
-    </script>
+    <meta name="quark-default-theme" content="dark" />
     <script type="module">
-        import { initialize, setMode } from "/_content/Soenneker.Quark.Suite/js/themeinterop.js";
-        try {
-            localStorage.getItem("quark-theme");
-            initialize();
-        } catch {
-            setMode("dark");
-        }
+        import { initialize } from "/_content/Soenneker.Quark.Suite/js/themeinterop.js";
+        initialize();
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/quark-tailwind.min.css" />

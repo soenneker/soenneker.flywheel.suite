@@ -2,8 +2,6 @@
 @namespace Soenneker.Flywheel.Dashboard
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.Extensions.Primitives
-@using Microsoft.JSInterop
-@inject IJSRuntime JS
 @inject Soenneker.Quark.IThemeInterop Theme
 @inject DashboardNavigationOptions DashboardNavigation
 @inject NavigationManager Navigation
@@ -100,9 +98,7 @@ else
     {
         if (firstRender)
         {
-            await using IJSObjectReference themeModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Soenneker.Flywheel.Dashboard/theme.js");
-            await themeModule.InvokeVoidAsync("initialize");
-            await Theme.Initialize();
+            await Theme.Initialize(Soenneker.Quark.ThemeMode.Dark);
             await NavigationInterception.EnableNavigationInterceptionAsync();
         }
         if (!_disposed && _refreshScroll)
