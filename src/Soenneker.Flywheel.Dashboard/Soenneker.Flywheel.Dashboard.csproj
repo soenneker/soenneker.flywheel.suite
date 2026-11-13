@@ -45,11 +45,11 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Asyncs.Semaphores" Version="11.0.38" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="11.0.143" />
-        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1722" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1723" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0" />
         <PackageReference Include="Soenneker.Blazor.Consumers.Core" Version="11.0.815" />
-        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.215" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
+        <PackageReference Include="Soenneker.Librarian.LocalStorage" Version="11.0.216" Condition="'$(UseLocalLibrarianProjects)' != 'true'" />
         <ProjectReference Include="$(LocalLibrarianRoot)\src\Soenneker.Librarian.LocalStorage\Soenneker.Librarian.LocalStorage.csproj" Condition="'$(UseLocalLibrarianProjects)' == 'true'" />
         <PackageReference Include="Soenneker.Extensions.HttpResponseMessage" Version="11.0.2664" />
         <ProjectReference Include="../Soenneker.Flywheel.Communication/Soenneker.Flywheel.Communication.csproj" />
