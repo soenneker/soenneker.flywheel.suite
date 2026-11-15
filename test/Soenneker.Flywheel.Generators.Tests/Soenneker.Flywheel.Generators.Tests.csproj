@@ -17,4 +17,4 @@
         <ProjectReference Include="..\..\src\Soenneker.Flywheel.Generators\Soenneker.Flywheel.Generators.csproj" />
     </ItemGroup>
 
-<ItemGroup><PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" /><ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" /></ItemGroup></Project>
+<ItemGroup><PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" /><ProjectReference Include="../../src/Soenneker.Flywheel.Core/Soenneker.Flywheel.Core.csproj" /></ItemGroup></Project>
