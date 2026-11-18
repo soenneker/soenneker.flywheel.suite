@@ -33,7 +33,12 @@ public sealed class LogHistoryTests
             !all.Take(3250).Select(e => e.Message).SequenceEqual(Enumerable.Range(0, 3250).Select(i => i.ToString())))
             throw new Exception("Log paging lost, duplicated, or reordered retained entries.");
         await store.Finish(lease, JobOutcome.Succeeded, null, TimeSpan.Zero, cancellationToken);
-        clock.Advance(TimeSpan.FromDays(31));
+        clock.Advance(TimeSpan.FromHours(23));
+        if ((await store.GetLogs(id, 1, cancellationToken)).Count != 1)
+            throw new Exception("Logs expired before the configured history window.");
+        clock.Advance(TimeSpan.FromHours(1));
+        if ((await store.GetLogs(id, cancellationToken: cancellationToken)).Count != 0)
+            throw new Exception("Logs exceeded the configured history window.");
         for (int i = 0; i < 3; i++) await store.Maintain(100, cancellationToken);
         if ((await store.GetLogs(id, cancellationToken: cancellationToken)).Count != 0)
             throw new Exception("Expired logs remained visible.");

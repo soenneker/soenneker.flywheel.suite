@@ -33,8 +33,7 @@ public abstract partial class LibrarianJobStore
                 await _logPages.Set($"{job.Id}:{buffer.PageCount++}", buffer.Entries.Take(200).ToArray());
                 buffer.Entries.RemoveRange(0, 200);
             }
-            buffer.ExpiresAt = now + (long)(_retainCompletedJobs && HistoryRetention > TimeSpan.FromDays(30)
-                ? HistoryRetention : TimeSpan.FromDays(30)).TotalMilliseconds;
+            buffer.ExpiresAt = now + (long)HistoryRetention.TotalMilliseconds;
             await _metadata.Set("logSequence", sequence).NoSync();
             await _logs.Set(job.Id, buffer).NoSync();
             return true;
