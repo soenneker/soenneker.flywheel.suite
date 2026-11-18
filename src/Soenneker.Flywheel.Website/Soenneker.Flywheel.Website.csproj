@@ -13,15 +13,15 @@
         <RazorSitemapEnabled>true</RazorSitemapEnabled>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="11.0.190">
+        <PackageReference Include="Soenneker.Gen.Razor.ImageOptimizer.Avif" Version="11.0.191">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="11.0.189">
+        <PackageReference Include="Soenneker.Gen.Razor.Sitemaps" Version="11.0.191">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1739" Condition="'$(UseLocalQuarkProject)' != 'true'" />
+        <PackageReference Include="Soenneker.Quark.Suite" Version="11.0.1740" Condition="'$(UseLocalQuarkProject)' != 'true'" />
         <PackageReference Include="Soenneker.Lepton.Suite" Version="11.0.145" />
         <ProjectReference Include="$(LocalQuarkProject)" Condition="'$(UseLocalQuarkProject)' == 'true'" />
         <PackageReference Include="Soenneker.Quark.Gen.Tailwind" Version="11.0.352" PrivateAssets="all" />
