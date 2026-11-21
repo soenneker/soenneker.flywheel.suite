@@ -67,6 +67,7 @@ my-4
 opacity-100
 overflow-x-auto
 overflow-y-hidden
+overscroll-x-contain
 p-0
 p-4
 p-6

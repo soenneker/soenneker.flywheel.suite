@@ -22,7 +22,7 @@
             <Button OnClick="LoadAllHistory">Retry loading logs</Button>
         }
     }
-    <ConsolePanel TextProvider="@(() => ConsoleText)" ItemKeys="@_keys" HasOlderItems="@(_historyCursors.Count > 0 && string.IsNullOrWhiteSpace(_filter) && _error is null)" LoadOlder="LoadOlder" ActionsDisabled="@(_loading || _loadingOlder || _historyCursors.Count > 0)" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
+    <ConsolePanel TextProvider="@(() => ConsoleText)" ItemKeys="@_keys" HasOlderItems="@(_historyCursors.Count > 0 && string.IsNullOrWhiteSpace(_filter) && _error is null)" LoadOlder="LoadOlder" ActionsDisabled="@(_loading || _loadingOlder || _historyCursors.Count > 0)" FormatExceptions="@LogOptions.FormatExceptions" DownloadFileName="@($"{JobId}.log")" Overscroll="Overscroll.XContain" SmallScreenHeight="20rem" MediumScreenHeight="28rem" AutoScroll="@(string.IsNullOrWhiteSpace(_filter))" aria-label="Job execution log output">
         <ChildContent>
             @if (_loadingOlder)
             {
