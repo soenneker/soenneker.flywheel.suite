@@ -15,6 +15,25 @@ namespace Soenneker.Flywheel.Redis.Tests;
 public sealed partial class FlywheelRedisTests
 {
     [Test]
+    public ValueTask ConnectionFactoryUsesCallerOwnedMultiplexer(CancellationToken cancellationToken) => new(WithStore(async (observer, db, ns) =>
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IConnectionMultiplexer>("jobs", db.Multiplexer);
+        services.AddFlywheel().AddRedis(options =>
+        {
+            options.ConnectionString = "";
+            options.Namespace = ns;
+            options.Database = db.Database;
+        }, connectionFactory: (sp, ct) => ValueTask.FromResult(sp.GetRequiredKeyedService<IConnectionMultiplexer>("jobs")));
+
+        string id;
+        await using (var provider = services.BuildServiceProvider())
+            id = await provider.GetRequiredService<RedisJobStore>().Enqueue(Request(), cancellationToken: cancellationToken);
+
+        Check(await observer.Get(id, cancellationToken: cancellationToken) is not null, "Job missing from the caller-owned connection.");
+    }));
+
+    [Test]
     public ValueTask ReleaseIsolationSeparatesJobsDeduplicationAndSchedulesFromOldWorkers(CancellationToken cancellationToken) => new ValueTask(WithStore(async (legacy, db, ns) =>
     {
         ServiceProvider Open(string version)

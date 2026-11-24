@@ -17,6 +17,17 @@ builder.Services.AddFlywheel().AddRedis(options =>
 });
 ```
 
+To use a multiplexer already managed by your application, pass a connection factory to `AddRedis`. For example, with a keyed singleton registered as `IConnectionMultiplexer`:
+
+```csharp
+builder.Services.AddFlywheel().AddRedis(
+    options => options.Namespace = "my-app",
+    connectionFactory: (services, ct) =>
+        ValueTask.FromResult(services.GetRequiredKeyedService<IConnectionMultiplexer>("jobs")));
+```
+
+The factory takes precedence over `ConnectionString`. Return a shared connection and let its owner dispose it. Flywheel selects `options.Database` on that connection.
+
 Workers sharing jobs must use the same database, namespace, storage version, and job registrations. Redis persistence and `maxmemory-policy noeviction` are required when losing jobs is unacceptable. Librarian uses hashes, sets, sorted sets, conditional transactions, and atomic Lua scripts. Redis ACLs must allow `EVAL` and `EVALSHA` as well as the commands executed by those scripts. The provider reads server time from the primary owning its namespace slot.
 
 The local Librarian compatibility implementation removes `SORT` and external-key patterns. It supports standalone Garnet with `--lua --lua-transaction-mode`; both switches are required for correct coordination. Configure Garnet persistence, commit acknowledgment, and recovery separately. Cluster failover and production throughput require deployment-specific validation.

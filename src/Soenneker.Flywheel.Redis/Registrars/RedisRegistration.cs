@@ -5,6 +5,7 @@ using Soenneker.Flywheel.Core.Registrars;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using Microsoft.Extensions.DependencyInjection;
 using Soenneker.Redis.Client.Registrars;
+using StackExchange.Redis;
 
 namespace Soenneker.Flywheel.Redis;
 
@@ -16,21 +17,38 @@ public static class RedisRegistration
 
     /// <summary>Adds Redis lifecycle persistence using the shared Soenneker connection cache.</summary>
     public static FlywheelBuilder AddRedis(this FlywheelBuilder builder, Action<FlywheelRedisOptions>? configure = null)
+        => AddRedis(builder, configure, connectionFactory: null);
+
+    /// <summary>Adds Redis persistence with an optional factory for a shared, caller-owned connection.</summary>
+    /// <param name="builder">The Flywheel builder.</param>
+    /// <param name="configure">Configures storage, including the database index and namespace.</param>
+    /// <param name="connectionFactory">Resolves a reusable multiplexer from the root service provider. Flywheel passes
+    /// the storage cancellation token and leaves disposal to the owner. A null factory uses the configured connection string.</param>
+    public static FlywheelBuilder AddRedis(this FlywheelBuilder builder, Action<FlywheelRedisOptions>? configure,
+        Func<IServiceProvider, CancellationToken, ValueTask<IConnectionMultiplexer>>? connectionFactory)
     {
         var options = new FlywheelRedisOptions();
         configure?.Invoke(options);
-        if (string.IsNullOrWhiteSpace(options.ConnectionString) || string.IsNullOrWhiteSpace(options.Namespace) || options.Database < 0 ||
+        if ((connectionFactory is null && string.IsNullOrWhiteSpace(options.ConnectionString)) || string.IsNullOrWhiteSpace(options.Namespace) || options.Database < 0 ||
             options.HistoryRetention < TimeSpan.FromMinutes(5) || options.HistoryRetention > TimeSpan.FromDays(365))
             throw new ArgumentException("Redis connection, namespace and database must be configured.");
-        builder.Services.AddRedisClientAsSingleton();
+        if (connectionFactory is null)
+            builder.Services.AddRedisClientAsSingleton();
         builder.Services.AddSingleton(options);
         builder.Services.AddKeyedSingleton<RedisLibrarianDatabase>(LibrarianServiceKey, (sp, _) =>
         {
             var storage = sp.GetRequiredService<FlywheelRedisOptions>();
-            var client = sp.GetRequiredService<IRedisClient>();
+            Func<CancellationToken, ValueTask<IDatabase>> database;
+            if (connectionFactory is null)
+            {
+                var client = sp.GetRequiredService<IRedisClient>();
+                database = async ct => (await client.Get(storage.ConnectionString, ct).ConfigureAwait(false)).GetDatabase(storage.Database);
+            }
+            else
+                database = async ct => (await connectionFactory(sp, ct).ConfigureAwait(false)).GetDatabase(storage.Database);
+
             return new RedisLibrarianDatabase(sp.GetService<FlywheelOptions>()?.GetStorageName(storage.Namespace) ?? storage.Namespace,
-                async ct => (await client.Get(storage.ConnectionString, ct).ConfigureAwait(false)).GetDatabase(storage.Database),
-                keyPrefix: storage.KeyPrefix);
+                database, keyPrefix: storage.KeyPrefix);
         });
         builder.Services.AddSingleton(sp => new RedisJobStore(
             sp.GetRequiredKeyedService<RedisLibrarianDatabase>(LibrarianServiceKey),
