@@ -144,20 +144,36 @@ public abstract partial class LibrarianJobStore
             Node previous = await _nodes.Get(node);
             Session.NotifyServers = previous.ExpiresAt <= now || previous.Workers != workers || !(previous.Pools ?? []).SequenceEqual(capacities);
             await PruneServers(now, 8);
-            int busy = UseServerQueries
-                ? await _jobs.ObserveCount(entry => entry.Value.Owner == node && entry.Value.LeaseUntil > now)
-                : (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
-            long bucket = now / 5000 * 5000;
-            ServerWorkerHistoryPoint[] retained = (previous.WorkerHistory ?? [])
-                .Where(point => point.Timestamp < bucket).ToArray();
-            // Keep the preceding observation too, so the left edge has its last known count.
-            ServerWorkerHistoryPoint[] history = retained.Where(point => point.Timestamp < bucket - 300000).TakeLast(1)
-                .Concat(retained.Where(point => point.Timestamp >= bucket - 300000))
-                .Append(new ServerWorkerHistoryPoint(bucket, busy, now + milliseconds)).ToArray();
+            ServerWorkerHistoryPoint[] history = await SampleWorkerHistory(node, now, now + milliseconds, previous.WorkerHistory ?? [], cancellationToken);
             if (previous.ExpiresAt > 0) FlywheelStorageMetrics.HeartbeatAge.Record(Math.Max(0, now - previous.ExpiresAt + milliseconds));
             await _nodes.Set(node, new Node(now + milliseconds, workers) { WorkerHistory = history, Pools = capacities }).NoSync();
             return true;
         }, lane: _heartbeats);
+    }
+
+    private async ValueTask<ServerWorkerHistoryPoint[]> SampleWorkerHistory(string node, long now, long expiresAt,
+        ServerWorkerHistoryPoint[] history, CancellationToken cancellationToken)
+    {
+        int busy;
+        try
+        {
+            busy = UseServerQueries
+                ? await _jobs.ObserveCount(entry => entry.Value.Owner == node && entry.Value.LeaseUntil > now)
+                : (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
+        }
+        catch (TimeoutException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // A timed-out utilization sample must still allow the node to renew its expiry.
+            FlywheelStorageMetrics.MissedWorkerSamples.Add(1);
+            return history;
+        }
+
+        long bucket = now / 5000 * 5000;
+        ServerWorkerHistoryPoint[] retained = history.Where(point => point.Timestamp < bucket).ToArray();
+        // Keep the preceding observation too, so the left edge has its last known count.
+        return retained.Where(point => point.Timestamp < bucket - 300000).TakeLast(1)
+            .Concat(retained.Where(point => point.Timestamp >= bucket - 300000))
+            .Append(new ServerWorkerHistoryPoint(bucket, busy, expiresAt)).ToArray();
     }
 
     private async Task<WorkerServerView> Server(string node, Node data, long now, bool includeHistory = false) =>

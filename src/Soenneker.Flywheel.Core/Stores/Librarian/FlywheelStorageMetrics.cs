@@ -9,6 +9,7 @@ internal static class FlywheelStorageMetrics
     internal static readonly Histogram<double> Duration = Meter.CreateHistogram<double>("flywheel.storage.transaction", "ms");
     internal static readonly Histogram<double> LeaseHeadroom = Meter.CreateHistogram<double>("flywheel.lease.headroom", "ms");
     internal static readonly Histogram<double> HeartbeatAge = Meter.CreateHistogram<double>("flywheel.heartbeat.age", "ms");
+    internal static readonly Counter<long> MissedWorkerSamples = Meter.CreateCounter<long>("flywheel.heartbeat.sample_timeouts");
     internal static readonly Histogram<double> ScheduleLag = Meter.CreateHistogram<double>("flywheel.schedule.lag", "ms");
     internal static readonly Counter<long> Rejections = Meter.CreateCounter<long>("flywheel.storage.rejections");
     internal static readonly Counter<long> DroppedLogs = Meter.CreateCounter<long>("flywheel.logs.dropped");
