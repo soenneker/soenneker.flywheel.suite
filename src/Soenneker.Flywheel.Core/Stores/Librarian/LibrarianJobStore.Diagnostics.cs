@@ -8,10 +8,10 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore
 {
-    private readonly LibrarianTable<string, LogBuffer> _logs;
-    private readonly LibrarianTable<string, JobLogEntry[]> _logPages = new("logPages");
-    private readonly LibrarianTable<string, Node> _nodes;
-    private readonly LibrarianTable<string, long> _metadata;
+    private LibrarianTable<string, LogBuffer> _logs => Session.Logs;
+    private LibrarianTable<string, JobLogEntry[]> _logPages => Session.LogPages;
+    private LibrarianTable<string, Node> _nodes => Session.Nodes;
+    private LibrarianTable<string, long> _metadata => Session.Metadata;
 
     public Task<bool> AppendLogs(JobLease lease, IReadOnlyList<JobLogMessage> messages, CancellationToken cancellationToken = default)
     {
@@ -23,21 +23,22 @@ public abstract partial class LibrarianJobStore
             if (job is null) return false;
             if ((await _logs.GetEntry(job.Id)) is not { Value: var buffer })
                 buffer = new LogBuffer();
-            long sequence = (await _metadata.Get("logSequence"));
-            var accepted = new List<JobLogEntry>(messages.Count);
+            // Existing pages used the global sequence. The active tail always contains the latest entry.
+            if (buffer.Sequence == 0 && buffer.Entries.Count > 0 && TryLogSequence(buffer.Entries[^1].Id, out long previous))
+                buffer.Sequence = previous;
             foreach (JobLogMessage message in messages)
-                accepted.Add(new JobLogEntry($"{now}-{++sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
-            buffer.Entries.AddRange(accepted);
-            while (buffer.Entries.Count > 200)
+                buffer.Entries.Add(new JobLogEntry($"{now}-{++buffer.Sequence}", now, job.Attempt, message.Level, message.Category, message.Message));
+            while (buffer.Entries.Count >= 50)
             {
-                await _logPages.Set($"{job.Id}:{buffer.PageCount++}", buffer.Entries.Take(200).ToArray());
-                buffer.Entries.RemoveRange(0, 200);
+                var page = new JobLogEntry[50];
+                buffer.Entries.CopyTo(0, page, 0, page.Length);
+                await _logPages.Set($"{job.Id}:{buffer.PageCount++}", page);
+                buffer.Entries.RemoveRange(0, 50);
             }
             buffer.ExpiresAt = now + (long)HistoryRetention.TotalMilliseconds;
-            await _metadata.Set("logSequence", sequence).NoSync();
             await _logs.Set(job.Id, buffer).NoSync();
             return true;
-        });
+        }, pointReadsOnly: true);
     }
 
     public Task<IReadOnlyList<JobLogEntry>> GetLogs(string jobId, int count = 200, CancellationToken cancellationToken = default, string? beforeId = null)
@@ -45,7 +46,7 @@ public abstract partial class LibrarianJobStore
         ValidateId(jobId);
         ValidatePage(0, count);
         if (beforeId is not null) ValidateId(beforeId);
-        return Mutate<IReadOnlyList<JobLogEntry>>(cancellationToken, async now =>
+        return ReadSnapshot<IReadOnlyList<JobLogEntry>>(cancellationToken, async now =>
         {
             if ((await _logs.GetEntry(jobId)) is not { Value: var buffer } || buffer.ExpiresAt <= now) return [];
             IReadOnlyList<JobLogEntry> entries = buffer.Entries;
@@ -80,7 +81,7 @@ public abstract partial class LibrarianJobStore
                 end = entries.Count;
             }
             return result;
-        });
+        }, pointReadsOnly: true);
     }
 
     private static bool TryLogSequence(string id, out long sequence) =>
@@ -112,11 +113,16 @@ public abstract partial class LibrarianJobStore
         });
     }
 
-    private async Task PruneServers(long now)
+    private async Task PruneServers(long now, int take)
     {
-        string[] expired = (await _nodes.Range("value.expiresAt", minimum: long.MinValue, maximum: now - (long)InstanceGracePeriod.TotalMilliseconds)).Select(p => p.Key).ToArray();
-        if (expired.Length != 0) _notifyServers = true;
-        foreach (string id in expired) await _nodes.Remove(id).NoSync();
+        long cutoff = now - (long)InstanceGracePeriod.TotalMilliseconds;
+        var candidates = await _nodes.Range("value.expiresAt", minimum: long.MinValue, maximum: cutoff, take: take, validateRange: false);
+        foreach (var candidate in candidates)
+        {
+            // Recheck the individual node. A returning peer can refresh its TTL after the index read.
+            if (await _nodes.GetEntry(candidate.Key) is { Value.ExpiresAt: var expires } && expires <= cutoff)
+                Session.NotifyServers |= await _nodes.Remove(candidate.Key);
+        }
     }
 
     public Task Heartbeat(string node, int workers, TimeSpan ttl, CancellationToken cancellationToken = default) =>
@@ -136,9 +142,11 @@ public abstract partial class LibrarianJobStore
         return Mutate(cancellationToken, async now =>
         {
             Node previous = await _nodes.Get(node);
-            _notifyServers = previous.ExpiresAt <= now || previous.Workers != workers || !(previous.Pools ?? []).SequenceEqual(capacities);
-            await PruneServers(now);
-            int busy = (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
+            Session.NotifyServers = previous.ExpiresAt <= now || previous.Workers != workers || !(previous.Pools ?? []).SequenceEqual(capacities);
+            await PruneServers(now, 8);
+            int busy = UseServerQueries
+                ? await _jobs.ObserveCount(entry => entry.Value.Owner == node && entry.Value.LeaseUntil > now)
+                : (await _jobs.Find("owner", node)).Count(j => j.State == JobState.Running && j.LeaseUntil > now);
             long bucket = now / 5000 * 5000;
             ServerWorkerHistoryPoint[] retained = (previous.WorkerHistory ?? [])
                 .Where(point => point.Timestamp < bucket).ToArray();
@@ -146,40 +154,49 @@ public abstract partial class LibrarianJobStore
             ServerWorkerHistoryPoint[] history = retained.Where(point => point.Timestamp < bucket - 300000).TakeLast(1)
                 .Concat(retained.Where(point => point.Timestamp >= bucket - 300000))
                 .Append(new ServerWorkerHistoryPoint(bucket, busy, now + milliseconds)).ToArray();
+            if (previous.ExpiresAt > 0) FlywheelStorageMetrics.HeartbeatAge.Record(Math.Max(0, now - previous.ExpiresAt + milliseconds));
             await _nodes.Set(node, new Node(now + milliseconds, workers) { WorkerHistory = history, Pools = capacities }).NoSync();
             return true;
-        });
+        }, lane: _heartbeats);
     }
 
     private async Task<WorkerServerView> Server(string node, Node data, long now, bool includeHistory = false) =>
-        new(node, data.ExpiresAt, data.Workers, (await _jobs.Find("owner", node)).Where(j =>
-            j.State == JobState.Running && j.LeaseUntil > now).OrderBy(j => j.LeaseUntil).ToArray())
+        new(node, data.ExpiresAt, data.Workers, await WithPayloads((await _jobs.Find("owner", node)).Where(j =>
+            j.State == JobState.Running && j.LeaseUntil > now).OrderBy(j => j.LeaseUntil).ToArray(), _payloads))
         { Pools = data.Pools ?? [new WorkerPoolCapacity("default", data.Workers)], WorkerHistory = includeHistory ? data.WorkerHistory ?? [] : [], ObservedAt = now };
 
     public Task<IReadOnlyList<WorkerServerView>> ListServers(int count = 200, CancellationToken cancellationToken = default)
     {
         ValidatePage(0, count);
-        return Mutate<IReadOnlyList<WorkerServerView>>(cancellationToken, async now =>
-            await Task.WhenAll((await _nodes.Range("value.expiresAt", minimum: now + 1)).OrderBy(p => p.Value.ExpiresAt).ThenBy(p => p.Key, StringComparer.Ordinal)
-                .Take(count).Select(p => Server(p.Key, p.Value, now))));
+        return ReadSnapshot<IReadOnlyList<WorkerServerView>>(cancellationToken, async now =>
+        {
+            var result = new List<WorkerServerView>();
+            foreach (var entry in (await _nodes.Range("value.expiresAt", minimum: now + 1))
+                .OrderBy(p => p.Value.ExpiresAt).ThenBy(p => p.Key, StringComparer.Ordinal).Take(count))
+                result.Add(await Server(entry.Key, entry.Value, now));
+            return result;
+        });
     }
 
     public Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default)
     {
         ValidateId(node);
-        return Mutate<WorkerServerView?>(cancellationToken, async now =>
+        return ReadSnapshot<WorkerServerView?>(cancellationToken, async now =>
             (await _nodes.GetEntry(node)) is { Value: var data } && data.ExpiresAt > now ? await Server(node, data, now, includeHistory: true) : null);
     }
 
+    public Task<int> GetServerCount(CancellationToken cancellationToken = default) =>
+        ReadSnapshot(cancellationToken, async now => await _nodes.CountRange("value.expiresAt", minimum: now + 1));
+
     public Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async now => (await _nodes.Range("value.expiresAt", minimum: now + 1)).Sum(n => n.Value.Workers));
+        ReadSnapshot(cancellationToken, async now => (await _nodes.Range("value.expiresAt", minimum: now + 1)).Sum(n => n.Value.Workers));
 
     public Task<long> GetSucceededCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.Succeeded.Value));
+        ReadSnapshot(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.Succeeded.Value));
 
     public Task<long> GetFailedCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.DeadLettered.Value));
+        ReadSnapshot(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.DeadLettered.Value));
 
     public Task<long> GetRunningCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.Running.Value));
+        ReadSnapshot(cancellationToken, async _ => (long)await _jobs.Count("state", JobState.Running.Value));
 }

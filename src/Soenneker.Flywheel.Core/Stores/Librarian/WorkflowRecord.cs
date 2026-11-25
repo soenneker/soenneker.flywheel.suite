@@ -1,3 +1,3 @@
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
-internal sealed record WorkflowRecord(string Id, string[] JobIds, string[] SubmissionKeys);
+internal sealed record WorkflowRecord(string Id, string[] JobIds, string[] SubmissionKeys, bool Pruning = false);

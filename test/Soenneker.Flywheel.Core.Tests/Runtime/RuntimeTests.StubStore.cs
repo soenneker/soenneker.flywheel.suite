@@ -17,6 +17,9 @@ public sealed partial class RuntimeTests
         private readonly Channel<JobChange> _changes = Channel.CreateUnbounded<JobChange>();
         public Communication.Enums.LeaseStatus Status;
         public bool StalledRenewal;
+        public bool FailFirstRenewal;
+        public TimeSpan HandlerTimeout = TimeSpan.FromMilliseconds(150);
+        public int RenewalAttempts;
         public bool FailDiagnostics;
         public string? LeaseLossReason;
         public Task<bool> RecordLeaseLoss(JobLease lease, string reason, CancellationToken cancellationToken = default)
@@ -42,9 +45,12 @@ public sealed partial class RuntimeTests
         { Quarantines++; Error = error; return Task.FromResult(true); }
         public Task<JobLease?> Claim(string owner, TimeSpan duration, CancellationToken cancellationToken = default) =>
             Task.FromResult<JobLease?>(new JobLease(new JobRecord { Id = "one", Name = "test", Payload = "{}", Attempt = 1,
-                Policy = new JobPolicy { Timeout = TimeSpan.FromMilliseconds(150) } }, "token", 1));
-        public Task<Communication.Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default) =>
-            StalledRenewal ? new TaskCompletionSource<Communication.Enums.LeaseStatus>().Task : Task.FromResult(Status);
+                Policy = new JobPolicy { Timeout = HandlerTimeout } }, "token", 1));
+        public Task<Communication.Enums.LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref RenewalAttempts) == 1 && FailFirstRenewal) throw new TimeoutException();
+            return StalledRenewal ? new TaskCompletionSource<Communication.Enums.LeaseStatus>().Task : Task.FromResult(Status);
+        }
         public Task<bool> Finish(JobLease lease, Communication.Enums.JobOutcome outcome, string? error, TimeSpan retryDelay, CancellationToken cancellationToken = default)
         { Commits++; Error = error; Outcome = outcome; return Task.FromResult(true); }
         public Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

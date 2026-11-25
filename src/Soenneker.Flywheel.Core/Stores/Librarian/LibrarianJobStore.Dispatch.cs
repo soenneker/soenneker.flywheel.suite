@@ -18,7 +18,7 @@ public abstract partial class LibrarianJobStore
     {
         // Fall back whenever any queued document uses the older ordering layout,
         // so a rolling upgrade cannot hide work or change priority ordering.
-        if (!UseServerQueries || await _dispatch.CountRange("value.orderVersion", minimum: 2, maximum: 2) != pending ||
+        if (await _dispatch.CountRange("value.orderVersion", minimum: 2, maximum: 2) != pending ||
             await _dispatch.CountRange("value.order", minimum: "") != pending)
         {
             var entries = await _dispatch.Range("value.dueAt", maximum: now);
@@ -39,6 +39,61 @@ public abstract partial class LibrarianJobStore
             foreach (DispatchCandidate candidate in eligible)
                 yield return candidate.PartitionId is null ? candidate : fair[(candidate.Name, candidate.Priority, candidate.QueueRank)].Dequeue();
             yield break;
+        }
+
+        // The ordered index often answers a claim in its first page, including with older
+        // Librarian packages. A keyed head still needs its method's partition fairness check.
+        if (UseServerQueries)
+        {
+            var head = await _dispatch.Range("value.order", minimum: "", take: 16);
+            foreach (var entry in head)
+            {
+                var candidate = entry.Value;
+                if (candidate.DueAt > now || candidate.ApplicationVersion is not null && candidate.ApplicationVersion != version ||
+                    candidate.TargetNodeId is not null && candidate.TargetNodeId != owner || jobNames is not null && !jobNames.Contains(candidate.Name) ||
+                    blocked.Contains(candidate.Name)) continue;
+                if (candidate.PartitionId is not null) break;
+                yield return candidate;
+            }
+            if (head.Count == 0) yield break;
+        }
+
+        if (!UseServerQueries)
+        {
+            while (true)
+            {
+                DispatchCandidate? first = null, selected = null;
+                long bestTurn = long.MaxValue;
+                var partitions = new HashSet<string>(StringComparer.Ordinal);
+                int offset = 0;
+                bool groupComplete = false;
+                while (!groupComplete)
+                {
+                    var page = await _dispatch.Range("value.order", minimum: "", skip: offset, take: 64);
+                    foreach (var entry in page)
+                    {
+                        DispatchCandidate candidate = entry.Value;
+                        if (first is not null && (candidate.Priority != first.Priority || candidate.QueueRank != first.QueueRank))
+                        {
+                            groupComplete = true;
+                            break;
+                        }
+                        if (candidate.DueAt > now || candidate.ApplicationVersion is not null && candidate.ApplicationVersion != version ||
+                            candidate.TargetNodeId is not null && candidate.TargetNodeId != owner || jobNames is not null && !jobNames.Contains(candidate.Name) ||
+                            blocked.Contains(candidate.Name) || candidate.PartitionId is { } p && blockedPartitions.Contains(p)) continue;
+                        first ??= candidate;
+                        if (first.PartitionId is null) { selected = first; groupComplete = true; break; }
+                        if (candidate.Name != first.Name || candidate.PartitionId is not { } partition || !partitions.Add(partition)) continue;
+                        long turn = await _partitionTurns.Get(partition);
+                        if (turn < bestTurn) { selected = candidate; bestTurn = turn; }
+                        if (turn == 0) { groupComplete = true; break; }
+                    }
+                    if (page.Count < 64) break;
+                    offset += page.Count;
+                }
+                if (selected is null) yield break;
+                yield return selected;
+            }
         }
 
         // The compound ordering field allows a bounded server page instead of loading the entire backlog.
@@ -68,6 +123,7 @@ public abstract partial class LibrarianJobStore
             if (selected.PartitionId is { } selectedPartition)
             {
                 long selectedTurn = await _partitionTurns.Get(selectedPartition);
+                if (selectedTurn == 0) { yield return selected; continue; }
                 string prefix = $"{selected.Name.Length}:{selected.Name}";
                 // One fairness record per active partition; fetch at most one eligible job per partition,
                 // never all jobs in a tenant's backlog. Priority and method ordering remain authoritative.

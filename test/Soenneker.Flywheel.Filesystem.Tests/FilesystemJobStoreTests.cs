@@ -338,7 +338,7 @@ public sealed class FilesystemJobStoreTests
             Check(items.Count == 2 && items.Any(i => i.Value.Contains(first)) && items.Any(i => i.Value.Contains(second)),
                 "Jobs were not stored as individual Librarian documents.");
             var format = await database.GetContainer("flywheel.control", cancellationToken: cancellationToken);
-            Check(await format.GetItem("format", cancellationToken: cancellationToken) == "4" && await format.GetItem("state", cancellationToken: cancellationToken) is null, "Wrong storage format.");
+            Check(await format.GetItem("format", cancellationToken: cancellationToken) == "5" && await format.GetItem("state", cancellationToken: cancellationToken) is null, "Wrong storage format.");
         }
         Check((await dependencies.GetRequiredService<FilesystemJobStore>().Get(first, cancellationToken: cancellationToken))!.Name == "original", "Reopen lost a document.");
         Check(!(await _fileUtil.Exists(files.Path + ".working", cancellationToken: cancellationToken)), "Old working-database engine is still in use.");
@@ -405,7 +405,7 @@ public sealed class FilesystemJobStoreTests
         await using (ServiceProvider failed = Open(files.Path, clock))
         {
             bool rejected = false;
-            try { await failed.GetRequiredService<FilesystemJobStore>().Enqueue(Request("discarded", "retry"), cancellationToken: cancellationToken); }
+            try { await failed.GetRequiredService<FilesystemJobStore>().Cancel(id, cancellationToken: cancellationToken); }
             catch (System.Text.Json.JsonException) { rejected = true; }
             Check(rejected && await _fileUtil.Read(files.Path, cancellationToken: cancellationToken) == corrupted, "Partial mutation changed committed data.");
         }

@@ -13,7 +13,7 @@ using System.Text.Json;
 namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 // Raw reads and writes belong to one optimistic attempt and are discarded before every retry.
-internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTable
+internal sealed class LibrarianTable<TKey, TValue>(string name, bool immutableValues = false) : ILibrarianTable
     where TKey : notnull
 {
     static LibrarianTable() => LibrarianJson.Register(LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>());
@@ -30,13 +30,33 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     {
         foreach ((string id, string? value) in _writes) writes.Add(new LibrarianWrite(Name, id, value));
     }
+    public void AddJobChanges(HashSet<JobChange> changes, string kind)
+    {
+        foreach (var (key, id) in _ids)
+            if (key is string jobId && _writes.TryGetValue(id, out string? raw))
+                changes.Add(raw is null ? JobChange.Resync : new JobChange(kind, jobId));
+    }
+
     public bool Touched { get; private set; }
     private bool _scanned;
 
-    public void AddConditions(List<LibrarianCondition> conditions, string controlContainer, string? tableRevision)
+    public void AddConditions(List<LibrarianCondition> conditions, string controlContainer, string?[]? revisions, int index)
     {
-        if (_scanned) conditions.Add(new LibrarianCondition(controlContainer, Name, tableRevision));
-        else foreach ((string id, string? raw) in _reads) conditions.Add(new LibrarianCondition(Name, id, raw));
+        if (_scanned)
+        {
+            if (revisions is null) throw new InvalidOperationException("An indexed scan requires table revision tracking.");
+            conditions.Add(new LibrarianCondition(controlContainer, Name, revisions[index]));
+        }
+        else
+        {
+            foreach ((string id, string? raw) in _reads)
+            {
+                // The owning job is fenced and its immutable payload shares its lifetime.
+                // Only a payload write needs to send the original value back to the provider.
+                if (!immutableValues || _writes.ContainsKey(id))
+                    conditions.Add(new LibrarianCondition(Name, id, raw));
+            }
+        }
     }
 
     public IQueryable<LibrarianEntry<TKey, TValue>> Query()
@@ -48,6 +68,10 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
 
     public ValueTask<LibrarianEntry<TKey, TValue>?> First(IQueryable<LibrarianEntry<TKey, TValue>> query) =>
         query.FirstOrDefault(_token);
+
+    // Heartbeat utilization is a sample at read time. Concurrent claims or renewals may change it immediately.
+    public ValueTask<int> ObserveCount(Expression<Func<LibrarianEntry<TKey, TValue>, bool>> predicate) =>
+        _container.BuildQueryable<LibrarianEntry<TKey, TValue>>().Count(predicate, _token);
 
     public ValueTask<int> Count(Expression<Func<LibrarianEntry<TKey, TValue>, bool>> predicate) =>
         Query().Count(predicate, _token);
@@ -88,7 +112,7 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         string? scheduled = value is JobRecord { State: var state } pending && state == JobState.Scheduled ? SortKey(pending.DueAt, pending.Id) : null;
         long? completedAt = value is JobRecord completed && (completed.State == JobState.Succeeded || completed.State == JobState.Cancelled || completed.State == JobState.DeadLettered)
             ? completed.CompletedAt : null;
-        string serialized = JsonUtil.Serialize(new LibrarianEntry<TKey, TValue>(key, value, order, scheduled, CompletedAt: completedAt, Active: active), LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>())!;
+        string serialized = JsonUtil.Serialize(new LibrarianEntry<TKey, TValue>(key, value, order, scheduled, CompletedAt: completedAt, Active: active, BoardOrder: value is JobRecord board ? (board.State == JobState.Running ? "0" : "1") + order : null), LibraryJsonContext.Get<LibrarianEntry<TKey, TValue>>())!;
         if (await Read(id).NoSync() != serialized)
         {
             if (_reads.TryGetValue(id, out string? original) && original == serialized) _writes.Remove(id);
@@ -278,13 +302,14 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
     }
 
     public ValueTask<IReadOnlyList<LibrarianEntry<TKey, TValue>>> Range(string path, object? minimum = null,
-        object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue) =>
-        Range<TValue>(path, minimum, maximum, descending, skip, take);
+        object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue, bool validateRange = true) =>
+        Range<TValue>(path, minimum, maximum, descending, skip, take, validateRange);
 
     public async ValueTask<IReadOnlyList<LibrarianEntry<TKey, TProjection>>> Range<TProjection>(string path, object? minimum = null,
-        object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue)
+        object? maximum = null, bool descending = false, int skip = 0, int take = int.MaxValue, bool validateRange = true)
     {
-        Touched = true; _scanned = true;
+        Touched = true;
+        if (validateRange) _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         // Paged reads cannot include an uncommitted overlay: callers use them before staging writes.
         if (_writes.Count != 0) throw new InvalidOperationException("Range queries must precede writes to the queried table.");
@@ -294,10 +319,11 @@ internal sealed class LibrarianTable<TKey, TValue>(string name) : ILibrarianTabl
         return page.Items;
     }
 
-    public async ValueTask<int> CountRange(string path, object? minimum = null, object? maximum = null)
+    public async ValueTask<int> CountRange(string path, object? minimum = null, object? maximum = null, bool validateRange = true)
     {
         if (_writes.Count != 0) throw new InvalidOperationException("Range counts must precede writes to the queried table.");
-        Touched = true; _scanned = true;
+        Touched = true;
+        if (validateRange) _scanned = true;
         await _container.EnsureIndex(path, _token).NoSync();
         return await _container.CountRangeByIndex(path, minimum, maximum, _token).NoSync();
     }

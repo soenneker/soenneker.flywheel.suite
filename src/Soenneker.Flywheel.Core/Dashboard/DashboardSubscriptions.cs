@@ -44,6 +44,8 @@ public sealed partial class DashboardSubscriptions(
     /// <summary>Requests snapshots only for connections affected by the committed change.</summary>
     public void Changed(JobChange change)
     {
+        if (change.Kind is "Job" or "Resync" or "Servers" or "Schedules")
+            lock (_summaryGate) Array.Clear(_summaries);
         if (_subscriptions.IsEmpty) return;
         foreach (KeyValuePair<string, Subscription> entry in _subscriptions)
         {
@@ -71,39 +73,11 @@ public sealed partial class DashboardSubscriptions(
         if (kind == "Board")
         {
             JobSearchResult result = await DashboardJobSearch.Search(store, query, offset, count, startAt, endAt, excludedStates, ct);
-            IReadOnlyList<JobHistoryPoint>? history = summary && store is IJobHistoryStore historyStore
-                ? await historyStore.GetHistory(ct)
-                : null;
-            long? runningCount = store is IJobRunningCountStore runningStore
-                ? await runningStore.GetRunningCount(ct)
-                : null;
-            long failedCount = store is IJobFailedCountStore failedStore
-                ? await failedStore.GetFailedCount(ct)
-                : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
-                    "Scheduled,Queued,Running,Succeeded,Cancelled,Waiting", ct)).TotalCount;
-            long succeededCount = store is IJobSucceededCountStore succeededStore
-                ? await succeededStore.GetSucceededCount(ct)
-                : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
-                    "Scheduled,Queued,Running,DeadLettered,Cancelled,Waiting", ct)).TotalCount;
-            int? totalWorkers = null;
-            int? serverCount = null;
-            if (store is IServerStore serverStore)
+            LiveBoard shared = await Summary(summary).WaitAsync(ct);
+            await client.SendAsync(nameof(IFlywheelDashboardClient.BoardSnapshot), shared with
             {
-                totalWorkers = await serverStore.GetTotalWorkerCount(ct);
-                serverCount = (await serverStore.ListServers(200, ct)).Count;
-            }
-            long? recurringCount = store is IRecurringJobCountStore recurringStore
-                ? await recurringStore.GetRecurringCount(ct)
-                : null;
-            ScheduleView? schedules = null;
-            IReadOnlyList<JobHistoryPoint>? liveActivity = summary && store is IJobLiveActivityStore liveStore
-                ? await liveStore.GetLiveActivity(ct)
-                : null;
-            if (summary && store is IJobScheduleStore scheduleStore)
-                schedules = await DashboardSchedules.Read(scheduleStore, snapshots, ct);
-            await client.SendAsync(nameof(IFlywheelDashboardClient.BoardSnapshot), new LiveBoard(version, result.Items.Select(snapshots.Job).ToList(),
-                result.TotalCount, history is null ? null : snapshots.History(history), schedules, runningCount, serverCount, totalWorkers,
-                liveActivity?.ToList(), recurringCount, failedCount, succeededCount), ct);
+                Version = version, Items = result.Items.Select(snapshots.Job).ToList(), TotalCount = result.TotalCount
+            }, ct);
         }
         else if (kind == "Job")
         {
@@ -116,6 +90,62 @@ public sealed partial class DashboardSubscriptions(
             IReadOnlyList<JobLogEntry>? entries = logs is not null ? await logs.GetLogs(jobId!, 200, ct) : null;
             await client.SendAsync(nameof(IFlywheelDashboardClient.LogSnapshot), new LiveLogs(version, jobId!, entries is null ? null : snapshots.Logs(entries)), ct);
         }
+    }
+
+    private readonly Lock _summaryGate = new();
+    private readonly Task<LiveBoard>?[] _summaries = new Task<LiveBoard>?[2];
+    private readonly long[] _sampledAt = new long[2];
+
+    private Task<LiveBoard> Summary(bool full)
+    {
+        int index = full ? 1 : 0;
+        lock (_summaryGate)
+        {
+            var existing = _summaries[index];
+            if (existing is not null && (!existing.IsCompleted || existing.IsCompletedSuccessfully &&
+                System.Diagnostics.Stopwatch.GetElapsedTime(_sampledAt[index]) < TimeSpan.FromSeconds(1))) return existing;
+            _sampledAt[index] = System.Diagnostics.Stopwatch.GetTimestamp();
+            return _summaries[index] = ReadSummary(full);
+        }
+    }
+
+    private async Task<LiveBoard> ReadSummary(bool summary)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.ApplicationStopping);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        CancellationToken ct = timeout.Token;
+        IReadOnlyList<JobHistoryPoint>? history = summary && store is IJobHistoryStore historyStore
+            ? await historyStore.GetHistory(ct)
+            : null;
+        long? runningCount = store is IJobRunningCountStore runningStore
+            ? await runningStore.GetRunningCount(ct)
+            : null;
+        long failedCount = store is IJobFailedCountStore failedStore
+            ? await failedStore.GetFailedCount(ct)
+            : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
+                "Scheduled,Queued,Running,Succeeded,Cancelled,Waiting", ct)).TotalCount;
+        long succeededCount = store is IJobSucceededCountStore succeededStore
+            ? await succeededStore.GetSucceededCount(ct)
+            : (await DashboardJobSearch.Search(store, null, 0, 1, null, null,
+                "Scheduled,Queued,Running,DeadLettered,Cancelled,Waiting", ct)).TotalCount;
+        int? totalWorkers = null;
+        int? serverCount = null;
+        if (store is IServerStore serverStore)
+        {
+            totalWorkers = await serverStore.GetTotalWorkerCount(ct);
+            serverCount = await serverStore.GetServerCount(ct);
+        }
+        long? recurringCount = store is IRecurringJobCountStore recurringStore
+            ? await recurringStore.GetRecurringCount(ct)
+            : null;
+        ScheduleView? schedules = null;
+        IReadOnlyList<JobHistoryPoint>? liveActivity = summary && store is IJobLiveActivityStore liveStore
+            ? await liveStore.GetLiveActivity(ct)
+            : null;
+        if (summary && store is IJobScheduleStore scheduleStore)
+            schedules = await DashboardSchedules.Read(scheduleStore, snapshots, ct);
+        return new LiveBoard(0, [], 0, history is null ? null : snapshots.History(history), schedules, runningCount,
+            serverCount, totalWorkers, liveActivity?.ToList(), recurringCount, failedCount, succeededCount);
     }
 
 }

@@ -35,6 +35,7 @@ public sealed class LibrarianInteropTests
         internal readonly Dictionary<string, int> Calls = new();
         internal readonly HashSet<(string, string)> Reads = new();
         internal int DuplicateReads;
+        internal bool ValidatedPayloadValue;
         internal Func<Task>? BeforeCommit;
         public async ValueTask<ILibrarianContainer> GetContainer(string name, CancellationToken cancellationToken = default)
         {
@@ -47,6 +48,7 @@ public sealed class LibrarianInteropTests
         }
         public async ValueTask<bool> Execute(LibrarianBatch batch, CancellationToken cancellationToken = default)
         {
+            ValidatedPayloadValue = batch.Conditions.Any(condition => condition.Container == "flywheel.payloads" && condition.ExpectedValue is not null);
             if (BeforeCommit is { } action) { BeforeCommit = null; await action(); }
             bool result = await Inner.Execute(batch, cancellationToken);
             Reads.Clear();
@@ -67,6 +69,9 @@ public sealed class LibrarianInteropTests
         await using var store = new Store(database);
         await store.Enqueue(Request(), cancellationToken: cancellationToken);
         JobLease lease = (await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken: cancellationToken))!;
+        Check(!database.ValidatedPayloadValue, "Claim sent the immutable payload back as a commit condition.");
+        await store.Get(lease.Job.Id, cancellationToken);
+        Check(!database.ValidatedPayloadValue, "Get sent the immutable payload back as a snapshot condition.");
         await store.Renew(lease, TimeSpan.FromMinutes(2), cancellationToken: cancellationToken);
         Check(database.DuplicateReads == 0, "An attempt fetched the same raw document repeatedly.");
     }
@@ -128,6 +133,55 @@ public sealed class LibrarianInteropTests
         await store.ConfigureMethod("job", policy with { Pools = ["named"] }, cancellationToken);
         Check(await store.Claim("worker", TimeSpan.FromMinutes(1), cancellationToken) is null, "Default worker claimed named-pool work.");
         Check(await store.ClaimForWorker("worker", TimeSpan.FromMinutes(1), "v1", new HashSet<string> { "job" }, "named", cancellationToken) is not null, "Named-pool policy was not applied.");
+    }
+
+    [Test]
+    public async Task SlowCompletionDoesNotHoldAnotherJobsRenewal(CancellationToken ct)
+    {
+        await using var database = new Database();
+        await using var store = new Store(database);
+        await store.Enqueue(Request(), ct);
+        await store.Enqueue(Request(), ct);
+        var finishing = (await store.Claim("one", TimeSpan.FromMinutes(1), ct))!;
+        var running = (await store.Claim("two", TimeSpan.FromMinutes(1), ct))!;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        database.BeforeCommit = async () => { entered.SetResult(); await release.Task; };
+        Task<bool> completion = store.Finish(finishing, Soenneker.Flywheel.Communication.Enums.JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3), ct);
+            var status = await store.Renew(running, TimeSpan.FromMinutes(2), ct).WaitAsync(TimeSpan.FromSeconds(2), ct);
+            Check(status == Soenneker.Flywheel.Communication.Enums.LeaseStatus.Renewed, "Slow completion blocked an unrelated lease renewal.");
+        }
+        finally { release.TrySetResult(); }
+        Check(await completion, "Completion did not commit.");
+    }
+
+    [Test]
+    public async Task FormatFourRunningJobMigratesPayloadOnRenewal(CancellationToken ct)
+    {
+        await using var database = new MemoryLibrarianDatabase(NullLogger<MemoryLibrarianDatabase>.Instance);
+        await using var store = new Store(database);
+        const string payload = "{\"legacy\":true}";
+        string id = await store.Enqueue(Request() with { Payload = payload }, ct);
+        var lease = (await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!;
+        string key = new Soenneker.Hashing.Sha256.Sha256HashingUtil().Hash("\"" + id + "\"");
+        var jobs = await database.GetContainer("flywheel.jobs", ct);
+        var metadata = System.Text.Json.Nodes.JsonNode.Parse((await jobs.GetItem(key, ct))!)!;
+        metadata["value"]!["payload"] = payload;
+        metadata.AsObject().Remove("boardOrder");
+        Check(await database.Execute(new LibrarianBatch([
+            new LibrarianWrite("flywheel.control", "format", "4"),
+            new LibrarianWrite("flywheel.jobs", key, metadata.ToJsonString()),
+            new LibrarianWrite("flywheel.payloads", key, null)]), ct), "Could not seed the legacy lease.");
+
+        Check((await store.Get(id, ct))?.Payload == payload, "Legacy payload was unreadable.");
+        Check(await store.Renew(lease, TimeSpan.FromMinutes(2), ct) == Soenneker.Flywheel.Communication.Enums.LeaseStatus.Renewed, "Legacy lease was lost.");
+        Check((await store.Get(id, ct))?.Payload == payload, "Renewal lost the payload.");
+        var persisted = System.Text.Json.Nodes.JsonNode.Parse((await jobs.GetItem(key, ct))!)!;
+        Check(persisted["value"]!["payload"]!.GetValue<string>() == "", "Renewal retained an inline payload.");
+        Check(await store.Finish(lease, Soenneker.Flywheel.Communication.Enums.JobOutcome.Succeeded, null, TimeSpan.Zero, ct), "Migrated lease could not finish.");
     }
 
     private static void Check(bool condition, string message)

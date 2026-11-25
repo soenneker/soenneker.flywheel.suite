@@ -28,6 +28,10 @@ Librarian retains loaded containers and indexes in memory. Batches clone changed
 
 One store exclusively owns the path through an open `.lock` file. Other stores or processes cannot open the same path while it is owned. Stop workers before editing or backing up the database; shared network filesystems and aliases to the same file are unsupported. The lock file remains on disk, but the open handle controls ownership. Asynchronously dispose the service provider to release it.
 
-Jobs keep their fencing versions and lease tokens across restarts. Normal maintenance recovers expired leases and removes expired records. Version-submission markers survive completed-job cleanup. `RetainCompletedJobs = false` removes terminal documents on the next maintenance pass. Logs remain bounded to 1,000 entries per job.
+Jobs keep their fencing versions and lease tokens across restarts. Normal maintenance recovers expired leases and removes expired records. Version-submission markers survive completed-job cleanup. `RetainCompletedJobs = false` removes terminal documents on the next maintenance pass. Job logs use a per-job sequence and paged storage. Maintenance deletes expired pages in bounded chunks.
 
 Atomic replacement and file flushing depend on the filesystem and OS for power-loss durability. No separate database server is required.
+
+### Storage format compatibility
+
+Format 5 stores immutable execution payloads separately and reads existing format 4 records. The first committed write upgrades the namespace. Stop or drain format 4 workers before sharing that namespace with the upgraded runtime. Keep a pre-upgrade snapshot if rollback to format 4 is required.

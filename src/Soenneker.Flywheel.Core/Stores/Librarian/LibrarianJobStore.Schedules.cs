@@ -9,8 +9,8 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore
 {
-    private readonly LibrarianTable<string, Schedule> _schedules;
-    private readonly LibrarianTable<string, string[]> _chains;
+    private LibrarianTable<string, Schedule> _schedules => Session.Schedules;
+    private LibrarianTable<string, string[]> _chains => Session.Chains;
 
     public Task<IReadOnlyList<string>> EnqueueChain(IReadOnlyList<EnqueueRequest> steps, string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
@@ -125,12 +125,12 @@ public abstract partial class LibrarianJobStore
     }
 
     public Task<long> GetRecurringCount(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async _ => (long)await _schedules.CountAll());
+        ReadSnapshot(cancellationToken, async _ => (long)await _schedules.CountAll());
 
     public Task<IReadOnlyList<RecurringJobView>> ListRecurring(int count = 50, CancellationToken cancellationToken = default)
     {
         ValidatePage(0, count);
-        return Mutate<IReadOnlyList<RecurringJobView>>(cancellationToken, async now =>
+        return ReadSnapshot<IReadOnlyList<RecurringJobView>>(cancellationToken, async now =>
         {
             var schedules = await _schedules.Range<RecurringScheduleSummary>("order", minimum: "", take: count);
             string[] ids = schedules.Where(pair => pair.Value.LastExecutionId is not null).Select(pair => pair.Value.LastExecutionId!).ToArray();
@@ -150,39 +150,47 @@ public abstract partial class LibrarianJobStore
         });
     }
 
-    public Task Maintain(int batchSize, CancellationToken cancellationToken = default)
+    private const string RetiredExporter = "Flywheel.LogArchive.Export";
+
+    public async Task Maintain(int batchSize, CancellationToken cancellationToken = default)
     {
         if (batchSize is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(batchSize));
-        return Mutate(cancellationToken, async now =>
+        // An idle host only needs a hint for these phases. Each nonempty phase checks eligibility again
+        // in its own fenced transaction. Work arriving after a probe is picked up by the next pass.
+        var (cutoff, recovery, schedules) = await ReadSnapshot(cancellationToken, async now =>
         {
-            var expiredLeases = await _running.Range("value.leaseUntil", minimum: long.MinValue, maximum: now, take: batchSize);
-            var instanceChecks = await _instanceChecks.Range("value", minimum: long.MinValue, maximum: now, take: batchSize);
-            int instanceRepairOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("instanceRepairOffset"));
-            var instanceJobs = await _jobs.Range("value.targetNodeId", minimum: "", skip: instanceRepairOffset, take: batchSize);
-            var dueSchedules = await _schedules.Range("value.dueAt", minimum: long.MinValue, maximum: now, take: batchSize);
-            int retentionOffset = (int)Math.Min(int.MaxValue, await _metadata.Get("retentionOffset"));
-            var expiredJobs = (await _jobs.Range("completedAt", minimum: long.MinValue,
-                maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, skip: retentionOffset, take: batchSize)).Select(e => e.Value).ToList();
-            var expiredHistory = await _history.Range("key", maximum: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize);
-            var expiredLogs = await _logs.Range("value.expiresAt", minimum: long.MinValue, maximum: now, take: batchSize);
-            // Older records can lack cleanup tracking. Repair bounded pages without postponing existing checks.
-            foreach (var entry in instanceJobs)
+            var leases = _running.CountRange("value.leaseUntil", minimum: long.MinValue, maximum: now, validateRange: false).AsTask();
+            var due = _schedules.CountRange("value.dueAt", minimum: long.MinValue, maximum: now, validateRange: false).AsTask();
+            await Task.WhenAll(leases, due);
+            return (now, await leases != 0, await due != 0);
+        }, pointReadsOnly: true);
+        if (recovery) await Drain(RecoverExpired);
+        if (schedules) await Drain(ScheduleDue);
+        await Drain(PruneHistory);
+
+        async Task Drain(Func<int, long, CancellationToken, Task<int>> process)
+        {
+            int size = Math.Min(batchSize, 8);
+            for (int remaining = batchSize; remaining > 0;)
             {
-                JobRecord job = entry.Value;
-                if (job.TargetNodeId is not null && !Terminal(job.State) && await _instanceChecks.GetEntry(job.Id) is null)
-                    await _instanceChecks.Set(job.Id, Math.Max(now, job.CreatedAt + (long)InstanceGracePeriod.TotalMilliseconds));
+                int take = Math.Min(remaining, size);
+                try
+                {
+                    if (await process(take, cutoff, cancellationToken) < take) break;
+                    remaining -= take;
+                }
+                catch (TimeoutException) when (take > 1 && !cancellationToken.IsCancellationRequested)
+                {
+                    size = Math.Max(1, take / 2);
+                }
             }
-            await _metadata.Set("instanceRepairOffset", instanceJobs.Count < batchSize ? 0 : (long)instanceRepairOffset + instanceJobs.Count);
-            // Retire persisted schedules and queued executions from the removed archive exporter.
-            const string retiredExporter = "Flywheel.LogArchive.Export";
-            if (await _schedules.Get(retiredExporter) is { Job.IsSystem: true })
-                await _schedules.Remove(retiredExporter);
-            foreach (var pending in await _dispatch.Range("value.name", minimum: retiredExporter, maximum: retiredExporter, take: batchSize))
-            {
-                if (await _jobs.Get(pending.Key) is { IsSystem: true } job)
-                    await Save(job with { State = JobState.Cancelled, CancelRequested = true, Version = job.Version + 1,
-                        Error = "Log archiving has been removed." }, now);
-            }
+        }
+    }
+
+    private Task<int> RecoverExpired(int batchSize, long cutoff, CancellationToken ct) =>
+        Mutate(ct, async now =>
+        {
+            var expiredLeases = await _running.Range("value.leaseUntil", minimum: long.MinValue, maximum: cutoff, take: batchSize);
             foreach (var lease in expiredLeases)
             {
                 JobRecord job = await _jobs.Get(lease.Key) ?? throw new InvalidDataException("Running metadata has no job.");
@@ -197,8 +205,69 @@ public abstract partial class LibrarianJobStore
                     Version = job.Version + 1, Error = "Lease expired", DueAt = state == JobState.Scheduled ? now + delay : job.DueAt };
                 await Save(recovered, now);
                 await AdvanceChain(recovered, now);
-                if (!_retainCompletedJobs && Terminal(recovered.State) && expiredJobs.Count < batchSize)
-                    expiredJobs.Add((await _jobs.Get(job.Id))!);
+            }
+            return expiredLeases.Count;
+        });
+
+    private Task<int> ScheduleDue(int batchSize, long cutoff, CancellationToken ct) =>
+        Mutate(ct, async now =>
+        {
+            var dueSchedules = await _schedules.Range("value.dueAt", minimum: long.MinValue, maximum: cutoff, take: batchSize);
+            if (dueSchedules.Count != 0)
+                FlywheelStorageMetrics.ScheduleLag.Record(now - dueSchedules[0].Value.DueAt!.Value);
+            foreach (var pair in dueSchedules)
+            {
+                Schedule s = pair.Value;
+                if (pair.Key == RetiredExporter && s.Job.IsSystem) { await _schedules.Remove(pair.Key); continue; }
+                long due = s.DueAt!.Value;
+                long? next = s.Cron is null ? due + ((now - due) / s.Interval + 1) * s.Interval :
+                    CronParser.Parse(s.Cron, s.TimeZoneId, s.IncludeSeconds)
+                        .Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds();
+                await Occurrence(pair.Key, s with { DueAt = next }, now, due);
+            }
+            return dueSchedules.Count;
+        });
+
+    private async Task<int> PruneHistory(int batchSize, long cutoff, CancellationToken ct)
+    {
+        var (processed, continuing) = await Mutate(ct, async now =>
+        {
+            var offsets = await _metadata.GetMany<long>(["instanceRepairOffset", "retentionOffset"]);
+            int instanceRepairOffset = (int)Math.Min(int.MaxValue, offsets[0]);
+            int retentionOffset = (int)Math.Min(int.MaxValue, offsets[1]);
+            var checksRead = _instanceChecks.Range("value", minimum: long.MinValue, maximum: now, take: batchSize).AsTask();
+            var instancesRead = _jobs.Range("value.targetNodeId", minimum: "", skip: instanceRepairOffset, take: batchSize).AsTask();
+            var jobsRead = _jobs.Range("completedAt", minimum: long.MinValue,
+                maximum: _retainCompletedJobs ? now - (long)HistoryRetention.TotalMilliseconds : long.MaxValue, skip: retentionOffset, take: batchSize).AsTask();
+            var historyRead = _history.Range("key", maximum: now / 300000 * 300000 - (long)HistoryRetention.TotalMilliseconds - 1, take: batchSize).AsTask();
+            var logsRead = _logs.Range("value.expiresAt", minimum: long.MinValue, maximum: now, take: batchSize).AsTask();
+            var retiredRead = _schedules.Get(RetiredExporter).AsTask();
+            var dispatchRead = _dispatch.Range("value.name", minimum: RetiredExporter, maximum: RetiredExporter, take: batchSize).AsTask();
+            var ratesRead = _rates.Range("value.until", minimum: long.MinValue, maximum: now, take: batchSize).AsTask();
+            // Complete every independent read before staging lifecycle changes or releasing the lane.
+            await Task.WhenAll(checksRead, instancesRead, jobsRead, historyRead, logsRead, retiredRead, dispatchRead, ratesRead,
+                PruneLive(now, batchSize), PruneServers(now, batchSize));
+            var instanceChecks = await checksRead;
+            var instanceJobs = await instancesRead;
+            var expiredJobs = (await jobsRead).Select(e => e.Value).ToList();
+            var expiredHistory = await historyRead;
+            var expiredLogs = await logsRead;
+            // Older records can lack cleanup tracking. Repair bounded pages without postponing existing checks.
+            foreach (var entry in instanceJobs)
+            {
+                JobRecord job = entry.Value;
+                if (job.TargetNodeId is not null && !Terminal(job.State) && await _instanceChecks.GetEntry(job.Id) is null)
+                    await _instanceChecks.Set(job.Id, Math.Max(now, job.CreatedAt + (long)InstanceGracePeriod.TotalMilliseconds));
+            }
+            await _metadata.Set("instanceRepairOffset", instanceJobs.Count < batchSize ? 0 : (long)instanceRepairOffset + instanceJobs.Count);
+            // Retire persisted schedules and queued executions from the removed archive exporter.
+            if (await retiredRead is { Job.IsSystem: true })
+                await _schedules.Remove(RetiredExporter);
+            foreach (var pending in await dispatchRead)
+            {
+                if (await _jobs.Get(pending.Key) is { IsSystem: true } job)
+                    await Save(job with { State = JobState.Cancelled, CancelRequested = true, Version = job.Version + 1,
+                        Error = "Log archiving has been removed." }, now);
             }
             foreach (var check in instanceChecks)
             {
@@ -220,44 +289,67 @@ public abstract partial class LibrarianJobStore
                 await Save(abandoned, now);
                 await AdvanceChain(abandoned, now);
             }
-            foreach (var pair in dueSchedules)
-            {
-                Schedule s = pair.Value;
-                if (pair.Key == retiredExporter && s.Job.IsSystem) continue;
-                long due = s.DueAt!.Value;
-                long? next = s.Cron is null ? due + ((now - due) / s.Interval + 1) * s.Interval :
-                    CronParser.Parse(s.Cron, s.TimeZoneId, s.IncludeSeconds)
-                        .Next(DateTimeOffset.FromUnixTimeMilliseconds(now))?.ToUnixTimeMilliseconds();
-                await Occurrence(pair.Key, s with { DueAt = next }, now, due);
-            }
             int candidateCount = expiredJobs.Count;
-            expiredJobs = await RetainWorkflowMembers(expiredJobs, now);
+            var continuing = new List<string>();
+            expiredJobs = await RetainWorkflowMembers(expiredJobs, now, continuing);
             // Move past protected workflow members so they cannot starve unrelated history cleanup.
             await _metadata.Set("retentionOffset", candidateCount < batchSize ? 0 :
                 (long)retentionOffset + Math.Max(0, candidateCount - expiredJobs.Count));
-            foreach (JobRecord job in expiredJobs)
-            {
-                if (job.ScheduleId is { } scheduleId && (await _schedules.GetEntry(scheduleId)) is { Value: var s } && s.LastExecutionId == job.Id)
-                    await _schedules.Set(scheduleId, s with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
-                if (job.ManualJobId is { } manualId && await _manualJobs.Get(manualId) is { } manual && manual.LastExecutionId == job.Id)
-                    await _manualJobs.Set(manualId, manual with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
-                await _scheduleExecutions.Remove(job.Id).NoSync();
-                await _jobs.Remove(job.Id).NoSync();
-                if (await _logs.Get(job.Id) is { } jobLogs) await PruneLogPages(job.Id, jobLogs, now);
-                foreach (var marker in await _dedupe.FindEntries("value", job.Id)) await _dedupe.Remove(marker.Key).NoSync();
-                if (await _chainMembership.Get(job.Id) is { } chain)
-                {
-                    await _chains.Remove(chain).NoSync();
-                    await _chainMembership.Remove(job.Id).NoSync();
-                }
-            }
+            foreach (JobRecord job in expiredJobs) await RemoveExpiredJob(job, now);
             foreach (var bucket in expiredHistory) await _history.Remove(bucket.Key).NoSync();
-            await PruneLive(now);
-            await PruneServers(now);
-            foreach (var rate in await _rates.Range("value.until", minimum: long.MinValue, maximum: now, take: batchSize)) await _rates.Remove(rate.Key).NoSync();
+            foreach (var rate in await ratesRead) await _rates.Remove(rate.Key).NoSync();
             foreach (var log in expiredLogs)
                 if (await _logs.Get(log.Key) is { } remaining) await PruneLogPages(log.Key, remaining, now);
-            return true;
+            return (Math.Max(candidateCount, Math.Max(expiredLogs.Count, expiredHistory.Count)), continuing);
         });
+        foreach (string workflowId in continuing)
+        {
+            int take = batchSize;
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    bool more = await Mutate(ct, async now =>
+                    {
+                        var workflow = await _workflows.Get(workflowId);
+                        if (workflow is not { Pruning: true }) return false;
+                        string[] ids = workflow.JobIds.Take(take).ToArray();
+                        var jobs = await _jobs.GetMany<JobRecord>(ids);
+                        foreach (var job in jobs)
+                        {
+                            if (job is null) throw new InvalidDataException("Workflow member is missing during retention.");
+                            await RemoveExpiredJob(job, now);
+                            await _dependents.Remove(job.Id);
+                            await _joins.Remove(job.Id);
+                        }
+                        return await RetireMembers(workflow, workflow.JobIds[ids.Length..]);
+                    });
+                    if (!more) break;
+                }
+                catch (TimeoutException) when (take > 1 && !ct.IsCancellationRequested) { take = Math.Max(1, take / 2); }
+            }
+        }
+        return processed;
+    }
+
+    private async Task RemoveExpiredJob(JobRecord job, long now)
+    {
+        if (job.ScheduleId is { } scheduleId && (await _schedules.GetEntry(scheduleId)) is { Value: var s } && s.LastExecutionId == job.Id)
+            await _schedules.Set(scheduleId, s with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
+        if (job.ManualJobId is { } manualId && await _manualJobs.Get(manualId) is { } manual && manual.LastExecutionId == job.Id)
+            await _manualJobs.Set(manualId, manual with { LastExecutionStatus = job.DisplayState(now) }).NoSync();
+        await _scheduleExecutions.Remove(job.Id).NoSync();
+        await _jobs.Remove(job.Id).NoSync();
+        await _payloads.Remove(job.Id);
+        if (await _logs.Get(job.Id) is { } jobLogs) await PruneLogPages(job.Id, jobLogs, now);
+        foreach (var marker in await _dedupe.FindEntries("value", job.Id)) await _dedupe.Remove(marker.Key).NoSync();
+        if (await _chainMembership.Get(job.Id) is { } chain)
+        {
+            // A later retention chunk can run after this idempotency key has been reused.
+            if (await _chains.Get(chain) is { } members && Array.IndexOf(members, job.Id) >= 0)
+                await _chains.Remove(chain).NoSync();
+            await _chainMembership.Remove(job.Id).NoSync();
+        }
     }
 }

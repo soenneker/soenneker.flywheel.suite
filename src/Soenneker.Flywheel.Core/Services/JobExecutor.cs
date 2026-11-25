@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Soenneker.Flywheel.Core.Stores.Librarian;
 using System.Collections.Frozen;
 using Soenneker.Flywheel.Communication.Enums;
 using Soenneker.Flywheel.Core.Stores.Abstract;
@@ -31,6 +33,7 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         if (store is not IWorkerJobStore workerStore)
             throw new NotSupportedException("Flywheel workers require IWorkerJobStore for handler eligibility and interrupted execution recovery.");
         if (_invokers.Count == 0) return false;
+        long claimedAt = Stopwatch.GetTimestamp();
         JobLease? lease;
         using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(claimingToken))
         {
@@ -40,11 +43,11 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         }
         if (lease is null) return false;
         onClaimed?.Invoke();
-        await ExecuteLease(lease, workerStore, executionToken);
+        await ExecuteLease(lease, workerStore, executionToken, claimedAt);
         return true;
     }
 
-    private async Task ExecuteLease(JobLease lease, IWorkerJobStore workerStore, CancellationToken cancellationToken)
+    private async Task ExecuteLease(JobLease lease, IWorkerJobStore workerStore, CancellationToken cancellationToken, long confirmedAt)
     {
         using var timeout = new CancellationTokenSource(lease.Job.Policy.Timeout);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
@@ -121,9 +124,31 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
         {
             if (Volatile.Read(ref cancelled) != 0) outcome = Communication.Enums.JobOutcome.Cancelled;
             using var commit = new CancellationTokenSource(options.LeaseDuration / 3);
-            bool committed = unresponsive ? await workerStore.Quarantine(lease, error!, commit.Token)
-                : interrupted ? await workerStore.Interrupt(lease, error!, commit.Token)
-                : await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.FailureCount + 1, Random.Shared.NextDouble()), commit.Token);
+            bool committed;
+            while (true)
+            {
+                try
+                {
+                    committed = unresponsive ? await workerStore.Quarantine(lease, error!, commit.Token)
+                        : interrupted ? await workerStore.Interrupt(lease, error!, commit.Token)
+                        : await store.Finish(lease, outcome, error, lease.Job.Policy.RetryDelay(lease.Job.FailureCount + 1, Random.Shared.NextDouble()), commit.Token);
+                    break;
+                }
+                catch (Exception ex) when (store.IsTransientFailure(ex) && !commit.IsCancellationRequested)
+                {
+                    // The acknowledgement may have been lost. A second write is fenced by the original generation.
+                    await Task.Delay(TimeSpan.FromMilliseconds(50), commit.Token);
+                    JobRecord? current;
+                    try { current = await store.Get(lease.Job.Id, commit.Token); }
+                    catch (Exception readError) when (store.IsTransientFailure(readError) && !commit.IsCancellationRequested) { continue; }
+                    if (current?.Token != lease.Token || current.Version != lease.Version)
+                    {
+                        logger.LogWarning("Commit acknowledgement for job {JobId} was lost; current state {State}, version {Version}",
+                            lease.Job.Id, current?.State, current?.Version);
+                        return;
+                    }
+                }
+            }
             if (!committed) logger.LogWarning("Job {JobId} outcome was rejected because its lease is no longer owned", lease.Job.Id);
         }
 
@@ -138,10 +163,33 @@ public sealed class JobExecutor(IJobStore store, IServiceScopeFactory scopes, IE
             {
                 while (true)
                 {
-                    await Task.Delay(options.LeaseDuration / 3, renewal.Token);
-                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(renewal.Token);
-                    deadline.CancelAfter(options.LeaseDuration / 3);
-                    LeaseStatus status = await store.Renew(lease, options.LeaseDuration, deadline.Token).WaitAsync(deadline.Token);
+                    var interval = options.LeaseDuration / 3;
+                    TimeSpan delay = interval - Stopwatch.GetElapsedTime(confirmedAt);
+                    if (delay > TimeSpan.Zero) await Task.Delay(delay, renewal.Token);
+                    LeaseStatus status;
+                    Task<LeaseStatus>? pending = null;
+                    long sentAt = 0;
+                    while (true)
+                    {
+                        TimeSpan remaining = options.LeaseDuration - Stopwatch.GetElapsedTime(confirmedAt) - interval / 6;
+                        FlywheelStorageMetrics.LeaseHeadroom.Record(remaining.TotalMilliseconds);
+                        if (remaining <= TimeSpan.Zero) throw new TimeoutException("Lease renewal did not complete within the remaining confirmed lease budget.");
+                        if (pending is null) sentAt = Stopwatch.GetTimestamp();
+                        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(renewal.Token);
+                        deadline.CancelAfter(remaining < interval ? remaining : interval);
+                        try
+                        {
+                            pending ??= store.Renew(lease, options.LeaseDuration, deadline.Token);
+                            status = await pending.WaitAsync(deadline.Token);
+                            confirmedAt = sentAt;
+                            break;
+                        }
+                        catch (Exception ex) when (store.IsTransientFailure(ex) && !renewal.IsCancellationRequested)
+                        {
+                            if (pending?.IsCompleted == true) pending = null;
+                            await Task.Delay(TimeSpan.FromMilliseconds(Math.Clamp(remaining.TotalMilliseconds / 4, 1, 100)), renewal.Token);
+                        }
+                    }
                     if (status == Communication.Enums.LeaseStatus.Lost)
                     {
                         Interlocked.Exchange(ref lost, 1);

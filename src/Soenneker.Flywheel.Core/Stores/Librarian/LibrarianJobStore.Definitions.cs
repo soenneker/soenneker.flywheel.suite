@@ -9,7 +9,7 @@ public abstract partial class LibrarianJobStore
     public Task<ScheduleDefinitionView?> GetRecurringDefinition(string id, CancellationToken cancellationToken = default)
     {
         ValidateId(id);
-        return Mutate<ScheduleDefinitionView?>(cancellationToken, async _ =>
+        return ReadSnapshot<ScheduleDefinitionView?>(cancellationToken, async _ =>
         {
             var s = await _schedules.Get(id);
             return s is null ? null : new(id, new(s.Job.Name, s.Job.Payload, s.Job.Policy, s.Interval,
@@ -85,7 +85,7 @@ public abstract partial class LibrarianJobStore
     public Task<EnqueueRequest?> GetManualDefinition(string id, CancellationToken cancellationToken = default)
     {
         ValidateId(id);
-        return Mutate<EnqueueRequest?>(cancellationToken, async _ =>
+        return ReadSnapshot<EnqueueRequest?>(cancellationToken, async _ =>
         {
             var definition = await _manualJobs.Get(id);
             return definition is null ? null : new(definition.Job.Name, definition.Job.Payload, definition.Job.Policy,

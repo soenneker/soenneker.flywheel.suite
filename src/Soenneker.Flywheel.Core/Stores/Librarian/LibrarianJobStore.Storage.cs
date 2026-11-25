@@ -11,36 +11,50 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 public abstract partial class LibrarianJobStore
 {
     private readonly ILibrarianDatabase _database;
-    private readonly ILibrarianTable[] _tables;
+    private ILibrarianTable[] _tables => Session.Tables;
     private readonly string[] _controlIds;
     private readonly Func<CancellationToken, ValueTask<long>> _clock;
     private readonly bool _ownsDatabase;
     private readonly TimeSpan _operationTimeout;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private readonly SharedJobChangeFeed _changeFeed;
+    private static readonly string[] FeedKeys = Enumerable.Range(0, 16).Select(i => $"feed-{i}").ToArray();
+    private static readonly string[] FeedSnapshotKeys = [.. FeedKeys, "feed"];
     private const string Control = "flywheel.control";
-    private bool _notifyServers;
-    private string? _lifecycleRevision;
 
     protected virtual ValueTask BeforeOperation(CancellationToken token) => ValueTask.CompletedTask;
 
-    private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action, bool publishChanges = true)
+    private Task<T> ReadSnapshot<T>(CancellationToken token, Func<long, Task<T>> action, bool pointReadsOnly = false, [CallerMemberName] string operation = "") =>
+        Mutate(token, action, lane: _readers, pointReadsOnly: pointReadsOnly, operation: operation);
+
+    private async Task<T> Mutate<T>(CancellationToken cancellationToken, Func<long, Task<T>> action, bool publishChanges = true, StoreLane? lane = null, bool pointReadsOnly = false,
+        [CallerMemberName] string operation = "")
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        bool started = false;
+        deadline.CancelAfter(_operationTimeout);
+        lane ??= _normal;
+        if (Interlocked.Increment(ref lane.Pending) > 1024)
+        {
+            Interlocked.Decrement(ref lane.Pending);
+            FlywheelStorageMetrics.Rejections.Add(1, new KeyValuePair<string, object?>("operation", operation));
+            throw new TimeoutException("Flywheel storage admission queue is full.");
+        }
         try
         {
             for (int attempt = 0; ; attempt++)
             {
-                using (await _gate.Lock(started ? deadline.Token : cancellationToken).NoSync())
+                long waiting = System.Diagnostics.Stopwatch.GetTimestamp();
+                using (await lane.Gate.Lock(deadline.Token).NoSync())
                 {
-                    if (!started)
-                    {
-                        deadline.CancelAfter(_operationTimeout);
-                        started = true;
-                    }
-                    (bool committed, T result) = await TryMutate(deadline.Token, action, publishChanges).NoSync();
+                    _session.Value = lane.State;
+                    FlywheelStorageMetrics.GateWait.Record(System.Diagnostics.Stopwatch.GetElapsedTime(waiting).TotalMilliseconds,
+                        new KeyValuePair<string, object?>("operation", operation));
+                    long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                    (bool committed, T result) = await TryMutate(deadline.Token, action, publishChanges, pointReadsOnly).NoSync();
+                    FlywheelStorageMetrics.Duration.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                        new KeyValuePair<string, object?>("operation", operation));
                     if (committed) return result;
-                    FlywheelStorageMetrics.Conflicts.Add(1);
+                    FlywheelStorageMetrics.Conflicts.Add(1, new KeyValuePair<string, object?>("operation", operation));
                 }
                 if (attempt >= 127) throw new TimeoutException("Flywheel transaction repeatedly conflicted with another worker.");
                 // Release the shared table state and gate so renewals can progress; retries share the operation deadline.
@@ -49,12 +63,13 @@ public abstract partial class LibrarianJobStore
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
-            FlywheelStorageMetrics.Timeouts.Add(1);
+            FlywheelStorageMetrics.Timeouts.Add(1, new KeyValuePair<string, object?>("operation", operation));
             throw new TimeoutException("Flywheel storage exceeded its operation deadline.", ex);
         }
+        finally { Interlocked.Decrement(ref lane.Pending); }
     }
 
-    private async Task<(bool Committed, T Result)> TryMutate<T>(CancellationToken ct, Func<long, Task<T>> action, bool publishChanges = true)
+    private async Task<(bool Committed, T Result)> TryMutate<T>(CancellationToken ct, Func<long, Task<T>> action, bool publishChanges, bool pointReadsOnly)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await BeforeOperation(ct).NoSync();
@@ -63,12 +78,11 @@ public abstract partial class LibrarianJobStore
             table.Bind(await _database.GetContainer(table.Name, ct).NoSync(), ct);
         try
         {
-            _notifyServers = false;
-            _livePruned = false;
-            string?[] controlValues = await control.GetItems(_controlIds, ct).NoSync();
-            _lifecycleRevision = controlValues[1];
-            string? format = controlValues[0];
-            if (format is not null && format != "4") throw new InvalidDataException("Unsupported Flywheel Librarian format.");
+            Session.NotifyServers = false;
+            string?[]? controlValues = pointReadsOnly ? null : await control.GetItems(_controlIds, ct).NoSync();
+            Session.LifecycleRevision = controlValues?[1];
+            string? format = controlValues is null ? await control.GetItem("format", ct).NoSync() : controlValues[0];
+            if (format is not (null or "4" or "5")) throw new InvalidDataException("Unsupported Flywheel Librarian format.");
             long now = await _clock(ct).NoSync();
             T result = default!;
             InvalidDataException? inconsistent = null;
@@ -86,17 +100,17 @@ public abstract partial class LibrarianJobStore
             {
                 ILibrarianTable table = _tables[i];
                 table.AddWrites(writes);
-                table.AddConditions(conditions, Control, controlValues[i + 2]);
+                table.AddConditions(conditions, Control, controlValues, i + 2);
             }
             conditions.Add(new LibrarianCondition(Control, "format", format));
-            if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", _lifecycleRevision));
+            if (_idle.Touched) conditions.Add(new LibrarianCondition(Control, "revision", Session.LifecycleRevision));
             if (inconsistent is not null)
             {
                 if (await _database.Execute(new LibrarianBatch([], conditions), ct).NoSync())
                     System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(inconsistent).Throw();
                 return (false, default!);
             }
-            if (format is null) writes.Add(new LibrarianWrite(Control, "format", "4"));
+            if (format != "5" && writeCount != 0) writes.Add(new LibrarianWrite(Control, "format", "5"));
             if (writes.Count != 0)
             {
                 string next = Guid.NewGuid().ToString("N");
@@ -104,14 +118,18 @@ public abstract partial class LibrarianJobStore
                     if (table.WriteCount != 0) writes.Add(new LibrarianWrite(Control, table.Name, next));
                 // Renewals update authoritative ownership without serializing on the shared notification feed.
                 // They cannot make queued work eligible; dashboards read current lease details on demand.
-                JobChange[] changes = publishChanges ? Changes(writes) : [];
+                JobChange[] changes = publishChanges ? Changes() : [];
                 if (changes.Length != 0)
                 {
-                    string? previous = await control.GetItem("feed", ct).NoSync();
+                    string feedKey = FeedKeys[Shard(changes[0].JobId ?? changes[0].Kind)];
+                    string? previous = await control.GetItem(feedKey, ct).NoSync();
                     string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
-                    writes.Add(new LibrarianWrite(Control, "feed", JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
-                    conditions.Add(new LibrarianCondition(Control, "feed", previous));
+                    writes.Add(new LibrarianWrite(Control, feedKey, JsonUtil.Serialize(new StoreRevision(next, previousId, changes), LibraryJsonContext.Get<StoreRevision>())!));
+                    // One unconditional tip lets every idle watcher poll a single key.
+                    writes.Add(new LibrarianWrite(Control, "feed", next));
+                    conditions.Add(new LibrarianCondition(Control, feedKey, previous));
                 }
+                if (publishChanges && _jobs.WriteCount != 0) writes.Add(new LibrarianWrite(Control, "searchRevision", next));
                 if (publishChanges && (_jobs.WriteCount != 0 || _policies.WriteCount != 0 || _rates.WriteCount != 0 || _schedules.WriteCount != 0))
                     writes.Add(new LibrarianWrite(Control, "revision", next));
             }
@@ -122,37 +140,35 @@ public abstract partial class LibrarianJobStore
         }
         finally { foreach (ILibrarianTable table in _tables) table.Reset(); }
     }
-    private JobChange[] Changes(List<LibrarianWrite> writes)
+    private JobChange[] Changes()
     {
-        HashSet<JobChange>? changes = null;
-        foreach (LibrarianWrite write in writes)
-        {
-            if (write.Container is "flywheel.jobs" or "flywheel.logs")
-            {
-                if (write.Value is null) { (changes ??= []).Add(JobChange.Resync); continue; }
-                using var json = System.Text.Json.JsonDocument.Parse(write.Value);
-                (changes ??= []).Add(new JobChange(write.Container == "flywheel.jobs" ? "Job" : "Logs", json.RootElement.GetProperty("key").GetString()!));
-            }
-            else if (write.Container == "flywheel.schedules") (changes ??= []).Add(new JobChange("Schedules"));
-            else if (write.Container == "flywheel.nodes" && _notifyServers) (changes ??= []).Add(new JobChange("Servers"));
-        }
-        return changes?.ToArray() ?? [];
+        bool schedules = _schedules.WriteCount != 0;
+        bool servers = _nodes.WriteCount != 0 && Session.NotifyServers;
+        if (_jobs.WriteCount == 0 && _logs.WriteCount == 0 && !schedules && !servers) return [];
+        var changes = new HashSet<JobChange>();
+        if (_jobs.WriteCount != 0) _jobs.AddJobChanges(changes, "Job");
+        if (_logs.WriteCount != 0) _logs.AddJobChanges(changes, "Logs");
+        if (schedules) changes.Add(new JobChange("Schedules"));
+        if (servers) changes.Add(new JobChange("Servers"));
+        return changes.ToArray();
     }
 
-    public async IAsyncEnumerable<JobChange> Watch([EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public IAsyncEnumerable<JobChange> Watch(CancellationToken cancellationToken = default) => _changeFeed.Watch(cancellationToken);
+
+    private async IAsyncEnumerable<JobChange> PollChanges([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ILibrarianContainer control;
-        string? previous;
+        string?[] previous;
         using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
             deadline.CancelAfter(_operationTimeout);
-            using (await _gate.Lock(deadline.Token).NoSync())
+            using (await _normal.Gate.Lock(deadline.Token).NoSync())
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 await BeforeOperation(deadline.Token).NoSync();
                 control = await _database.GetContainer(Control, deadline.Token).NoSync();
             }
-            previous = await control.GetItem("feed", deadline.Token).NoSync();
+            previous = await control.GetItems(FeedSnapshotKeys, deadline.Token).NoSync();
         }
         yield return JobChange.Resync;
         while (true)
@@ -160,11 +176,22 @@ public abstract partial class LibrarianJobStore
             await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).NoSync();
             if (_disposed) yield break;
             // The feed has no shared table bindings; a stalled subscription must not block lease renewal.
-            string? current = await control.GetItem("feed", cancellationToken).NoSync();
-            if (current == previous) continue;
-            StoreRevision? entry = current is null ? null : JsonUtil.Deserialize<StoreRevision>(current, LibraryJsonContext.Get<StoreRevision>());
-            string? previousId = previous is null ? null : JsonUtil.Deserialize<StoreRevision>(previous, LibraryJsonContext.Get<StoreRevision>())!.Revision;
+            using var read = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            read.CancelAfter(_operationTimeout);
+            if (await control.GetItem("feed", read.Token).NoSync() == previous[^1]) continue;
+            string?[] current = await control.GetItems(FeedSnapshotKeys, read.Token).NoSync();
+            int changed = -1;
+            for (int i = 0; i < FeedKeys.Length; i++)
+            {
+                if (previous[i] == current[i]) continue;
+                if (changed >= 0) { changed = -2; break; }
+                changed = i;
+            }
+            string? before = changed >= 0 ? previous[changed] : null;
+            string? after = changed >= 0 ? current[changed] : null;
             previous = current;
+            StoreRevision? entry = after is null ? null : JsonUtil.Deserialize<StoreRevision>(after, LibraryJsonContext.Get<StoreRevision>());
+            string? previousId = before is null ? null : JsonUtil.Deserialize<StoreRevision>(before, LibraryJsonContext.Get<StoreRevision>())!.Revision;
             if (entry is null || entry.Previous != previousId) yield return JobChange.Resync;
             else foreach (JobChange change in entry.Changes) yield return change;
         }
@@ -172,9 +199,15 @@ public abstract partial class LibrarianJobStore
 
     public virtual async ValueTask DisposeAsync()
     {
-        using (await _gate.Lock().NoSync())
+        await _changeFeed.DisposeAsync();
+        using (await _normal.Gate.Lock().NoSync())
+        using (await _completions.Gate.Lock().NoSync())
+        using (await _renewals.Gate.Lock().NoSync())
+        using (await _heartbeats.Gate.Lock().NoSync())
+        using (await _readers.Gate.Lock().NoSync())
         {
             if (_disposed) return;
+            _searchLimit.Dispose();
             if (_ownsDatabase) await _database.DisposeAsync().NoSync();
             _disposed = true;
         }

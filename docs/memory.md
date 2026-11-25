@@ -20,10 +20,14 @@ The provider supports job submission and deduplication, priority dispatch, renew
 
 Each dependency injection service provider owns one `MemoryJobStore`. Separate service providers and application processes have independent jobs, schedules, limits, and version-submission markers. All data is lost on restart. Use Redis when work must survive restarts or coordinate across application instances.
 
-Retention defaults to one day and can range from five minutes to 365 days. Flywheel maintenance removes completed jobs and expired history. Setting `RetainCompletedJobs` to `false` removes terminal records on the next maintenance pass. Aggregate history remains available for the retention period. Job logs retain at most 1,000 entries per job. Live concurrency samples are recorded by a hosted service independently of dashboard connections.
+Retention defaults to one day and can range from five minutes to 365 days. Flywheel maintenance removes completed jobs and expired history. Setting `RetainCompletedJobs` to `false` removes terminal records on the next maintenance pass. Aggregate history remains available for the retention period. Job logs use a per-job sequence and paged storage. Maintenance deletes expired pages in bounded chunks. Live concurrency samples are recorded by a hosted service independently of dashboard connections.
 
 Version-submission markers remain for the lifetime of the store even after completed-job cleanup. Ordinary idempotency keys expire with their retained jobs. Pending jobs and registered schedules remain until executed or the store is discarded; memory usage therefore depends on submitted work as well as the retention settings.
 
 For direct use, construct `MemoryJobStore` with `FlywheelMemoryOptions`. An optional `TimeProvider` controls storage time, allowing deterministic tests without waiting for leases or schedules to expire.
 
 The shared lifecycle implementation lives in Flywheel.Core and uses Librarian abstractions; each existing provider references its corresponding Librarian package. Memory batches stage changes and publish them atomically. Explicit indexes are rebuilt for changed containers, so mutation costs grow with container size. Notifications use the same committed revision feed as the other providers.
+
+### Storage format compatibility
+
+Format 5 stores immutable execution payloads separately and reads existing format 4 records. The first committed write upgrades the namespace. Stop or drain format 4 workers before sharing that namespace with the upgraded runtime. Keep a pre-upgrade snapshot if rollback to format 4 is required.

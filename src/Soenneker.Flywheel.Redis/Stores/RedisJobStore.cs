@@ -9,6 +9,8 @@ namespace Soenneker.Flywheel.Redis;
 
 public sealed class RedisJobStore : LibrarianJobStore
 {
+    public override bool IsTransientFailure(Exception error) => error is RedisConnectionException || base.IsTransientFailure(error);
+
     protected override bool UseServerQueries => true;
 
     [ActivatorUtilitiesConstructor]

@@ -1,3 +1,4 @@
+using Soenneker.Flywheel.Core.Stores.Librarian;
 using Soenneker.Flywheel.Core.Stores.Abstract;
 using System.Threading.Channels;
 using Soenneker.Flywheel.Communication.Logging.Dtos;
@@ -26,7 +27,10 @@ public sealed partial class JobLogCapture
         public void Write(string level, string category, string message)
         {
             if (!_pending.Writer.TryWrite(new JobLogMessage(level, category[..Math.Min(category.Length, 200)], message[..Math.Min(message.Length, 4096)])))
+            {
                 Interlocked.Increment(ref _dropped);
+                FlywheelStorageMetrics.DroppedLogs.Add(1);
+            }
         }
         private async Task Pump(JobLease lease, IJobLogStore store)
         {
@@ -41,7 +45,29 @@ public sealed partial class JobLogCapture
                     while (batch.Count < 50 && _pending.Reader.TryRead(out JobLogMessage? entry)) batch.Add(entry);
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
                     deadline.CancelAfter(TimeSpan.FromSeconds(2));
-                    if (!await store.AppendLogs(lease, batch, deadline.Token).WaitAsync(deadline.Token)) return;
+                    Task<bool>? flush = null;
+                    try
+                    {
+                        flush = store.AppendLogs(lease, batch, deadline.Token);
+                        if (!await flush.WaitAsync(deadline.Token)) return;
+                    }
+                    catch (Exception) when (!_stop.IsCancellationRequested)
+                    {
+                        // An acknowledgement can be lost after commit. Move on to newly buffered messages.
+                        FlywheelStorageMetrics.FailedFlushes.Add(1);
+                        // A store may ignore cancellation. Keep its batch intact and allow only one outstanding flush.
+                        if (flush is { IsCompleted: false })
+                        {
+                            try
+                            {
+                                if (!await flush.WaitAsync(_stop.Token)) return;
+                                continue;
+                            }
+                            catch (Exception) when (!_stop.IsCancellationRequested) { }
+                        }
+                        FlywheelStorageMetrics.DroppedLogs.Add(batch.Count);
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), _stop.Token);
+                    }
                 }
             }
             catch { /* Best effort diagnostics: storage outages must not change job outcomes. */ }

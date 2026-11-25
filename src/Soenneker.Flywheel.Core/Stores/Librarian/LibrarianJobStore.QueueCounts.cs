@@ -7,7 +7,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 public abstract partial class LibrarianJobStore : IJobQueueCountStore
 {
     public Task<JobQueueCounts> GetQueueCounts(CancellationToken cancellationToken = default) =>
-        Mutate(cancellationToken, async now =>
+        ReadSnapshot(cancellationToken, async now =>
         {
             long pending = await _jobs.Count("state", JobState.Scheduled.Value);
             long queued = await _jobs.CountRange("scheduledOrder", minimum: "", maximum: ScheduledUpperBound(now));

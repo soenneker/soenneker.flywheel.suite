@@ -14,36 +14,36 @@ public abstract partial class LibrarianJobStore
     public Task<JobRecord?> Get(string id, CancellationToken cancellationToken = default)
     {
         ValidateId(id);
-        return Mutate(cancellationToken, async _ => (await _jobs.Get(id)));
+        return ReadSnapshot(cancellationToken, async _ => await _jobs.Get(id) is { } job ? await WithPayload(job) : null, pointReadsOnly: true);
     }
 
-    private static T[] Page<T>(IEnumerable<T> source, IComparer<T> comparer, int offset, int count, out int total)
+    private async ValueTask<JobRecord> WithPayload(JobRecord job) => job.Payload.Length != 0 ? job :
+        job with { Payload = await _payloads.Get(job.Id) ?? throw new InvalidDataException("Missing immutable job payload.") };
+
+    private static async Task<JobRecord[]> WithPayloads(JobRecord[] jobs, LibrarianTable<string, string> payloads)
     {
-        // Keep only the requested prefix while enumerating Librarian records, rather than sorting the entire database.
-        var selected = new PriorityQueue<T, T>(Comparer<T>.Create((a, b) => comparer.Compare(b, a)));
-        total = 0;
-        long limit = (long)offset + count;
-        foreach (T item in source)
-        {
-            total++;
-            if (selected.Count < limit) selected.Enqueue(item, item);
-            else if (comparer.Compare(item, selected.Peek()) < 0) selected.DequeueEnqueue(item, item);
-        }
-        return selected.UnorderedItems.Select(p => p.Element).Order(comparer).Skip(offset).ToArray();
+        string[] ids = jobs.Where(job => job.Payload.Length == 0).Select(job => job.Id).ToArray();
+        if (ids.Length == 0) return jobs;
+        string?[] values = await payloads.GetMany<string>(ids);
+        int index = 0;
+        for (int i = 0; i < jobs.Length; i++)
+            if (jobs[i].Payload.Length == 0)
+                jobs[i] = jobs[i] with { Payload = values[index++] ?? throw new InvalidDataException("Missing immutable job payload.") };
+        return jobs;
     }
 
     public Task<IReadOnlyList<JobRecord>> List(int offset = 0, int count = 50, CancellationToken cancellationToken = default)
     {
         ValidatePage(offset, count);
-        return Mutate<IReadOnlyList<JobRecord>>(cancellationToken, async _ =>
-            (await _jobs.Range("order", minimum: "", skip: offset, take: count)).Select(e => e.Value).ToArray());
+        return ReadSnapshot<IReadOnlyList<JobRecord>>(cancellationToken, async _ =>
+            await WithPayloads((await _jobs.Range("order", minimum: "", skip: offset, take: count)).Select(e => e.Value).ToArray(), _payloads));
     }
 
     public Task<IReadOnlyList<JobRecord>> ListScheduled(int count = 50, CancellationToken cancellationToken = default)
     {
         ValidatePage(0, count);
-        return Mutate<IReadOnlyList<JobRecord>>(cancellationToken, async _ =>
-            (await _jobs.Range("scheduledOrder", minimum: "", take: count)).Select(e => e.Value).ToArray());
+        return ReadSnapshot<IReadOnlyList<JobRecord>>(cancellationToken, async _ =>
+            await WithPayloads((await _jobs.Range("scheduledOrder", minimum: "", take: count)).Select(e => e.Value).ToArray(), _payloads));
     }
 
     private static string ValidateQuery(string? query)
@@ -52,7 +52,7 @@ public abstract partial class LibrarianJobStore
         return query?.Trim() ?? "";
     }
 
-    private static bool Matches(JobRecord job, string query, long now, long? start, long? end) =>
+    private static bool Matches(JobSearchDocument job, string query, long now, long? start, long? end) =>
         !(job.UpdatedAt < start || job.UpdatedAt >= end) && (query.Length == 0 ||
             job.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || job.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             job.DisplayState(now).Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -81,15 +81,24 @@ public abstract partial class LibrarianJobStore
         ValidatePage(offset, count);
         string text = ValidateQuery(query);
         if (offset > 10000) throw new ArgumentOutOfRangeException(nameof(offset), "Search offsets cannot exceed 10000.");
-        return SearchSnapshot(ct, async (table, now, token) =>
+        return SearchSnapshot(ct, async (table, payloads, now, token) =>
         {
             // The persisted order index is newest-updated first, with the job ID breaking ties.
             // Keep each group's requested prefix so running jobs precede other jobs before paging.
+            if (text.Length == 0 && start is null && excludedStates is not { Count: > 0 })
+            {
+                int countAll = await table.CountAll();
+                if (await table.CountRange("boardOrder", minimum: "") == countAll)
+                {
+                    var page = await table.Range<JobRecord>("boardOrder", minimum: "", skip: offset, take: count);
+                    return new JobSearchResult(await WithPayloads(page.Select(entry => entry.Value).ToArray(), payloads), countAll);
+                }
+            }
             int limit = offset + count;
             var runningIds = new List<string>();
             var otherIds = new List<string>();
             int total = 0;
-            await foreach (JobRecord job in SearchCandidates(table, token))
+            await foreach (JobSearchDocument job in SearchCandidates(table, token))
             {
                 if (!Matches(job, text, now, start, end) || excludedStates?.Contains(job.DisplayState(now)) == true) continue;
                 List<string> group = job.State == JobState.Running ? runningIds : otherIds;
@@ -98,7 +107,7 @@ public abstract partial class LibrarianJobStore
             }
             string[] ids = runningIds.Concat(otherIds).Skip(offset).Take(count).ToArray();
             JobRecord?[] records = await table.GetMany<JobRecord>(ids);
-            return new JobSearchResult(records.OfType<JobRecord>().ToArray(), total);
+            return new JobSearchResult(await WithPayloads(records.OfType<JobRecord>().ToArray(), payloads), total);
         });
     }
     public Task<IReadOnlyList<JobHistoryPoint>> GetSearchHistory(string? query, DateTimeOffset? startAt, DateTimeOffset? endAt,
@@ -106,10 +115,10 @@ public abstract partial class LibrarianJobStore
     {
         string text = ValidateQuery(query);
         if (startAt.HasValue != endAt.HasValue || startAt >= endAt) throw new ArgumentOutOfRangeException(nameof(startAt));
-        return SearchSnapshot<IReadOnlyList<JobHistoryPoint>>(cancellationToken, async (table, now, token) =>
+        return SearchSnapshot<IReadOnlyList<JobHistoryPoint>>(cancellationToken, async (table, payloads, now, token) =>
         {
             var buckets = new SortedDictionary<long, JobHistoryPoint>();
-            await foreach (JobRecord job in SearchCandidates(table, token))
+            await foreach (JobSearchDocument job in SearchCandidates(table, token))
             {
                 if (!Matches(job, text, now, startAt?.ToUnixTimeMilliseconds(), endAt?.ToUnixTimeMilliseconds())) continue;
                 long stamp = job.UpdatedAt / 300000 * 300000;

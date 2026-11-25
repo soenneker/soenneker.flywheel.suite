@@ -49,16 +49,24 @@ Conditional batches commit jobs, lease metadata, rate usage, chains, history, an
 
 ## Dispatch index
 
-The `flywheel.dispatch` container contains compact candidate documents without job payloads. Librarian's due-time index selects eligible candidates in Redis; Flywheel compares their priority and version restrictions and fetches the selected job. The `flywheel.running` container supports method concurrency checks without downloading job payloads. Both are updated atomically with jobs. Missing or inconsistent dispatch metadata in a validated snapshot raises an error.
+The `flywheel.dispatch` container indexes compact candidates by queue rank, priority, due time and job ID. Claims probe the ordered head first and check worker eligibility, method limits and partition fairness before granting a lease. Sparse eligibility, partition fairness and older ordering records can require more work. Claims validate the selected job and fetch its payload. Running counts use `flywheel.running`.
 
-Job list pagination uses an indexed composite timestamp/ID key. State, owner, name, and time-range queries use Librarian indexes. Free-text substring matching and aggregate shaping remain application-side over the selected documents. Dispatch still examines due candidates to preserve global priority and version matching, so its cost grows with eligible backlog size. Previous benchmark results describe the old storage engine and must be rerun.
+Unfiltered dashboard pages use a running-first timestamp/ID index when every job has the ordering field. Filtered searches read pages of searchable fields and load full records for the requested results. Exact substring counts still require scanning candidates.
+
+## Slow Redis and observability
+
+`StorageOperationTimeout` includes admission and optimistic retries. A submitted atomic commit can outlive the caller's deadline. Lease renewal retries transient storage errors within the last confirmed lease, using a monotonic clock and reserving time to stop execution. An explicit loss of ownership cancels execution immediately. Each completion write checks the lease token and version.
+
+Built-in workers send heartbeats independently of maintenance. Maintenance checks for due work, then commits recovery, scheduled occurrences and cleanup in bounded chunks. A later timeout preserves earlier commits. Normal operations, lease renewals, fenced completions, snapshot reads and heartbeats have separate admission queues. Each admits up to 1,024 active and waiting calls per store instance. Dashboard search admits four concurrent scans and queues up to 128 more within their original deadlines.
+
+The `Soenneker.Flywheel.Storage` meter exposes gate wait, transaction duration, conflicts, timeouts, rejected admissions, lease headroom, heartbeat age, schedule lag and log flush failures. The sibling Redis provider also exposes `librarian.redis.batch.conflicts` through the `Soenneker.Librarian.Redis` meter.
 
 ## Notifications and retention
 
-A notification document is written in the same transaction as its changes. `Watch` polls that document every 100 milliseconds, works across instances, and emits `Resync` on initial subscription or a detected revision gap. It is an invalidation feed, not a durable event stream; consumers refresh authoritative state after `Resync`. Redis Pub/Sub permission is no longer needed. Unchanged-capacity heartbeats and live samples do not publish dashboard invalidations.
+A transaction publishes its changes to one of 16 feed shards and updates a shared revision. All subscribers to one store share one poll of that revision every 100 milliseconds while idle. A new subscription, a gap or a subscriber buffer overflow produces `Resync`, instructing consumers to refresh from storage. Unchanged-capacity heartbeats and live samples omit dashboard invalidations.
 
 The hosted recorder samples active work every second and sleeps while idle. Empty seconds can be reconstructed only while the lifecycle revision still matches the recorded empty state. Expired samples are excluded from reads and pruned by sampling or maintenance. Retention is implemented through Librarian document deletion rather than Redis key TTLs: stopped workers do not perform cleanup. Completed-job retention defaults to one day; disabling it removes terminal documents on the next maintenance pass. Version markers survive job cleanup.
 
 ## Upgrading existing data
 
-Flywheel uses Librarian document format 4.
+Format 5 stores immutable execution payloads separately and reads existing format 4 records. The first committed write upgrades the namespace. Stop or drain format 4 workers before sharing that namespace with the upgraded runtime. Keep a pre-upgrade snapshot if rollback to format 4 is required.

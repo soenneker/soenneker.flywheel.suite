@@ -5,6 +5,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 internal sealed class LogBuffer
 {
     public List<JobLogEntry> Entries { get; set; } = [];
+    public long Sequence { get; set; }
     public long ExpiresAt { get; set; }
     public int PageCount { get; set; }
     public int DeletedPageCount { get; set; }

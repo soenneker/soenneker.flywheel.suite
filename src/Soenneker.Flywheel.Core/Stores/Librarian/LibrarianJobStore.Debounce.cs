@@ -10,7 +10,7 @@ public abstract partial class LibrarianJobStore
     // transaction stores the lease; it never runs or retries the external callback.
     private static readonly TimeSpan DebounceCommitLimit = TimeSpan.FromMinutes(4);
     private static readonly TimeSpan DebounceCommitLease = TimeSpan.FromMinutes(5);
-    private readonly LibrarianTable<string, DebounceEntry> _debounce = new("debounce");
+    private LibrarianTable<string, DebounceEntry> _debounce => Session.Debounce;
 
     private static void ValidateDebounceKey(string key)
     {

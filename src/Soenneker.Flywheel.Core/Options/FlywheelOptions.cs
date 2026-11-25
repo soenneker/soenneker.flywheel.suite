@@ -22,8 +22,8 @@ public sealed class FlywheelOptions
     /// <summary>Time allowed to observe cancellation before a critical diagnostic is emitted.
     /// Unresponsive handlers retain their lease, worker slot and scope until they exit; they are then dead-lettered without retry.</summary>
     public TimeSpan CancellationGracePeriod { get; set; } = TimeSpan.FromSeconds(5);
-    /// <summary>Maximum time spent in one storage attempt, excluding its final atomic commit. Null uses
-    /// one sixth of LeaseDuration. Must be less than the renewal interval so reads yield to lease renewal.</summary>
+    /// <summary>Storage deadline shared by admission, reads and optimistic retries. An atomic commit already submitted
+    /// can finish after this deadline. Defaults to one sixth of LeaseDuration. Each maintenance chunk gets its own deadline.</summary>
     public TimeSpan? StorageOperationTimeout { get; set; }
     /// <summary>Returns the configured storage attempt deadline or the lease-derived default.</summary>
     public TimeSpan GetStorageOperationTimeout() => StorageOperationTimeout ?? LeaseDuration / 6;

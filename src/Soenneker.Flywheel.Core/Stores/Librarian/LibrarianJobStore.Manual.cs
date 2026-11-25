@@ -7,7 +7,7 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 
 public abstract partial class LibrarianJobStore
 {
-    private readonly LibrarianTable<string, ManualJob> _manualJobs;
+    private LibrarianTable<string, ManualJob> _manualJobs => Session.ManualJobs;
 
     public Task<bool> AddManual(string id, EnqueueRequest request, CancellationToken cancellationToken = default)
     {
@@ -33,7 +33,7 @@ public abstract partial class LibrarianJobStore
     public Task<IReadOnlyList<ManualJobView>> ListManual(int count = 50, CancellationToken cancellationToken = default)
     {
         ValidatePage(0, count);
-        return Mutate<IReadOnlyList<ManualJobView>>(cancellationToken, async now =>
+        return ReadSnapshot<IReadOnlyList<ManualJobView>>(cancellationToken, async now =>
         {
             var definitions = await _manualJobs.Range<ManualJobSummary>("key", minimum: "", take: count);
             string[] ids = definitions.Where(pair => pair.Value.LastExecutionId is not null).Select(pair => pair.Value.LastExecutionId!).ToArray();

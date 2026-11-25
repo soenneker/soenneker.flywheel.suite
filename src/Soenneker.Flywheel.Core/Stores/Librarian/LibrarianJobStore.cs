@@ -16,19 +16,27 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
     IManualJobStore, IJobScheduleStore, IRecurringJobCountStore, IRecurringJobRunner, IJobRunningCountStore, IJobFailedCountStore, IJobSucceededCountStore,
     IJobHistoryStore, IJobLiveActivityStore, IJobSearchHistoryStore, IJobTimeRangeSearchStore, IJobStatusSearchStore, IJobLiveActivitySampler, IAsyncDisposable
 {
-    // Attempts on one store share this gate; Librarian conditions coordinate independent stores.
-    private readonly AsyncLock _gate = new();
-    private readonly LibrarianTable<string, JobRecord> _jobs;
-    private readonly LibrarianTable<string, string> _dedupe;
-    private readonly LibrarianTable<VersionKey, string> _versions;
-    private readonly LibrarianTable<string, MethodPolicy> _policies;
-    private readonly LibrarianTable<string, Rate> _rates;
-    private readonly LibrarianTable<string, DispatchCandidate> _dispatch;
-    private readonly LibrarianTable<string, RunningEntry> _running;
-    private readonly LibrarianTable<string, OutstandingScheduleExecution> _scheduleExecutions;
-    private readonly LibrarianTable<string, long> _partitionTurns;
-    private readonly LibrarianTable<string, string> _chainMembership;
-    private readonly LibrarianTable<string, long> _instanceChecks;
+    // Each lane isolates its optimistic read/write state. Provider conditions fence commits across lanes and hosts.
+    private readonly StoreLane _normal = new();
+    private readonly StoreLane _completions = new();
+    private readonly StoreLane _renewals = new();
+    private readonly StoreLane _readers = new();
+    private readonly StoreLane _heartbeats = new();
+    private readonly AsyncLocal<LibrarianSession?> _session = new();
+    private LibrarianSession Session => _session.Value!;
+    private LibrarianTable<string, string> _payloads => Session.Payloads;
+    private LibrarianTable<string, JoinState> _joins => Session.Joins;
+    private LibrarianTable<string, JobRecord> _jobs => Session.Jobs;
+    private LibrarianTable<string, string> _dedupe => Session.Dedupe;
+    private LibrarianTable<VersionKey, string> _versions => Session.Versions;
+    private LibrarianTable<string, MethodPolicy> _policies => Session.Policies;
+    private LibrarianTable<string, Rate> _rates => Session.Rates;
+    private LibrarianTable<string, DispatchCandidate> _dispatch => Session.Dispatch;
+    private LibrarianTable<string, RunningEntry> _running => Session.Running;
+    private LibrarianTable<string, OutstandingScheduleExecution> _scheduleExecutions => Session.ScheduleExecutions;
+    private LibrarianTable<string, long> _partitionTurns => Session.PartitionTurns;
+    private LibrarianTable<string, string> _chainMembership => Session.ChainMembership;
+    private LibrarianTable<string, long> _instanceChecks => Session.InstanceChecks;
     private static readonly TimeSpan InstanceGracePeriod = TimeSpan.FromMinutes(5);
     private readonly TimeProvider _time;
     private readonly bool _retainCompletedJobs;
@@ -40,6 +48,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         bool retainCompletedJobs = true, TimeProvider? timeProvider = null, bool ownsDatabase = false,
         Func<CancellationToken, ValueTask<long>>? clock = null, TimeSpan? operationTimeout = null)
     {
+        _changeFeed = new SharedJobChangeFeed(PollChanges);
         _database = database ?? throw new ArgumentNullException(nameof(database));
         HistoryRetention = historyRetention ?? TimeSpan.FromDays(1);
         if (HistoryRetention < TimeSpan.FromMinutes(5) || HistoryRetention > TimeSpan.FromDays(365))
@@ -50,31 +59,10 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         _ownsDatabase = ownsDatabase;
         _operationTimeout = operationTimeout ?? TimeSpan.FromSeconds(5);
         if (_operationTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(operationTimeout));
-        _jobs = new LibrarianTable<string, JobRecord>("jobs");
-        _dedupe = new LibrarianTable<string, string>("dedupe");
-        _versions = new LibrarianTable<VersionKey, string>("versions");
-        _policies = new LibrarianTable<string, MethodPolicy>("policies");
-        _rates = new LibrarianTable<string, Rate>("rates");
-        _history = new LibrarianTable<long, JobHistoryPoint>("history");
-        _live = new LibrarianTable<long, JobHistoryPoint>("live");
-        _samples = new LibrarianTable<long, Sample>("samples");
-        _logs = new LibrarianTable<string, LogBuffer>("logs");
-        _nodes = new LibrarianTable<string, Node>("nodes");
-        _manualJobs = new LibrarianTable<string, ManualJob>("manualJobs");
-        _schedules = new LibrarianTable<string, Schedule>("schedules");
-        _chains = new LibrarianTable<string, string[]>("chains");
-        _metadata = new LibrarianTable<string, long>("metadata");
-        _idle = new LibrarianTable<string, IdleSample>("idle");
-        _dispatch = new LibrarianTable<string, DispatchCandidate>("dispatch");
-        _running = new LibrarianTable<string, RunningEntry>("running");
-        _scheduleExecutions = new("scheduleExecutions");
-        _partitionTurns = new LibrarianTable<string, long>("partitionTurns");
-        _chainMembership = new LibrarianTable<string, string>("chainMembership");
-        _instanceChecks = new LibrarianTable<string, long>("instanceChecks");
-        _tables = [_manualJobs, _jobs, _dedupe, _versions, _policies, _rates, _history, _live, _samples, _logs, _logPages, _nodes, _schedules, _chains, _metadata, _idle, _dispatch, _running, _scheduleExecutions, _partitionTurns, _chainMembership, _debounce, _workflows, _dependents, _workflowKeys];
-        _tables = [.. _tables, _instanceChecks];
-        _controlIds = ["format", "revision", .. _tables.Select(table => table.Name)];
+        _controlIds = ["format", "revision", .. _normal.State.Tables.Select(table => table.Name)];
     }
+
+    public virtual bool IsTransientFailure(Exception error) => IJobStore.IsTransientStorageFailure(error);
 
     public TimeSpan HistoryRetention { get; }
 
@@ -116,6 +104,11 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         if (transition && job.State == JobState.Scheduled)
             job = job with { QueueRank = await _metadata.Get("queueBack") };
         job = job with { UpdatedAt = now, CompletedAt = Terminal(job.State) ? transition ? now : job.CompletedAt : 0 };
+        if (job.Payload.Length != 0)
+        {
+            await _payloads.Set(job.Id, job.Payload);
+            job = job with { Payload = "" };
+        }
         await _jobs.Set(job.Id, job).NoSync();
         if (job.TargetNodeId is not null)
         {
@@ -142,7 +135,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             if (Terminal(job.State)) await _scheduleExecutions.Remove(job.Id).NoSync();
             else await _scheduleExecutions.Set(job.Id, new(job.Id, scheduleId)).NoSync();
         }
-        if (transition) await RecordTransition(job.State, now);
+        if (transition) await RecordTransition(job.State, now, job.Id);
     }
 
     private async Task<string> Insert(JobRecord job, long delay, long now)
@@ -286,7 +279,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
                     await _metadata.Set("partitionTurn", turn).NoSync();
                     await _partitionTurns.Set(claimedPartition, turn).NoSync();
                 }
-                return new JobLease(claimed, claimed.Token!, claimed.Version);
+                return new JobLease(await WithPayload(claimed), claimed.Token!, claimed.Version);
             }
             return null;
         });
@@ -318,7 +311,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             await Save(released, now, job);
             await AdvanceChain(released, now);
             return true;
-        });
+        }, lane: _completions);
 
     public Task<LeaseStatus> Renew(JobLease lease, TimeSpan duration, CancellationToken cancellationToken = default)
     {
@@ -327,9 +320,17 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
         {
             JobRecord? job = await Owned(lease, now);
             if (job is null) return LeaseStatus.Lost;
-            await Save(job with { LeaseUntil = now + milliseconds, LastLeaseUntil = now + milliseconds, LastLeaseRenewedAt = now }, now, job);
+            var renewed = job with { LeaseUntil = now + milliseconds, LastLeaseUntil = now + milliseconds, LastLeaseRenewedAt = now };
+            if (renewed.Payload.Length != 0)
+            {
+                // Upgrade an in-flight format 4 lease when it first renews.
+                await _payloads.Set(job.Id, renewed.Payload);
+                renewed = renewed with { Payload = "" };
+            }
+            await _jobs.Set(job.Id, renewed);
+            await _running.Set(job.Id, new RunningEntry(job.Name, renewed.LeaseUntil, PartitionId(job)));
             return job.CancelRequested ? LeaseStatus.CancellationRequested : LeaseStatus.Renewed;
-        }, publishChanges: false);
+        }, publishChanges: false, lane: _renewals, pointReadsOnly: true);
     }
 
     public Task<bool> Finish(JobLease lease, JobOutcome outcome, string? error, TimeSpan retryDelay,
@@ -351,7 +352,7 @@ public abstract partial class LibrarianJobStore : IJobStore, IWorkerJobStore, IJ
             await Save(finished, now, job);
             await AdvanceChain(finished, now);
             return true;
-        });
+        }, lane: _completions);
     }
 
     public Task<bool> Cancel(string id, CancellationToken cancellationToken = default)

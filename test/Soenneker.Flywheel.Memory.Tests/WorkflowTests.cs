@@ -28,6 +28,20 @@ public sealed class WorkflowTests
     }
 
     [Test]
+    public async Task AttachingToCompletedMemberDoesNotAdvanceBatchJoinTwice(CancellationToken ct)
+    {
+        await using var store = new MemoryJobStore(new());
+        var batch = await store.EnqueueBatch([Request(), Request()], Request("join"), cancellationToken: ct);
+        var completed = (await store.Claim("worker", TimeSpan.FromMinutes(1), ct))!;
+        var pending = (await store.Claim("peer", TimeSpan.FromMinutes(1), ct))!;
+        await store.Finish(completed, JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+        await store.ContinueWith(completed.Job.Id, Request("other"), cancellationToken: ct);
+        Check((await store.Get(batch.ContinuationId!, ct))!.State == JobState.Waiting, "Join counted the same parent twice.");
+        await store.Finish(pending, JobOutcome.Succeeded, null, TimeSpan.Zero, ct);
+        Check((await store.Get(batch.ContinuationId!, ct))!.State == JobState.Scheduled, "Join missed the final parent.");
+    }
+
+    [Test]
     public async Task ActiveWorkflowDoesNotStarveOtherHistoryCleanup(CancellationToken ct)
     {
         var clock = new DebounceClock();

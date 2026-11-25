@@ -7,6 +7,5 @@ namespace Soenneker.Flywheel.Core.Stores.Librarian;
 internal sealed record JobSearchDocument(string Id, string Name, JobState State, long CreatedAt,
     long UpdatedAt, long DueAt, string? Owner)
 {
-    public JobRecord ToRecord() => new() { Id = Id, Name = Name, State = State, CreatedAt = CreatedAt,
-        UpdatedAt = UpdatedAt, DueAt = DueAt, Owner = Owner, Payload = "", Policy = new JobPolicy() };
+    internal string DisplayState(long now) => State == JobState.Scheduled && DueAt <= now ? "Queued" : State.Name;
 }

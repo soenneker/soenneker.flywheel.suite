@@ -8,6 +8,12 @@ namespace Soenneker.Flywheel.Core.Stores.Abstract;
 /// the provider. Distributed providers coordinate across processes; memory providers coordinate within one store instance.</summary>
 public interface IJobStore
 {
+    /// <summary>Identifies a transient provider failure for a fenced lease operation.</summary>
+    bool IsTransientFailure(Exception error) => IsTransientStorageFailure(error);
+
+    internal static bool IsTransientStorageFailure(Exception error) => error is TimeoutException or OperationCanceledException or IOException
+        or System.Net.Sockets.SocketException or System.Data.Common.DbException { IsTransient: true };
+
     /// <summary>Atomically persists a job and its eligibility index; a retained idempotency key returns the original id.</summary>
     Task<string> Enqueue(EnqueueRequest request, CancellationToken cancellationToken = default);
 

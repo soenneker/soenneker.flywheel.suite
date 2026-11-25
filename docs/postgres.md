@@ -21,7 +21,7 @@ The store owns its Npgsql connection pool and disposes it with the service provi
 
 ## Coordination and storage
 
-Flywheel reuses the shared Librarian job store and document format 4. Conditional batches atomically update jobs, leases, dispatch indexes, rate usage, chains, history, and notifications. Revision checks coordinate independent workers; conflicting operations retry with bounded jitter. PostgreSQL server time drives scheduling and lease expiration, avoiding differences between worker clocks.
+Flywheel reuses the shared Librarian job store and document format 5. Conditional batches atomically update jobs, leases, dispatch indexes, rate usage, chains, history, and notifications. Revision checks coordinate independent workers; conflicting operations retry with bounded jitter. PostgreSQL server time drives scheduling and lease expiration, avoiding differences between worker clocks.
 
 Documents remain in PostgreSQL; the provider has no local database mirror or periodic save. Librarian indexes select candidates and matching records. Flywheel performs priority selection, free-text matching, and aggregate shaping over those results.
 
@@ -38,3 +38,7 @@ dotnet test --project test/Soenneker.Flywheel.Postgres.Tests -- --treenode-filte
 ```
 
 Integration tests use unique logical namespaces and delete their data afterward. Without the environment variable, database tests are skipped while registration and validation tests still run. CI provisions PostgreSQL and runs all provider tests.
+
+### Storage format compatibility
+
+Format 5 stores immutable execution payloads separately and reads existing format 4 records. The first committed write upgrades the namespace. Stop or drain format 4 workers before sharing that namespace with the upgraded runtime. Keep a pre-upgrade snapshot if rollback to format 4 is required.

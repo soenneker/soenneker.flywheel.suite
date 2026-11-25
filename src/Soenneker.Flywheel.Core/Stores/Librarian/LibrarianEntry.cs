@@ -9,4 +9,5 @@ internal sealed record LibrarianEntry<TKey, TValue>(
     [property: JsonPropertyName("scheduledOrder")] string? ScheduledOrder = null,
     [property: JsonPropertyName("marker")] bool Marker = true,
     [property: JsonPropertyName("completedAt")] long? CompletedAt = null,
-    [property: JsonPropertyName("active")] bool Active = false);
+    [property: JsonPropertyName("active")] bool Active = false,
+    [property: JsonPropertyName("boardOrder")] string? BoardOrder = null);

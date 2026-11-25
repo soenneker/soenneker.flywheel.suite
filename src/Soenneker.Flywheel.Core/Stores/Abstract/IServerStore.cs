@@ -11,6 +11,10 @@ public interface IServerStore
     /// <summary>Returns a live server, its currently leased jobs, and five minutes of heartbeat worker history, or null after its heartbeat expires.</summary>
     Task<WorkerServerView?> GetServer(string node, CancellationToken cancellationToken = default);
 
+    /// <summary>Counts servers with unexpired heartbeats. Built-in providers count the complete index.</summary>
+    async Task<int> GetServerCount(CancellationToken cancellationToken = default) =>
+        (await ListServers(200, cancellationToken)).Count;
+
     /// <summary>Returns the active worker capacity reported by all servers with unexpired heartbeats.</summary>
     Task<int> GetTotalWorkerCount(CancellationToken cancellationToken = default);
 }

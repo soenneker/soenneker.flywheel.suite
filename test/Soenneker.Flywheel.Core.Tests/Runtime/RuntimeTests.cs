@@ -57,6 +57,18 @@ public sealed partial class RuntimeTests
     }
 
     [Test]
+    public async ValueTask TransientRenewalFailureCanRecoverWithinTheConfirmedLease(CancellationToken ct)
+    {
+        var store = new StubStore { Status = LeaseStatus.CancellationRequested, FailFirstRenewal = true, HandlerTimeout = TimeSpan.FromSeconds(5) };
+        await using ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        var executor = new JobExecutor(store, services.GetRequiredService<IServiceScopeFactory>(), [new WaitingInvoker()],
+            new FlywheelOptions { LeaseDuration = TimeSpan.FromSeconds(1) }, NullLogger<JobExecutor>.Instance);
+        await executor.RunOnce(ct);
+        if (store.RenewalAttempts < 2 || store.LeaseLossReason is not null || store.Commits != 1 || store.Outcome != JobOutcome.Cancelled)
+            throw new Exception("A temporary renewal error prevented the subsequent durable cancellation and fenced commit.");
+    }
+
+    [Test]
     public async ValueTask DiagnosticFailureDoesNotPreventLeaseLossCancellation(CancellationToken cancellationToken)
     {
         var store = new StubStore { Status = Communication.Enums.LeaseStatus.Lost, FailDiagnostics = true };
